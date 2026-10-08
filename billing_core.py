@@ -160,7 +160,8 @@ def pdf_document(doc):
                             ('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
     story = [top, Spacer(1, 4*mm)]
     # Notes precede the item table, for flight-test dates and candidate details.
-    if doc.get('notes'): story += [p(doc['notes']), Spacer(1, 5*mm)]
+    if doc.get('notes') and doc['notes'].strip() != 'Thank you for your business.':
+        story += [p(doc['notes']), Spacer(1, 5*mm)]
     taxable = doc['tax_mode'] != 'none'
     headings = ['DESCRIPTION', 'QUANTITY', 'RATE', 'GST', 'TOTAL'] if taxable else ['DESCRIPTION','QUANTITY','RATE','TOTAL']
     table_data = [[p(x, label_style if i==0 else ParagraphStyle('column'+str(i),parent=label_style,alignment=TA_RIGHT)) for i,x in enumerate(headings)]]
