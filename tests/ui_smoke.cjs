@@ -240,6 +240,8 @@ async function main() {
     await page.reload();
     await page.locator('.comparison-chart').waitFor();
     assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    assert.match(await page.locator('.financial-summary').innerText(),/10,000\.00/);
+    assert.match(await page.locator('.financial-summary').innerText(),/181\.82/);
     await page.screenshot({path:output+'/dashboard-dark.png',fullPage:true});
     await page.locator('#chart-metric').selectOption('expenses');
     await page.locator('.comparison-chart[aria-label*="allocated expenses"]').waitFor();

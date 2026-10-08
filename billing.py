@@ -434,6 +434,7 @@ def documents():
     results = [hydrate(r) for r in rows(f'SELECT * FROM billing_documents WHERE {where} ORDER BY issue_date DESC,id DESC')]
     for doc in results:
         doc['business'].pop('logo', None)
+        doc['description'] = ' · '.join(line['description'] for line in doc['lines'])
         doc.pop('lines', None)
     return jsonify(results)
 

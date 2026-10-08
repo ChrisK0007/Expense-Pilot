@@ -81,7 +81,10 @@ class BillingTest(unittest.TestCase):
         doc = self.issue(self.create())
         self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}").status_code, 200)
         self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/pdf").status_code, 200)
-        self.assertEqual(len(self.agent.get('/api/billing/documents').json), 1)
+        listed = self.agent.get('/api/billing/documents').json
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]['description'], 'Testing services')
+        self.assertNotIn('lines', listed[0])
         self.assertEqual(self.pay(doc, '20').status_code, 200)
         doc = self.get(doc['id'])
         self.call(self.owner, f"billing/documents/{doc['id']}/sharing", dict(version=doc['version'], shared=True), 'PUT')
