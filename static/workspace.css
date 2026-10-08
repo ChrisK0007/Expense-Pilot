@@ -29,7 +29,7 @@ button{transition:box-shadow .15s}
 /* Context menus use the top layer so tables never clip them. */
 .action-menu{display:inline-flex;vertical-align:middle}
 .menu-trigger{font-size:24px;line-height:1;padding:7px 10px}
-.action-popup{position:fixed;inset:auto;margin:0;min-width:190px;max-width:calc(100vw - 16px);padding:6px;border:1px solid var(--line,#dfe1eb);border-radius:12px;background:var(--surface);color:var(--ink);box-shadow:0 12px 35px #0003}
+.action-popup{position:fixed;inset:auto;width:max-content;height:max-content;max-height:calc(100vh - 16px);overflow:auto;margin:0;min-width:190px;max-width:calc(100vw - 16px);padding:6px;border:1px solid var(--line,#dfe1eb);border-radius:12px;background:var(--surface);color:var(--ink);box-shadow:0 12px 35px #0003}
 .action-popup:popover-open{display:grid;gap:3px}
 .action-popup button,.action-popup a{display:block;background:transparent;color:inherit;border:0;border-radius:7px;text-align:left;text-decoration:none;padding:11px 14px;font:inherit;white-space:nowrap}
 .action-popup button:hover,.action-popup a:hover,.action-popup button:focus-visible,.action-popup a:focus-visible{background:var(--hover);color:var(--accent)}

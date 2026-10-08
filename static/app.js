@@ -36,8 +36,12 @@ function render(){
 }
 let menuNumber=0;
 function actionMenu(label,contents){const id='actions-'+(++menuNumber);return `<span class="action-menu"><button type="button" class="ghost menu-trigger" popovertarget="${id}" aria-label="${esc(label)}" aria-haspopup="true" aria-expanded="false">⋯</button><span class="action-popup" id="${id}" popover>${contents}</span></span>`;}
-document.addEventListener('toggle',event=>{const menu=event.target;if(!menu.classList?.contains('action-popup'))return;const trigger=document.querySelector(`[popovertarget="${menu.id}"]`);if(!trigger)return;trigger.setAttribute('aria-expanded',String(event.newState==='open'));if(event.newState==='open'){const r=trigger.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(innerWidth-menu.offsetWidth-8,r.right-menu.offsetWidth))+'px';menu.style.top=Math.max(8,Math.min(innerHeight-menu.offsetHeight-8,r.bottom+6))+'px';menu.querySelector('button,a')?.focus();}},true);
-document.addEventListener('click',event=>{const menu=event.target.closest('.action-popup');if(menu&&event.target.closest('button,a')&&menu.matches(':popover-open'))menu.hidePopover();});
+document.addEventListener('toggle',event=>{const menu=event.target;if(!menu.classList?.contains('action-popup'))return;document.querySelector(`[popovertarget="${menu.id}"]`)?.setAttribute('aria-expanded',String(event.newState==='open'));},true);
+document.addEventListener('click',event=>{
+ const trigger=event.target.closest('.menu-trigger');
+ if(trigger){event.preventDefault();const menu=document.getElementById(trigger.getAttribute('popovertarget'));if(menu.matches(':popover-open')){menu.hidePopover();return;}const r=trigger.getBoundingClientRect();menu.showPopover();const width=menu.getBoundingClientRect().width,height=menu.getBoundingClientRect().height;menu.style.left=Math.max(8,Math.min(innerWidth-width-8,r.right-width))+'px';menu.style.top=Math.max(8,Math.min(innerHeight-height-8,r.bottom+6))+'px';menu.querySelector('button,a')?.focus({preventScroll:true});return;}
+ const menu=event.target.closest('.action-popup');if(menu&&event.target.closest('button,a')&&menu.matches(':popover-open'))menu.hidePopover();
+});
 document.addEventListener('keydown',event=>{const menu=event.target.closest('.action-popup');if(!menu||!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;const items=[...menu.querySelectorAll('button:not(:disabled),a')],i=items.indexOf(document.activeElement);event.preventDefault();items[event.key==='Home'?0:event.key==='End'?items.length-1:(i+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();});
 function heading(title,sub,action=''){return `<div class="heading"><div><h1>${title}</h1><p>${sub}</p></div><div class="actions">${action}</div></div>`}
 function fyBounds(v){const y=Number(v);return [y+'-07-01',(y+1)+'-06-30']}
