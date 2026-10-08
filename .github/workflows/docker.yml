@@ -25,6 +25,8 @@ jobs:
           node --check static/billing.js
           node --check static/receipts.js
           node --check static/finance.js
+          node --check static/workspace.js
+          node --check static/theme.js
           python -m py_compile app.py billing.py billing_core.py tax_core.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
           bash -n prepare.sh backup.sh
       - name: Build image
