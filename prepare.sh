@@ -15,6 +15,10 @@ else
   echo 'Keeping existing .env.'
 fi
 mkdir -p data
+if [ ! -f data/expense-pilot-logo.png ]; then
+  cp static/expense-pilot-logo.png data/expense-pilot-logo.png
+  chmod 644 data/expense-pilot-logo.png
+fi
 if [ "$(id -u)" = "0" ]; then
   chown -R 99:100 data
 else
@@ -22,4 +26,4 @@ else
 fi
 chmod 750 data
 chmod 600 .env
-echo 'Ready. Start with docker compose up -d --build, or follow README.html for plain Docker.'
+echo 'Ready. Start with docker compose up -d --build, or follow README.md for Unraid installation.'

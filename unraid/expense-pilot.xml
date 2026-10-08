@@ -6,9 +6,9 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/ChrisK0007/Expense-Pilot/issues</Support>
   <Project>https://github.com/ChrisK0007/Expense-Pilot</Project>
-  <Overview>Employment and business expenses, AI receipt drafts and overnight meals. Run prepare.sh to create the data directory before installing. Private GHCR image: authenticate Docker to ghcr.io first. Enter the generated setup token below. In Advanced View, replace &lt;server-ip&gt; in Icon URL with your Unraid server LAN IP and adjust port 8788 if needed. The icon is available once the app is running.</Overview>
+  <Overview>Employment and business expenses, AI receipt drafts and overnight meals. Run prepare.sh to create the data directory before installing. Private GHCR image: authenticate Docker to ghcr.io first. Enter the generated setup token below. The setup script or first container start saves the logo in appdata. Icon URL uses this local file; if you change the host Appdata path, update Icon URL in Advanced View to match.</Overview>
   <Category>Productivity:</Category>
-  <Icon>http://&lt;server-ip&gt;:8788/static/expense-pilot-logo.png</Icon>
+  <Icon>file:///mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png</Icon>
   <WebUI>http://[IP]:[PORT:8788]/</WebUI>
   <ExtraParams>--user 99:100 --read-only --tmpfs /tmp:rw,size=256m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true --memory 1g</ExtraParams>
   <Config Name="Web port" Target="8788" Default="8788" Mode="tcp" Description="Expense Pilot web interface" Type="Port" Display="always" Required="true" Mask="false">8788</Config>

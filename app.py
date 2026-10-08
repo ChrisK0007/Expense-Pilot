@@ -9,6 +9,15 @@ from werkzeug.exceptions import HTTPException
 
 DATA=Path(os.environ.get('DATA_DIR','./data')); DATA.mkdir(parents=True,exist_ok=True)
 (DATA/'receipts').mkdir(exist_ok=True)
+# Expose the bundled icon through the persistent host appdata mount for Unraid.
+# Keep an existing file so a user's replacement icon survives container updates.
+logo=DATA/'expense-pilot-logo.png'
+if not logo.exists():
+    logo_bytes=(Path(__file__).parent/'static'/'expense-pilot-logo.png').read_bytes()
+    try:
+        with logo.open('xb') as f: f.write(logo_bytes)
+        logo.chmod(0o644)
+    except FileExistsError: pass
 key=DATA/'session.key'
 if not key.exists():
     try:
@@ -105,7 +114,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.4.0')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.4.1')
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')

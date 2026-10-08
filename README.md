@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.4.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.4.1.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.4.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.4.1**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -220,12 +220,27 @@ The forecast applies Australian resident individual brackets and LITO, with a cl
 
 The supplied 1 GB memory cap is a starting guardrail for the application. Ollama is a separate service and needs its own model-dependent resources. A hard cap does not reserve 1 GB; it bounds how much this container may consume. Keep the cap unless observed out-of-memory events or large concurrent PDF workloads justify raising it. Browser CI runs with `--memory 1g --memory-swap 1g` and captures peak memory as evidence, not a production capacity guarantee.
 
-The template includes a placeholder in **Icon URL**. Before applying a new container, open **Advanced View** and replace `<server-ip>` with your Unraid server’s actual LAN IP address. For an existing container, open **Docker → expense-pilot → Edit → Advanced View** and set **Icon URL** to:
+The logo is stored in appdata. `prepare.sh` copies it during setup, and container startup creates it automatically if it is missing. With the standard `/data` mount, the host file is:
 
 ```text
-http://<server-ip>:8788/static/expense-pilot-logo.png
+/mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
 ```
 
-For example, if your server is `192.168.3.25`, enter `http://192.168.3.25:8788/static/expense-pilot-logo.png`. Replace port `8788` too if you choose a different host web port. The `<server-ip>` text is a placeholder and is not filled automatically.
+The Unraid template now points **Icon URL** at that local file:
 
-The logo becomes reachable once Expense Pilot is running. If the icon does not appear on the first install, start the container, then reopen Edit and Apply the completed Icon URL. This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
+```text
+file:///mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
+```
+
+No server IP, web port or internet connection is needed for the icon. Keep all three slashes after `file:`. If you change the host Appdata location, change the Icon URL path to match. The icon remains available while the app is stopped. An existing logo file is preserved, so you may replace it with your own image.
+
+For an existing installation, update and start the container, then open **Docker → expense-pilot → Edit → Advanced View**, paste the local file URL into **Icon URL**, and Apply. Existing saved Unraid templates do not change when the image updates. If installing without `prepare.sh`, let the container start once to create the file before applying the icon setting.
+
+To copy the logo immediately from an older running image without waiting for an update, run this in the Unraid terminal with the standard appdata path:
+
+```bash
+docker cp expense-pilot:/app/static/expense-pilot-logo.png /mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
+chmod 644 /mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
+```
+
+This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
