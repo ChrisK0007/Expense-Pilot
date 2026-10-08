@@ -26,6 +26,9 @@ async function main() {
     await page.getByLabel('Email address').fill('owner@example.test');
     await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');
     await page.getByRole('button',{name:'Sign in',exact:false}).click();
+    assert.equal(await page.evaluate(()=>dateISO('29/02/2024')),'2024-02-29');
+    assert.equal(await page.evaluate(()=>{try{dateISO('31/02/2026');return false;}catch{return true;}}),true);
+    assert.equal(await page.evaluate(()=>{try{dateISO('10/31/2026');return false;}catch{return true;}}),true);
     // Save several receipts without creating expenses, close and return later.
     await page.getByRole('button',{name:'Capture receipts',exact:false}).click();
     const receiptPdf=Buffer.from('JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSIC9GMiAzIDAgUgo+PgplbmRvYmoKMiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYSAvRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZyAvTmFtZSAvRjEgL1N1YnR5cGUgL1R5cGUxIC9UeXBlIC9Gb250Cj4+CmVuZG9iagozIDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQgL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcgL05hbWUgL0YyIC9TdWJ0eXBlIC9UeXBlMSAvVHlwZSAvRm9udAo+PgplbmRvYmoKNCAwIG9iago8PAovQ29udGVudHMgOSAwIFIgL01lZGlhQm94IFsgMCAwIDMwMCA0MjAgXSAvUGFyZW50IDggMCBSIC9SZXNvdXJjZXMgPDwKL0ZvbnQgMSAwIFIgL1Byb2NTZXQgWyAvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJIF0KPj4gL1JvdGF0ZSAwIC9UcmFucyA8PAoKPj4gCiAgL1R5cGUgL1BhZ2UKPj4KZW5kb2JqCjUgMCBvYmoKPDwKL0NvbnRlbnRzIDEwIDAgUiAvTWVkaWFCb3ggWyAwIDAgMzAwIDQyMCBdIC9QYXJlbnQgOCAwIFIgL1Jlc291cmNlcyA8PAovRm9udCAxIDAgUiAvUHJvY1NldCBbIC9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUkgXQo+PiAvUm90YXRlIDAgL1RyYW5zIDw8Cgo+PiAKICAvVHlwZSAvUGFnZQo+PgplbmRvYmoKNiAwIG9iago8PAovUGFnZU1vZGUgL1VzZU5vbmUgL1BhZ2VzIDggMCBSIC9UeXBlIC9DYXRhbG9nCj4+CmVuZG9iago3IDAgb2JqCjw8Ci9BdXRob3IgKGFub255bW91cykgL0NyZWF0aW9uRGF0ZSAoRDoyMDI2MTAwODE3MTYwMSsxMScwMCcpIC9DcmVhdG9yIChhbm9ueW1vdXMpIC9LZXl3b3JkcyAoKSAvTW9kRGF0ZSAoRDoyMDI2MTAwODE3MTYwMSsxMScwMCcpIC9Qcm9kdWNlciAoUmVwb3J0TGFiIFBERiBMaWJyYXJ5IC0gXChvcGVuc291cmNlXCkpIAogIC9TdWJqZWN0ICh1bnNwZWNpZmllZCkgL1RpdGxlICh1bnRpdGxlZCkgL1RyYXBwZWQgL0ZhbHNlCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9Db3VudCAyIC9LaWRzIFsgNCAwIFIgNSAwIFIgXSAvVHlwZSAvUGFnZXMKPj4KZW5kb2JqCjkgMCBvYmoKPDwKL0ZpbHRlciBbIC9BU0NJSTg1RGVjb2RlIC9GbGF0ZURlY29kZSBdIC9MZW5ndGggMzkxCj4+CnN0cmVhbQpHYXJvPjpOKyooJSlxXTYnXnI5REw5clJWUmFOOCNrVSoqQzwkUlRNS3AmMCowV05QbWo0YzU/NT0uVkYuMG5WcnBEYltkQD4hP0BYRlBsQWRnTF5EXGNgMWMhMWI6YFNram5NRTxLVzwmUEU5bEFsPCZyQiZXXGpXPTItYitlU2xuIyVjLGUjVEw1O0ouMWAzSjFPR1xTIzpsdDFMdCVeLyk3JTBhXWtANXBkaCUrOzZEIjZeUy0jTyFOW19TcnRFbSNPSUsvJXIoWCtQNWxbXl5IPiwpL1htOVAwMlRYVylaP0NbZF5DWDwsS1pXLyNbZzxwI0tgKTFdVE0+ZzZiIjNlOU1mcTY+Tkk8PTRoPGNBcnAyTzU5S3UpbjJnI11iU2t1NilrT2cyZzo6QHNoRCMwV0BnTj10U1NIRTw7PUdxcDpFJzleWmI9U1lSMjtRLj87NlUlWDdRdSxcb1MqaS1JKy5GKGRCJUhbKmkiPCpFWy5ZLkpWUS9CLC5EMS1eMHBGV34+ZW5kc3RyZWFtCmVuZG9iagoxMCAwIG9iago8PAovRmlsdGVyIFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCAzOTEKPj4Kc3RyZWFtCkdhcm8+Ok4rKiglKXFdNidecjlETDlyUlZSYU44I2tVKipDPCRSVE1LcCYwKjBXTlBtajRjNT81PS5WRi4wblZycERiW2RAPiE/QFhGUGxBZGdMXkRcY2AxYyExYjpgU2tqbk1FPEtXPCZQRTlsQWw8JnJCJldcalc9Mi1iK2VTbG4jJWMsZSNUTDU7Si4xYDNKMU9HXFMjOmx0MUx0JV4vKTclMGFda0A1cGRoJSs7NkQiNl5TLSNPIU5bX1NydEVtI09JSy8lcihYK1A1bFteXkg+LCkvWG05UDAyVFhXKVo/Q1tkXkNYPCxLWlcvI1tnPHAjS2ApMV1UTT5nNmIiM2U5TWZxNj5OSTw9NGg8Y0FycDJPNTlLdSluMmcjXWJTa3U2KWtPZzJnOjpAc2hEIzBXQGdOPXRTU0hFPDs9R3FwOkUnOV5aYj1TWVIyO1EuPzs2VSVYN1F1LFxvUyppLUkrLkYmTk40JlUrR1hRPSpYbzFZQVdUczFOJExdJmc7ajk5fj5lbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCAxMQowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwNjEgMDAwMDAgbiAKMDAwMDAwMDEwMiAwMDAwMCBuIAowMDAwMDAwMjA5IDAwMDAwIG4gCjAwMDAwMDAzMjEgMDAwMDAgbiAKMDAwMDAwMDUxNCAwMDAwMCBuIAowMDAwMDAwNzA4IDAwMDAwIG4gCjAwMDAwMDA3NzYgMDAwMDAgbiAKMDAwMDAwMTAzNyAwMDAwMCBuIAowMDAwMDAxMTAyIDAwMDAwIG4gCjAwMDAwMDE1ODMgMDAwMDAgbiAKdHJhaWxlcgo8PAovSUQgCls8NDYwODNiZmI5YzBlNDNjYjMyNjM0MzgwNzk4OTYxNWM+PDQ2MDgzYmZiOWMwZTQzY2IzMjYzNDM4MDc5ODk2MTVjPl0KJSBSZXBvcnRMYWIgZ2VuZXJhdGVkIFBERiBkb2N1bWVudCAtLSBkaWdlc3QgKG9wZW5zb3VyY2UpCgovSW5mbyA3IDAgUgovUm9vdCA2IDAgUgovU2l6ZSAxMQo+PgpzdGFydHhyZWYKMjA2NQolJUVPRgo=','base64');
@@ -39,6 +42,29 @@ async function main() {
     assert.equal(await page.getByRole('button',{name:'Review & categorise',exact:false}).count(),2);
     await page.waitForFunction(()=>document.querySelectorAll('.receipt-thumbnail').length===2&&[...document.querySelectorAll('.receipt-thumbnail')].every(i=>i.complete&&i.naturalWidth>0));
     await page.screenshot({path:output+'/receipts-desktop.png',fullPage:true});
+    await page.evaluate(()=>{S.ai_configured=true;});
+    await page.locator('[data-page=receipts]').click();
+    let scanAttempts=0,reprocessedId='';
+    await page.route('**/api/receipts/*/extract',async route=>{
+      reprocessedId=route.request().url().split('/').at(-2);scanAttempts++;
+      await route.fulfill({status:scanAttempts===1?503:200,json:scanAttempts===1?{error:'Test AI temporarily unavailable'}:{ok:true}});
+    });
+    await page.route('**/api/receipts',async route=>{
+      const response=await route.fetch(),records=await response.json();
+      await route.fulfill({response,json:records.map(r=>r.id===reprocessedId&&scanAttempts>1?{...r,scan_status:'scanned',extraction:{merchant:'Reprocessed test merchant',date:'2026-10-08',amount:25.5,currency:'AUD',category:'Equipment'}}:r)});
+    });
+    await page.locator('.reprocess-receipt').first().click();
+    await page.getByText('Reprocessing failed. Test AI temporarily unavailable',{exact:true}).waitFor();
+    await page.locator('.reprocess-receipt:not([disabled])').first().click();
+    await page.getByLabel('Merchant / payee').waitFor();
+    assert.equal(await page.getByLabel('Merchant / payee').inputValue(),'Reprocessed test merchant');
+    assert.equal(await page.getByLabel('Receipt date').inputValue(),'08/10/2026');
+    assert.equal(scanAttempts,2);
+    await page.screenshot({path:output+'/receipt-reprocessed.png',fullPage:true});
+    await page.locator('#close-modal').click();
+    await page.unroute('**/api/receipts/*/extract');await page.unroute('**/api/receipts');
+    await page.reload();await page.locator('[data-page=receipts]').click();
+
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     await page.getByLabel('Receipt currency',{exact:true}).fill('USD');
     await page.getByRole('button',{name:'Confirm currency',exact:true}).click();
@@ -64,7 +90,7 @@ async function main() {
     await page.locator('#close-preview').click();
     assert.equal(await page.getByLabel('Category',{exact:true}).locator('option[value="Meals"]').count(),0);
     await page.getByLabel('Merchant / payee').fill('Example receipt merchant');
-    await page.getByLabel('Receipt date').fill('2026-10-08');
+    await page.getByLabel('Receipt date').fill('08/10/2026');
     await page.getByLabel('Amount paid (AUD)').fill('25.50');
     await page.getByLabel('Workspace',{exact:true}).selectOption('work');
     await page.getByLabel('Category',{exact:true}).selectOption('Equipment');
@@ -85,10 +111,19 @@ async function main() {
     await page.getByLabel('ABN',{exact:true}).fill('12 345 678 901');
     await page.getByLabel('My business is registered for GST').check();
     await page.getByLabel('Business email shown on invoices').fill('billing@example.test');
-    await page.getByLabel('Default payment instructions').fill('Example bank details\nUse the invoice number as your reference.');
     await page.getByRole('button',{name:'Save business details'}).click();
     await page.locator('#workspace-business').getByText('Example Flight Testing',{exact:true}).waitFor();
     assert.ok(await page.locator('.sidebar nav button').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))>=14);
+    await page.getByRole('button',{name:'Invoice & quote defaults',exact:false}).click();
+    await page.getByLabel('Default invoice notes & terms').fill('Please pay within your agreed payment terms.');
+    await page.getByLabel('Default quote notes & terms').fill('Please confirm acceptance by email.');
+    await page.getByLabel('Default payment instructions').fill('Example bank details\nUse the invoice number as your reference.');
+    await page.getByLabel('Quote validity (days)').fill('30');
+    await page.getByLabel('Invoice email message').fill('Hi {client}, please pay {number} by {due_date}.');
+    await page.getByLabel('Quote email message').fill('Hi {client}, please review quote {number}.');
+    await page.screenshot({path:output+'/wording-defaults.png',fullPage:true});
+    await page.getByRole('button',{name:'Save wording defaults'}).click();
+    await page.getByText('Wording defaults saved.',{exact:true}).waitFor();
     await page.locator('[data-page=clients]').click();
     await page.getByRole('button',{name:'Add client',exact:false}).click();
     await page.getByLabel('Client / business name').fill('Example Aviation');
@@ -97,6 +132,8 @@ async function main() {
     await page.getByText('Example Aviation',{exact:true}).waitFor();
     await page.locator('[data-page=invoices]').click();
     await page.getByRole('button',{name:'New invoice',exact:false}).click();
+    assert.equal(await page.getByLabel('Notes & terms',{exact:true}).inputValue(),'Please pay within your agreed payment terms.');
+    assert.match(await page.getByLabel('Issue date').inputValue(),/^\d{2}\/\d{2}\/\d{4}$/);
     await page.getByLabel('Line description').fill('Flight examiner services');
     await page.getByLabel('Quantity',{exact:true}).fill('1');
     await page.getByLabel('Unit price',{exact:true}).fill('950');
@@ -150,8 +187,8 @@ async function main() {
     await page.locator('[data-page=trips]').click();
     await page.getByRole('button',{name:'Add overnight trip',exact:false}).click();
     await page.getByLabel('Location',{exact:true}).fill('Cairns');
-    await page.getByLabel('Departure date').fill('2026-10-07');
-    await page.getByLabel('Return date').fill('2026-10-09');
+    await page.getByLabel('Departure date').fill('07/10/2026');
+    await page.getByLabel('Return date').fill('09/10/2026');
     await page.getByLabel('Work / business purpose').fill('Flight duties');
     await page.getByRole('button',{name:'Save trip',exact:true}).click();
     await page.getByRole('button',{name:'Add meal',exact:false}).click();
@@ -161,12 +198,31 @@ async function main() {
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
     await page.getByText('1 meal records',{exact:true}).waitFor();
     await page.screenshot({path:output+'/trips-meals.png',fullPage:true});
+    assert.match(await page.locator('.trip .dates').innerText(),/07\/10\/2026/);
+    await page.getByLabel('Search trips & meals').fill('overnight dinner');
+    assert.equal(await page.locator('.trip').count(),1);
+    await page.getByLabel('Filter meal type').selectOption('Breakfast');
+    assert.equal(await page.locator('.trip').count(),0);
+    await page.getByLabel('Filter meal type').selectOption('Dinner');
+    await page.getByLabel('From date',{exact:true}).fill('08/10/2026');await page.getByLabel('From date',{exact:true}).blur();
+    assert.equal(await page.locator('#trip-results tbody tr').count(),0);
+    await page.getByRole('button',{name:'Clear filters',exact:true}).click();
+    await page.getByLabel('Search trips & meals').fill('flight duties');
+    assert.equal(await page.locator('#trip-results tbody tr').count(),1);
+    await page.getByLabel('Trip workspace').selectOption('business');
+    assert.equal(await page.locator('.trip').count(),0);
+    await page.getByRole('button',{name:'Clear filters',exact:true}).click();
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:output+'/trips-filters-mobile.png',fullPage:true});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Trip filters overflow');
+    await page.setViewportSize({width:1440,height:1050});
+
     await page.locator('[data-page=expenses]').click();
     assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),0);
     await page.locator('[data-page=employment]').click();
     await page.getByRole('button',{name:'Add employment income',exact:false}).click();
     await page.getByLabel('Employer',{exact:true}).fill('Example Employer');
-    await page.getByLabel('Payment / statement date').fill('2026-10-08');
+    await page.getByLabel('Payment / statement date').fill('08/10/2026');
     await page.getByLabel('Gross taxable pay (AUD)').fill('10000');
     await page.getByLabel('PAYG withheld (AUD)').fill('2500');
     await page.getByRole('button',{name:'Save income',exact:true}).click();

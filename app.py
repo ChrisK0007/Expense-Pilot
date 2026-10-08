@@ -114,7 +114,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.5.1')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.5.2')
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -479,7 +479,7 @@ def export():
         return "'"+s if s.lstrip().startswith(('=','+','-','@','\t','\r')) else s
     for e in data:
         alloc=Decimal('0') if e['reimbursed'] or e['scope']=='personal' else (Decimal(e['amount_cents'])*e['percent']/10000).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP)
-        writer.writerow([e['id'],e['date'],safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes'])])
+        writer.writerow([e['id'],date.fromisoformat(e['date']).strftime('%d/%m/%Y'),safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes'])])
     return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-expenses.csv')
 @app.get('/api/audit')
 @auth('owner')

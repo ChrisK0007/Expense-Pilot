@@ -13,3 +13,14 @@ button{transition:box-shadow .15s}
 
 .workspace>div{min-width:0}.workspace small{display:block;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
 @media(max-width:760px){.comparison-chart text{font-size:18px}.chart-controls select{max-width:155px}}
+
+/* Consistent Australian date entry and trip filtering. */
+.trip-filters{display:flex;flex-wrap:wrap;align-items:end;gap:14px}
+.trip-filters .field{flex:1 1 160px;min-width:0;margin:0}
+.trip-filters .field:first-child{flex-basis:250px}
+.trip-filters input,.trip-filters select{width:100%;min-width:0}
+#trip-filter-error{flex-basis:100%;margin:0}
+.allowance-details{padding:12px 0}
+.allowance-details summary{cursor:pointer;font-weight:600}
+.reprocess-receipt{margin-top:6px}
+#trip-results>.panel{margin-top:20px}

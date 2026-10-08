@@ -66,6 +66,49 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.json)
         return data
 
+    def test_separate_wording_defaults_and_existing_document_retention(self):
+        legacy = self.create()
+        self.assertEqual(legacy['notes'], 'Thank you for your business.')
+        defaults = self.owner.get('/api/billing/settings').json['defaults']
+        self.assertEqual(defaults['invoice_payment_details'], 'Example bank details')
+        values = dict(invoice_notes='Invoice terms', quote_notes='Quote acceptance terms',
+                      invoice_payment_details='New bank details', quote_valid_days=30,
+                      invoice_email_subject='Invoice {number}', invoice_email_body='Pay by {due_date}',
+                      quote_email_subject='Quote {number}', quote_email_body='Accept by {due_date}')
+        self.assertEqual(self.call(self.owner, 'billing/document-defaults', values, 'PUT').status_code, 200)
+        self.assertEqual(self.get(legacy['id'])['notes'], legacy['notes'])
+        invoice, quote = self.create(), self.create(kind='quote')
+        self.assertEqual(invoice['notes'], 'Invoice terms')
+        self.assertEqual(invoice['payment_details'], 'New bank details')
+        self.assertEqual(quote['notes'], 'Quote acceptance terms')
+        self.assertEqual(quote['payment_details'], '')
+        self.assertEqual(self.create(notes='')['notes'], '')
+        for doc, prefix in ((invoice, 'Pay'), (quote, 'Accept')):
+            draft = self.owner.get(f"/api/billing/documents/{doc['id']}/email-draft").json
+            self.assertEqual(draft['body'], prefix + ' by ' + date.fromisoformat(self.today).strftime('%d/%m/%Y'))
+        for client in (self.agent, self.staff):
+            self.assertEqual(self.call(client, 'billing/document-defaults', values, 'PUT').status_code, 403)
+        for bad in ({'quote_valid_days': -1}, {'invoice_notes': 'x'*5001}, {'quote_email_subject': 'a\nb'}, {'quote_email_body': ''}):
+            self.assertEqual(self.call(self.owner, 'billing/document-defaults', bad, 'PUT').status_code, 400)
+        self.assertEqual(self.owner.get('/api/billing/settings').json['defaults'], values)
+        self.assertNotIn('password_encrypted', str(self.agent.get('/api/billing/settings').json))
+        from pypdf import PdfReader
+        pdf = self.owner.get(f"/api/billing/documents/{quote['id']}/pdf")
+        text = ''.join(page.extract_text() for page in PdfReader(io.BytesIO(pdf.data)).pages)
+        self.assertIn(date.fromisoformat(self.today).strftime('%d/%m/%Y'), text)
+        self.assertIn('Quote acceptance terms', text)
+        self.assertNotIn('Thank you for your business.', text)
+
+    def test_smtp_edit_preserves_legacy_wording(self):
+        config = self.email_config()
+        config.update(subject='Existing custom subject', body='Existing custom message')
+        self.assertEqual(self.call(self.owner, 'billing/email-settings', config, 'PUT').status_code, 200)
+        config.pop('subject'); config.pop('body')
+        self.assertEqual(self.call(self.owner, 'billing/email-settings', config, 'PUT').status_code, 200)
+        defaults = self.owner.get('/api/billing/settings').json['defaults']
+        self.assertEqual(defaults['invoice_email_subject'], 'Existing custom subject')
+        self.assertEqual(defaults['quote_email_body'], 'Existing custom message')
+
     def test_billing_permissions_and_csrf(self):
         did = self.create()['id']
         for client in (self.staff, self.staff2):
@@ -231,6 +274,7 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.owner.get('/api/billing/report?start='+yesterday+'&end='+yesterday).json['received_cents'], 0)
         csv_data = list(csv.reader(io.StringIO(self.owner.get('/api/billing/report?format=csv').data.decode('utf-8-sig'))))
         self.assertEqual(len(csv_data), 7)
+        self.assertEqual(csv_data[1][0], date.fromisoformat(self.today).strftime('%d/%m/%Y'))
 
     def test_email_secret_encryption_retention_and_clear(self):
         config = self.email_config()

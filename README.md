@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.5.1.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.5.2.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.5.1**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.5.2**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -271,3 +271,11 @@ Update the Docker image and refresh the browser. Existing appdata and financial 
 Small interface text is two pixels larger, with more room in the sidebar. The business/trading name from Settings → Business profile & branding appears beneath your name, and refreshes immediately when saved.
 
 Open an issued invoice or quote and choose **Edit wording** to change line descriptions, reference, notes/terms and invoice payment instructions. Owners and tax agents with Read & write access can make these changes. Amounts, GST, dates and payment records are retained; void and converted documents cannot be amended. Earlier wording is retained in appdata history. A newly downloaded or resent PDF includes the updated wording; PDFs already emailed are unchanged. Drafts retain their full **Edit draft** editor.
+
+## Receipt retries, Australian dates and wording defaults (v0.5.2)
+
+- Use **Reprocess with AI** on an unfiled receipt card or inside Review receipt to run your configured Ollama model again. Review the new suggestions before saving. A currency you explicitly confirmed is retained; rescanning does not change a filed expense. Failed scans can be retried.
+- Dates are displayed and entered as **DD/MM/YYYY** throughout the app, PDFs, email date tags and CSV exports. APIs and database dates remain ISO (YYYY-MM-DD).
+- **Settings → Invoice & quote defaults** stores separate invoice and quote notes/terms and email subject/message templates, payment instructions and quote validity. Existing shared text is used until you configure these defaults. New drafts inherit the defaults; existing documents and recurring schedules keep their saved wording. Invoice due dates continue to use each client's payment terms.
+- **Trips & meals** supports search by location, purpose, merchant and notes, plus workspace, meal type and date filters. Date ranges match overlapping trips; the matching-meals table shows only meals within the range. Trip cards retain the full trip totals.
+- **Employer allowance (optional)** records an allowance paid by an employer for reference. Leave it blank when none was paid. It does not reduce meal costs or feed into the tax forecast.

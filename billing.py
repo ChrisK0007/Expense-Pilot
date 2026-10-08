@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, g, jsonify, request, send_file
-from billing_core import calculate_lines, decimal_value, cents, advance_date, display_status, pdf_document, aud
+from billing_core import calculate_lines, decimal_value, cents, advance_date, display_status, pdf_document, aud, date_au
 
 bp = Blueprint('billing', __name__, url_prefix='/api/billing')
 DEFAULT_BUSINESS = dict(name='', abn='', address='', email='', phone='', gst_registered=False,
@@ -129,6 +129,37 @@ def business():
     return settings('business', DEFAULT_BUSINESS)
 
 
+def document_defaults():
+    seller, mail = business(), mail_settings()
+    defaults = dict(invoice_notes=seller['notes'], quote_notes=seller['notes'],
+                    invoice_payment_details=seller['payment_details'], quote_valid_days=seller['terms'])
+    for kind in ('invoice', 'quote'):
+        defaults[kind + '_email_subject'] = mail['subject']
+        defaults[kind + '_email_body'] = mail['body']
+    return settings('document_defaults', defaults)
+
+
+@bp.put('/document-defaults')
+@owner
+def configure_document_defaults():
+    payload, values = body(), document_defaults()
+    if set(payload) - set(values):
+        fail('Unknown document default.')
+    for key, value in payload.items():
+        if key == 'quote_valid_days':
+            values[key] = integer(value, 'quote validity', 0, 365)
+        elif key.endswith('_subject'):
+            values[key] = header(value)
+        else:
+            values[key] = txt(value, 10000 if key.endswith('_body') else 2000 if key == 'invoice_payment_details' else 5000)
+        if key.endswith(('_subject', '_body')) and not values[key]:
+            fail('Email subject and message defaults are required.')
+    save_settings('document_defaults', values)
+    audit('document defaults updated', 'billing')
+    db().commit()
+    return jsonify(values)
+
+
 def mail_settings():
     return settings('email', DEFAULT_MAIL)
 
@@ -178,9 +209,9 @@ def validate_document(payload):
         raise ValueError('Due date / valid until must be on or after the issue date.')
     snapshot = {k: client[k] for k in ('id', 'name', 'contact', 'email', 'address', 'abn', 'terms')}
     return dict(kind=kind, client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
-                issue_date=issued, due_date=due, notes=txt(payload.get('notes', seller['notes']), 5000),
+                issue_date=issued, due_date=due, notes=txt(payload.get('notes', document_defaults()[kind + '_notes']), 5000),
                 reference=txt(payload.get('reference'), 100),
-                payment_details=txt(payload.get('payment_details', seller['payment_details']), 2000), **amounts)
+                payment_details=txt(payload.get('payment_details', document_defaults()['invoice_payment_details'] if kind == 'invoice' else ''), 2000), **amounts)
 
 
 def insert_document(values, source_quote=None, schedule_id=None, occurrence=None):
@@ -216,7 +247,7 @@ def ready_to_issue(doc):
 def configure():
     if g.user['role']!='owner':
         if request.method!='GET': fail('Only the owner can change business settings.',403)
-        return jsonify(business=business())
+        return jsonify(business=business(), defaults=document_defaults())
     if request.method == 'PUT':
         payload = body()
         old = business()
@@ -239,7 +270,7 @@ def configure():
         save_settings('business', seller)
         audit('business settings updated', 'billing')
         db().commit()
-    return jsonify(business=business(), email={k: v for k, v in mail_settings().items() if k != 'password_encrypted'},
+    return jsonify(business=business(), defaults=document_defaults(), email={k: v for k, v in mail_settings().items() if k != 'password_encrypted'},
                    password_saved=bool(mail_settings()['password_encrypted']))
 
 
@@ -281,8 +312,8 @@ def configure_email():
     config = dict(host=header(payload.get('host'), 253), port=integer(payload.get('port', 587), 'SMTP port', 1, 65535),
                   security=payload.get('security', 'starttls'), username=header(payload.get('username'), 254),
                   from_email=email(payload.get('from_email')), from_name=header(payload.get('from_name')),
-                  reply_to=email(payload.get('reply_to')), subject=header(payload.get('subject', DEFAULT_MAIL['subject'])),
-                  body=txt(payload.get('body', DEFAULT_MAIL['body']), 10000), password_encrypted=old['password_encrypted'])
+                  reply_to=email(payload.get('reply_to')), subject=header(payload.get('subject', old['subject'])),
+                  body=txt(payload.get('body', old['body']), 10000), password_encrypted=old['password_encrypted'])
     if config['host'] and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.:-]*', config['host']):
         fail('Enter the SMTP hostname without http:// or a path.')
     if config['security'] not in ('starttls', 'ssl'):
@@ -633,10 +664,10 @@ def template_text(template, values):
 def email_draft(did):
     doc, config = document(did), mail_settings()
     values = dict(kind=doc['kind'], number=doc['number'], business=doc['business']['name'], client=doc['client']['contact'] or doc['client']['name'],
-                  total=aud(doc['total_cents']), balance=aud(doc['balance_cents']), due_date=doc['due_date'])
+                  total=aud(doc['total_cents']), balance=aud(doc['balance_cents']), due_date=date_au(doc['due_date']))
     reminder = request.args.get('reminder') == '1'
-    subject = 'Payment reminder: {number}' if reminder else config['subject']
-    message = 'Hi {client},\n\nA reminder that invoice {number}, due {due_date}, has an outstanding balance of {balance}. A copy is attached.\n\nThank you,\n{business}' if reminder else config['body']
+    subject = 'Payment reminder: {number}' if reminder else document_defaults()[doc['kind'] + '_email_subject']
+    message = 'Hi {client},\n\nA reminder that invoice {number}, due {due_date}, has an outstanding balance of {balance}. A copy is attached.\n\nThank you,\n{business}' if reminder else document_defaults()[doc['kind'] + '_email_body']
     return jsonify(recipient=doc['client']['email'], subject=template_text(subject, values), body=template_text(message, values),
                    from_email=config['from_email'], ready=bool(config['host'] and config['from_email']), request_key=secrets.token_hex(24), version=doc['version'])
 
@@ -883,7 +914,7 @@ def report():
         def safe(value):
             return "'" + value if value.lstrip().startswith(('=', '+', '-', '@', '\t', '\r')) else value
         for p in records:
-            writer.writerow([p['date'], p['invoice'], safe(p['client']), f"{p['amount_cents']/100:.2f}", f"{p['gst_cents']/100:.2f}", f"{p['net_cents']/100:.2f}", safe(p['reference'])])
+            writer.writerow([date_au(p['date']), p['invoice'], safe(p['client']), f"{p['amount_cents']/100:.2f}", f"{p['gst_cents']/100:.2f}", f"{p['net_cents']/100:.2f}", safe(p['reference'])])
         return send_file(io.BytesIO(output.getvalue().encode('utf-8-sig')), mimetype='text/csv', as_attachment=True, download_name='expense-pilot-income.csv')
     return jsonify(start=start, end=end, records=records, received_cents=sum(p['amount_cents'] for p in records),
                    gst_cents=sum(p['gst_cents'] for p in records), net_cents=sum(p['net_cents'] for p in records))
