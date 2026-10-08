@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.4.1.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.4.2.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.4.1**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.4.2**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -244,3 +244,11 @@ chmod 644 /mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
 ```
 
 This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
+
+## Receipt thumbnails and currency review (v0.4.2)
+
+PDF inbox cards show the first page, with lazy loading and a small cached thumbnail. Open the full viewer for other pages. Previews remain subject to the receipt permissions.
+
+Receipt AI now asks for visible currency evidence. Printed currency markers take priority; Australian ABN or GST plus an Australian website can suggest AUD. A dollar sign alone does not establish USD, and ambiguous or conflicting currencies are left for review. Vision-model evidence is still an AI suggestion.
+
+For previously scanned receipts, open **Review & categorise → This receipt is AUD**, or enter a three-letter code in **Receipt currency → Confirm currency**. Corrections persist without re-uploading and survive a new AI scan. Correcting a currency label does not perform an exchange-rate conversion or alter an existing expense. For foreign receipts, enter the actual AUD amount paid. Use **Read with AI** to re-scan an older receipt using the new rules.
