@@ -105,7 +105,7 @@ class TrackingTest(unittest.TestCase):
 
     def test_foreign_meal_amount_needs_manual_aud_and_dismissal_survives_scan(self):
         self.prefs();rid=self.upload().json['id']
-        self.scan(rid,dict(merchant='Foreign cafe',date='2026-10-08',amount=100,currency_evidence='USD',category='Meals',merchant_city='New York',meal='Dinner'))
+        self.scan(rid,dict(merchant='Foreign cafe',date='2026-10-08',amount=100,currency_evidence='USD',category='Meals',merchant_city='Cairns QLD',meal='Dinner'))
         group=self.owner.get('/api/receipt-trip-proposals').json[0]
         self.assertIsNone(group['receipts'][0]['aud_amount'])
         self.assertEqual(self.call(self.owner,'receipt-trip-proposals/accept',self.accept_data(group)).status_code,400)

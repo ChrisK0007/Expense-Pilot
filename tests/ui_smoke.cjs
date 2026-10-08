@@ -1,5 +1,5 @@
 // Real browser / API smoke test against an empty, disposable test container.
-// This script never clicks Send email or sends a test email.
+// The disposable browser_server.py captures invitations; no network email is sent.
 const { chromium } = require('playwright');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
@@ -248,12 +248,22 @@ async function main() {
     await page.getByLabel('Name',{exact:true}).fill('Test Agent');
     await page.getByLabel('Email (login name)').fill('agent@example.test');
     await page.getByLabel('Access role').selectOption('tax_agent');
-    await page.getByLabel('Initial password').fill('Agent-test-password-123');
-    await page.getByRole('button',{name:'Create account'}).click();
+    await page.getByRole('button',{name:'Create account & send invitation'}).click();
     await page.getByLabel('Permission for Test Agent').waitFor();
     const agentContext=await browser.newContext();const agent=await agentContext.newPage();
     agent.on('pageerror',e=>errors.push(e.message));
     await agent.goto(url);
+    await agent.getByLabel('Email address').fill('agent@example.test');
+    const invited=await (await page.request.get(url+'/test/invitations')).json();
+    const temporary=invited['agent@example.test'].split('Temporary password: ')[1].split('\n')[0];
+    await agent.getByLabel('Password',{exact:true}).fill(temporary);
+    await agent.getByRole('button',{name:'Sign in',exact:false}).click();
+    await agent.getByRole('heading',{name:'Choose your own password'}).waitFor();
+    assert.equal((await agent.request.get(url+'/api/expenses')).status(),403);
+    await agent.getByLabel('Temporary password').fill(temporary);
+    await agent.getByLabel('New password',{exact:true}).fill('Agent-test-password-123');
+    await agent.getByLabel('Confirm new password').fill('Agent-test-password-123');
+    await agent.getByRole('button',{name:'Save new password'}).click();
     await agent.getByLabel('Email address').fill('agent@example.test');
     await agent.getByLabel('Password',{exact:true}).fill('Agent-test-password-123');
     await agent.getByRole('button',{name:'Sign in',exact:false}).click();

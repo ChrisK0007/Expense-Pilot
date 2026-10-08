@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import re
+import location_core
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import wraps
@@ -46,7 +47,7 @@ def categories_api():
 def profile(uid):
     row = one('SELECT data FROM receipt_preferences WHERE user_id=?', (uid,))
     person = one('SELECT role FROM users WHERE id=?', (uid,))
-    defaults=dict(home_base='', home_aliases='', scope='business' if person and person['role']=='employee' else 'work')
+    defaults=dict(home_base='', home_aliases='', home_place_id='', local_radius_km=50, scope='business' if person and person['role']=='employee' else 'work')
     return {**defaults, **(json.loads(row['data']) if row else {})}
 
 
@@ -58,10 +59,30 @@ def preferences_api():
         if g.user['role'] == 'tax_agent': fail('The account holder sets their home base.', 403)
         d = body(); scope = d.get('scope', 'work')
         if scope not in ('work', 'business') or g.user['role']=='employee' and scope!='business': fail('Choose a valid default workspace.')
-        values = dict(home_base=textval(d.get('home_base'), 100), home_aliases=textval(d.get('home_aliases'), 1000), scope=scope)
+        try: radius=float(d.get('local_radius_km',50))
+        except (ValueError,TypeError): fail('Choose a local radius between 1 and 200 km.')
+        if not 1<=radius<=200: fail('Choose a local radius between 1 and 200 km.')
+        place=location_core.get_place(d.get('home_place_id'))
+        if d.get('home_place_id') and not place: fail('Select a home base from the location suggestions.')
+        values = dict(home_base=place['name'] if place else textval(d.get('home_base'), 100), home_aliases=textval(d.get('home_aliases'), 1000), home_place_id=place['id'] if place else '', local_radius_km=radius, scope=scope)
         db().execute('INSERT INTO receipt_preferences(user_id,data) VALUES (?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data', (uid, json.dumps(values)))
         audit('receipt preferences updated', uid); db().commit()
-    return jsonify(profile(uid))
+    prefs=profile(uid)
+    return jsonify(**prefs,coverage=location_core.coverage(prefs))
+
+@bp.get('/locations')
+@access
+def locations_api():
+    return jsonify(location_core.search(textval(request.args.get('q'),100)))
+
+@bp.post('/locations/coverage')
+@access
+def location_coverage_api():
+    d=body()
+    try: radius=float(d.get('local_radius_km',50))
+    except (ValueError,TypeError): fail('Choose a local radius between 1 and 200 km.')
+    if not 1<=radius<=200: fail('Choose a local radius between 1 and 200 km.')
+    return jsonify(location_core.coverage({'home_place_id':textval(d.get('home_place_id'),100),'home_base':textval(d.get('home_base'),100),'local_radius_km':radius}))
 
 def draft_for(rid):
     row = one('SELECT data FROM receipt_drafts WHERE receipt_id=?', (rid,))
@@ -123,12 +144,14 @@ def proposals():
     groups=[]
     for r in receipts:
         d=receipt_values(r['id']); prefs=profile(r['user_id']); city=d.get('merchant_city','')
-        homes={norm(x) for x in [prefs['home_base'],*prefs['home_aliases'].split(',')] if norm(x)}
-        if not prefs['home_base'] or not city or norm(city) in homes or not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
+        if not prefs['home_base'] or not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
+        assessment=location_core.local_assessment(prefs,city,d.get('merchant_address',''),d.get('currency','AUD'))
+        if assessment['status']!='away': continue
+        city=city or assessment.get('location','')
         scope=d.get('scope') or prefs['scope']; when=d['date']
         existing=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=? ORDER BY start DESC',(r['user_id'],scope,when,when)) if norm(t['location'])==norm(city)),None)
         entry=dict(id=r['id'],filename=r['filename'],values=d,aud_amount=draft_for(r['id']).get('amount',d.get('amount') if d.get('currency')=='AUD' else None))
-        groups.append(dict(user_id=r['user_id'],owner=r['owner'],location=city,scope=scope,first=when,last=when,existing_trip_id=existing['id'] if existing else None,receipts=[entry],home_base=prefs['home_base'],existing=existing))
+        groups.append(dict(user_id=r['user_id'],owner=r['owner'],location=city,scope=scope,first=when,last=when,existing_trip_id=existing['id'] if existing else None,receipts=[entry],home_base=prefs['home_base'],location_reason=assessment['reason'],existing=existing))
     # Chronological grouping is independent of upload order and never crosses people/workspaces.
     groups.sort(key=lambda x:(x['user_id'],x['scope'],norm(x['location']),x['existing_trip_id'] or 0,x['first']))
     merged=[]

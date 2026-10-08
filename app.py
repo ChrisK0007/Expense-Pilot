@@ -69,10 +69,14 @@ def headers(r):
 def guard():
     g.user=None
     if session.get('uid'):
-        g.user=one('SELECT id,name,email,role,active,version,permission FROM users WHERE id=?',(session['uid'],))
+        g.user=one('SELECT id,name,email,role,active,version,permission,must_change_password,invite_expires,totp_enabled FROM users WHERE id=?',(session['uid'],))
         if not g.user or not g.user['active'] or g.user['version']!=session.get('version'): session.clear(); g.user=None
+    if g.user and g.user['must_change_password'] and g.user['invite_expires']<=datetime.now().timestamp():
+        session.clear(); g.user=None
+    if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
+        fail('Change your temporary password before accessing the workspace.',403)
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -92,8 +96,9 @@ def money(v):
         return int((d*100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
     except (ValueError,InvalidOperation): fail('Enter a valid amount.')
 def day(v):
-    try: return date.fromisoformat(str(v)).isoformat()
-    except ValueError: fail('Use a valid date (YYYY-MM-DD).')
+    from date_core import normalise_date
+    try: return normalise_date(v)
+    except ValueError as exc: fail(str(exc))
 def newpass(p):
     if not isinstance(p,str) or len(p)<12 or len(p)>256: fail('Use a password between 12 and 256 characters.')
     return generate_password_hash(p)
@@ -114,7 +119,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.6.0')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.7.0',mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -126,36 +131,17 @@ def setup():
     db().execute('INSERT INTO users(name,email,password,role) VALUES (?,?,?,?)',(name,email,newpass(d.get('password')),'owner'));db().commit()
     return jsonify(ok=True)
 @app.post('/api/login')
-def login():
-    d=request.get_json();email=textval(d.get('email'),200).lower(); k=hashlib.sha256((str(request.remote_addr)+'|'+email).encode()).hexdigest();now=datetime.now().timestamp()
-    a=one('SELECT * FROM attempts WHERE key=?',(k,))
-    if a and a['until']>now and a['count']>=8: fail('Too many attempts. Try again in 15 minutes.',429)
-    u=one('SELECT * FROM users WHERE email=?',(email,))
-    if not u or not u['active'] or not check_password_hash(u['password'],str(d.get('password',''))[:256]):
-        count=a['count']+1 if a and a['until']>now else 1
-        db().execute('INSERT OR REPLACE INTO attempts VALUES (?,?,?)',(k,count,now+900));db().commit();fail('Incorrect email or password.',401)
-    db().execute('DELETE FROM attempts WHERE key=?',(k,));db().commit();session.clear();session.update(uid=u['id'],version=u['version'],csrf=secrets.token_hex(24));session.permanent=True
-    return jsonify(ok=True)
+def login(): return security.login_response()
 @app.post('/api/logout')
 def logout(): session.clear();return jsonify(ok=True)
 @app.post('/api/password')
 @auth()
-def password():
-    d=request.get_json();u=one('SELECT * FROM users WHERE id=?',(g.user['id'],))
-    if not check_password_hash(u['password'],str(d.get('current',''))): fail('Current password is incorrect.',403)
-    db().execute('UPDATE users SET password=?,version=version+1 WHERE id=?',(newpass(d.get('password')),u['id']));audit('password changed',u['id']);db().commit();session.clear();return jsonify(ok=True)
+def password(): return security.password_response()
 @app.route('/api/users',methods=['GET','POST'])
 @auth('owner')
 def users():
-    if request.method=='GET': return jsonify(rows('SELECT id,name,email,role,active,permission FROM users'))
-    d=request.get_json();role=d.get('role')
-    if role not in ('employee','tax_agent'): fail('Invalid role.')
-    if not textval(d.get('name')) or '@' not in textval(d.get('email')): fail('Name and email are required.')
-    permission=d.get('permission','read_only') if role=='tax_agent' else 'read_only'
-    if permission not in ('read_only','read_write'): fail('Invalid tax-agent permission.')
-    try: c=db().execute('INSERT INTO users(name,email,password,role,permission) VALUES (?,?,?,?,?)',(textval(d.get('name'),100),textval(d.get('email'),200).lower(),newpass(d.get('password')),role,permission))
-    except sqlite3.IntegrityError: fail('Email already exists.',409)
-    audit('user created',c.lastrowid);db().commit();return jsonify(ok=True)
+    if request.method=='GET': return jsonify(rows('SELECT id,name,email,role,active,permission,must_change_password,invite_status,invite_expires,totp_enabled FROM users'))
+    return security.create_user_response()
 @app.put('/api/users/<int:uid>/permission')
 @auth('owner')
 def user_permission(uid):
@@ -587,5 +573,8 @@ register_tracking(app, db=db, one=one, rows=rows, fail=fail, audit=audit, can_wr
 
 from billing import register as register_billing, business as billing_business
 register_billing(app, db, one, rows, fail, audit, DATA)
+
+import security
+security.register(app, db=db, one=one, fail=fail, audit=audit, newpass=newpass, textval=textval, DATA=DATA)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)

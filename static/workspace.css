@@ -43,3 +43,6 @@ button{transition:box-shadow .15s}
 .receipt-trip-groups{padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
 
 .inbox-tabs button:hover{background:var(--hover);color:var(--accent)}
+
+/* Authentication and nearby-suburb setup. */
+.security-gate{min-height:100dvh;display:grid;place-items:center;padding:24px}.security-gate>.card{width:min(100%,520px)}.security-gate .brand{margin-bottom:24px}.security-gate h1{font-size:28px}.auth-qr{display:block;width:min(100%,300px);height:auto;margin:20px auto;background:#fff;padding:10px;border-radius:12px}.auth-secret{font-family:monospace;overflow-wrap:anywhere;user-select:all}.recovery-codes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:24px 0}.recovery-codes code{font-size:14px;user-select:all}.location-suggestions{display:grid;gap:4px;max-height:210px;overflow:auto;margin:-8px 0 16px}.location-suggestions button{text-align:left;white-space:normal}.home-coverage{margin:12px 0 20px}.home-coverage ul{padding-left:20px;columns:2}.section-grid+#signout{margin-top:24px}@media(max-width:520px){.recovery-codes{grid-template-columns:1fr}.home-coverage ul{columns:1}}
