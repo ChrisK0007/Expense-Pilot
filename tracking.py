@@ -4,6 +4,7 @@ import io
 import json
 import re
 import location_core
+from expense_core import split_values
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import wraps
@@ -96,13 +97,13 @@ def receipt_values(rid):
     return {**extracted, **draft_for(rid)}
 
 def clean_draft(d):
-    allowed = {'merchant','date','amount','currency','scope','category','percent','notes','meal','merchant_city','merchant_address','trip_id','vehicle_id','exclude_trip'}
+    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','trip_id','vehicle_id','exclude_trip'}
     if set(d)-allowed: fail('Unknown receipt draft field.')
     result = {}
     for key, value in d.items():
         if key=='date': result[key] = day(value) if value else ''
         elif key=='amount': result[key] = money(value)/100 if value not in ('',None) else None
-        elif key=='percent':
+        elif key in ('percent','work_percent','business_percent'):
             try: n = Decimal(str(value))
             except InvalidOperation: fail('Enter a valid use percentage.')
             if not n.is_finite() or n!=int(n) or not 0<=n<=100: fail('Use percentage must be a whole number from 0–100.')
@@ -115,7 +116,7 @@ def clean_draft(d):
             if value not in category_names(): fail('Invalid expense category.')
             result[key] = value
         elif key=='scope':
-            if value not in ('','work','business','personal'): fail('Invalid workspace.')
+            if value not in ('','work','business','personal','split'): fail('Invalid workspace.')
             result[key] = value
         elif key=='meal':
             if value and value not in MEALS: fail('Invalid meal type.')
@@ -132,8 +133,16 @@ def clean_draft(d):
 def save_receipt_draft(rid):
     db().execute('BEGIN IMMEDIATE'); r=receipt(rid)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already filed.',409)
-    values={**draft_for(rid),**clean_draft(body())}
+    incoming=clean_draft(body());values={**draft_for(rid),**incoming}
+    if 'percent' in incoming and 'work_percent' not in incoming and 'business_percent' not in incoming and values.get('scope')!='split':
+        wp,bp=split_values({'scope':values.get('scope') or profile(r['user_id'])['scope'],'percent':incoming['percent']})
+        values.update(work_percent=wp,business_percent=bp)
     if one('SELECT role FROM users WHERE id=?',(r['user_id'],))['role']=='employee' and values.get('scope') not in ('',None,'business'): fail('Employee receipts must remain business expenses.')
+    if 'work_percent' in values or 'business_percent' in values:
+        try: wp,bp=split_values(values)
+        except ValueError as exc: fail(str(exc))
+        if one('SELECT role FROM users WHERE id=?',(r['user_id'],))['role']=='employee' and wp: fail('Employee receipts must remain business expenses.')
+        values['percent']=wp+bp
     if values.get('vehicle_id'): vehicle(values['vehicle_id'],r['user_id'])
     db().execute('INSERT INTO receipt_drafts(receipt_id,data) VALUES (?,?) ON CONFLICT(receipt_id) DO UPDATE SET data=excluded.data,saved_at=CURRENT_TIMESTAMP',(rid,json.dumps(values)))
     audit('receipt draft saved',rid); db().commit(); return jsonify(draft=values)
@@ -149,6 +158,7 @@ def proposals():
         if assessment['status']!='away': continue
         city=city or assessment.get('location','')
         scope=d.get('scope') or prefs['scope']; when=d['date']
+        if scope=='split': continue  # Mixed-purpose meals need an explicitly chosen trip.
         existing=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=? ORDER BY start DESC',(r['user_id'],scope,when,when)) if norm(t['location'])==norm(city)),None)
         entry=dict(id=r['id'],filename=r['filename'],values=d,aud_amount=draft_for(r['id']).get('amount',d.get('amount') if d.get('currency')=='AUD' else None))
         groups.append(dict(user_id=r['user_id'],owner=r['owner'],location=city,scope=scope,first=when,last=when,existing_trip_id=existing['id'] if existing else None,receipts=[entry],home_base=prefs['home_base'],location_reason=assessment['reason'],existing=existing))
@@ -198,10 +208,12 @@ def accept_proposal():
         if entry.get('amount') in ('',None): fail('Confirm the actual AUD amount paid for every receipt.')
         # These are user-reviewed AUD amounts, never an automatic currency conversion.
         values={**receipt_values(entry['id']),**entry,'scope':scope,'category':'Meals','trip_id':tid,'receipt_id':entry['id'],'status':'ready'}
+        if 'percent' in entry and 'work_percent' not in entry and 'business_percent' not in entry:
+            values.pop('work_percent',None);values.pop('business_percent',None)
         if not values.get('meal'): fail('Confirm a meal type for each receipt.')
         if values.get('percent') in ('',None): values['percent']=100
         p=payload(values,{'user_id':uid,'account_id':None})
-        eid=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p).lastrowid
+        eid=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p).lastrowid
         saved.append(eid);audit('receipt trip meal accepted',eid)
     audit('receipt trip accepted',tid);db().commit();return jsonify(trip_id=tid,expense_ids=saved)
 

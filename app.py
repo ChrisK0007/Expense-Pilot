@@ -6,6 +6,8 @@ from functools import wraps
 from flask import Flask, request, session, jsonify, g, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import HTTPException
+from expense_core import split_values, percentages, allocations, migrate as migrate_allocations
+import features
 
 DATA=Path(os.environ.get('DATA_DIR','./data')); DATA.mkdir(parents=True,exist_ok=True)
 (DATA/'receipts').mkdir(exist_ok=True)
@@ -57,6 +59,7 @@ with app.app_context():
     ''')
     if 'permission' not in {r['name'] for r in db().execute('PRAGMA table_info(users)')}:
         db().execute("ALTER TABLE users ADD COLUMN permission TEXT NOT NULL DEFAULT 'read_only'")
+    migrate_allocations(db())
     db().commit()
 @app.errorhandler(HTTPException)
 def errors(e): return jsonify(error=e.description),e.code
@@ -76,7 +79,7 @@ def guard():
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -119,7 +122,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.7.0',mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.8.0',features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -176,11 +179,15 @@ def trips():
     c=db().execute('INSERT INTO trips(user_id,scope,location,start,end,purpose,allowance_cents) VALUES (?,?,?,?,?,?,?)',(record_user_id(),scope,textval(d['location'],100),s,e,textval(d['purpose']),money(d.get('allowance',0))));audit('trip created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 def payload(d,existing=None):
     scope=d.get('scope');cat=d.get('category');status=d.get('status','review');uid=existing['user_id'] if existing else record_user_id()
-    if scope not in ('work','business','personal') or (g.user['role']=='employee' and scope!='business'): fail('Invalid expense scope.')
+    if scope not in ('work','business','personal','split') or (g.user['role']=='employee' and scope!='business'): fail('Invalid expense scope.')
     if cat not in category_names() or status not in ('review','ready'): fail('Invalid category or status.')
-    try: percent=int(d.get('percent',100))
-    except (ValueError,TypeError): fail('Enter a whole-number use percentage.')
-    if not 0<=percent<=100: fail('Use percentage must be 0–100.')
+    try: work_pct,business_pct=split_values(d)
+    except ValueError as exc: fail(str(exc))
+    employee_record=one('SELECT role FROM users WHERE id=?',(uid,))['role']=='employee'
+    if employee_record and (work_pct or scope!='business'): fail('Employee expenses must remain in Business.')
+    if 'work_percent' in d or 'business_percent' in d:
+        scope='split' if work_pct and business_pct else 'work' if work_pct else 'business' if business_pct or employee_record else 'personal'
+    percent=work_pct+business_pct
     when=day(d.get('date'));merchant=textval(d.get('merchant'),200)
     if not merchant: fail('Merchant is required.')
     tid=d.get('trip_id') or None;rid=d.get('receipt_id') or None;aid=d.get('account_id') or None;meal=d.get('meal','')
@@ -188,7 +195,7 @@ def payload(d,existing=None):
     if meal and (not tid or cat!='Meals'): fail('Link a trip and use the Meals category for an overnight meal.')
     if tid:
         t=one('SELECT * FROM trips WHERE id=?',(tid,))
-        if not t or t['user_id']!=uid or t['scope']!=scope or not t['start']<=when<=t['end']: fail('Trip must match the person, expense scope and date.')
+        if not t or t['user_id']!=uid or (t['scope']!=scope and not (scope=='split' and (work_pct if t['scope']=='work' else business_pct)>0)) or not t['start']<=when<=t['end']: fail('Trip must match the person, expense scope and date.')
     if rid:
         r=one('SELECT * FROM receipts WHERE id=?',(rid,))
         if not r or r['user_id']!=uid: fail('Receipt does not belong to this person.')
@@ -197,7 +204,7 @@ def payload(d,existing=None):
     if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']=='employee' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
     shared=1
     if scope=='personal': percent=0
-    return (when,merchant,money(d.get('amount')),scope,cat,percent,int(bool(d.get('reimbursed'))),textval(d.get('notes'),3000),tid,meal,rid,aid,status,shared)
+    return (when,merchant,money(d.get('amount')),scope,cat,percent,int(bool(d.get('reimbursed'))),textval(d.get('notes'),3000),tid,meal,rid,aid,status,shared,work_pct,business_pct)
 @app.route('/api/expenses',methods=['GET','POST'])
 @auth()
 def expenses():
@@ -212,7 +219,7 @@ def expenses():
         uid=t['user_id'];existing={'user_id':uid,'account_id':None}
     if not existing and d.get('vehicle_id'):
         v=tracking_vehicle(d['vehicle_id']);uid=v['user_id'];existing={'user_id':uid,'account_id':None}
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -220,7 +227,7 @@ def update_expense(eid):
     e=expense(eid,True)
     if request.method=='DELETE': db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
     else:
-        d=request.get_json();p=payload(d,e);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
+        d=request.get_json();p=payload(d,e);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
     db().commit();return jsonify(ok=True)
 @app.post('/api/receipts')
 @auth('owner','employee')
@@ -379,7 +386,7 @@ def receipt_inbox():
     for r in result:
         r['extraction']=json.loads(r['extraction'] or '{}')
         r['draft']=draft_for(r['id']);r['preferences']=receipt_profile(r['user_id'])
-        r['saved_expense']=one('SELECT id,date,merchant,amount_cents,scope,category,percent,notes,vehicle_id FROM expenses WHERE id=?',(r['expense_id'],)) if r['expense_id'] else None
+        r['saved_expense']=one('SELECT id,date,merchant,amount_cents,scope,category,percent,work_percent,business_percent,notes,vehicle_id FROM expenses WHERE id=?',(r['expense_id'],)) if r['expense_id'] else None
         r['scan_status']=r['scan_status'] or 'captured'
         r['suggestion']=None;r['matches']=[]
         merchant=r['extraction'].get('merchant','')
@@ -406,7 +413,7 @@ def categorise_receipt(rid):
         d['receipt_id']=rid
         p=payload(d,{'user_id':r['user_id'],'shared':0,'account_id':None})
         if one('SELECT role FROM users WHERE id=?',(r['user_id'],))['role']=='employee' and p[3]!='business': fail('Employee receipts must remain business expenses.')
-        cur=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(r['user_id'],)+p);eid=cur.lastrowid;link_vehicle(eid,r['user_id'],d)
+        cur=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(r['user_id'],)+p);eid=cur.lastrowid;link_vehicle(eid,r['user_id'],d)
     audit('receipt categorised',rid);db().commit();return jsonify(id=eid)
 
 @app.delete('/api/receipts/<rid>')
@@ -467,14 +474,14 @@ def export():
     if start: w+=' AND e.date>=?';a.append(day(start))
     if end: w+=' AND e.date<=?';a.append(day(end))
     data=rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY date',a)
-    out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Overnight location','Meal','Receipt ID','Notes','Vehicle','Vehicle registration'])
+    out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Overnight location','Meal','Receipt ID','Notes','Vehicle','Vehicle registration','Employment %','Business %','Personal %','Employment allocation AUD','Business allocation AUD'])
     def safe(v):
         s=str(v or '')
         return "'"+s if s.lstrip().startswith(('=','+','-','@','\t','\r')) else s
     for e in data:
         vehicle_record=one('SELECT name,registration FROM vehicles WHERE id=?',(e.get('vehicle_id'),)) or {}
-        alloc=Decimal('0') if e['reimbursed'] or e['scope']=='personal' else (Decimal(e['amount_cents'])*e['percent']/10000).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP)
-        writer.writerow([e['id'],date.fromisoformat(e['date']).strftime('%d/%m/%Y'),safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes']),safe(vehicle_record.get('name','')),safe(vehicle_record.get('registration',''))])
+        work,business=allocations(e);wp,bp=percentages(e);alloc=Decimal(work+business)/100
+        writer.writerow([e['id'],date.fromisoformat(e['date']).strftime('%d/%m/%Y'),safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes']),safe(vehicle_record.get('name','')),safe(vehicle_record.get('registration','')),wp,bp,100-wp-bp,f'{work/100:.2f}',f'{business/100:.2f}'])
     return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-expenses.csv')
 @app.get('/api/audit')
 @auth('owner')
@@ -485,7 +492,7 @@ def history(): return jsonify(rows('SELECT a.*,u.name FROM audit a LEFT JOIN use
 def update_trip(tid):
     t=one('SELECT * FROM trips WHERE id=?',(tid,))
     if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
-    linked=rows('SELECT id,date,scope FROM expenses WHERE trip_id=?',(tid,))
+    linked=rows('SELECT * FROM expenses WHERE trip_id=?',(tid,))
     if request.method=='DELETE':
         if linked: fail('Unlink expenses before deleting this trip.',409)
         db().execute('DELETE FROM trips WHERE id=?',(tid,));audit('trip deleted',tid)
@@ -493,7 +500,7 @@ def update_trip(tid):
         d=request.get_json();start=day(d.get('start'));end=day(d.get('end'));scope=d.get('scope')
         if end<=start: fail('An overnight trip must end after its start date.')
         if scope not in ('work','business') or (g.user['role']=='employee' and scope!='business'): fail('Invalid scope.')
-        if any(e['scope']!=scope or not start<=e['date']<=end for e in linked): fail('This change would exclude linked expenses. Update or unlink those expenses first.',409)
+        if any((e['scope']!=scope and not (e['scope']=='split' and percentages(e)[0 if scope=='work' else 1]>0)) or not start<=e['date']<=end for e in linked): fail('This change would exclude linked expenses. Update or unlink those expenses first.',409)
         if not textval(d.get('location')) or not textval(d.get('purpose')): fail('Location and purpose are required.')
         db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=? WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
     db().commit();return jsonify(ok=True)
@@ -553,8 +560,8 @@ def tax_forecast(year):
         gst=rounded(Decimal(payment['gst_cents'])*after/payment['total_cents'])-rounded(Decimal(payment['gst_cents'])*before/payment['total_cents'])
         if start<=payment['date']<=end: business_income+=payment['amount_cents']-gst
     expenses=rows("SELECT e.* FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.date BETWEEN ? AND ? AND e.status='ready' AND e.scope!='personal' AND e.reimbursed=0 AND (e.scope='business' OR u.role='owner')",(start,end))
-    business_deductions=sum(rounded(Decimal(e['amount_cents'])*e['percent']/100) for e in expenses if e['scope']=='business')
-    work_deductions=sum(rounded(Decimal(e['amount_cents'])*e['percent']/100) for e in expenses if e['scope']=='work')
+    business_deductions=sum(allocations(e)[1] for e in expenses)
+    work_deductions=sum(allocations(e)[0] for e in expenses)
     unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review'",(start,end))['n']
     current=datetime.now(timezone(timedelta(hours=10))).date();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
     elapsed=max(1,min((current-begin).days+1,(finish-begin).days+1));factor=Decimal((finish-begin).days+1)/elapsed if settings.get('annualise') and begin<=current<=finish else Decimal(1)
@@ -576,5 +583,7 @@ register_billing(app, db, one, rows, fail, audit, DATA)
 
 import security
 security.register(app, db=db, one=one, fail=fail, audit=audit, newpass=newpass, textval=textval, DATA=DATA)
+
+features.register(app, db=db, one=one, fail=fail)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)

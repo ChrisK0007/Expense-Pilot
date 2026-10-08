@@ -1,3 +1,20 @@
+# Expense Pilot v0.8.0
+
+a clearer view of every dollar
+
+## What changed in v0.8.0
+
+- Split one expense between employment and business, with personal use calculated as the remainder. For example, a $100 receipt at 30% employment and 20% business records $30 and $20, with 50% personal. Percentages must be whole numbers and cannot total more than 100%. Reviewed allocations feed each corresponding tax forecast total. Refunds and reimbursements keep the same treatment; rounding reconciles to the combined allocated amount.
+- Existing expenses retain their previous allocations. CSV exports append separate employment/business/personal percentages and employment/business AUD allocations. Split records appear in both relevant report filters without duplicating the receipt.
+- Receipt inbox sits directly below Dashboard. Business, Tracking, Income and Reports open compact popup menus with keyboard and mobile support.
+- Settings → Features saves choices per login, across devices. The Employment expenses only preset hides business tools, vehicles, bank imports and the tax forecast; individual switches can restore them. Records, permissions and tax calculations are preserved. Existing data remains available in expense reports.
+- Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
+- Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
+
+Update the existing Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`, keeping the same `/data` mount. Refresh the browser after updating.
+
+---
+
 # Expense Pilot
 
 ## v0.7.0 — invitations, authenticator 2FA and receipt improvements
