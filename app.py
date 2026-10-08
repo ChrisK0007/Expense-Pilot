@@ -434,13 +434,13 @@ def export():
     if start: w+=' AND e.date>=?';a.append(day(start))
     if end: w+=' AND e.date<=?';a.append(day(end))
     data=rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY date',a)
-    out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Shared with agent','Overnight location','Meal','Receipt ID','Notes'])
+    out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Overnight location','Meal','Receipt ID','Notes'])
     def safe(v):
         s=str(v or '')
         return "'"+s if s.lstrip().startswith(('=','+','-','@','\t','\r')) else s
     for e in data:
         alloc=Decimal('0') if e['reimbursed'] or e['scope']=='personal' else (Decimal(e['amount_cents'])*e['percent']/10000).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP)
-        writer.writerow([e['id'],e['date'],safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],e['shared'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes'])])
+        writer.writerow([e['id'],e['date'],safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes'])])
     return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-expenses.csv')
 @app.get('/api/audit')
 @auth('owner')

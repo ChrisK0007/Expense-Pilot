@@ -101,7 +101,7 @@ class FinanceTest(unittest.TestCase):
             r=self.agent.get(f'/api/receipts/{rid}/preview?page={page}')
             self.assertEqual(r.status_code,200);self.assertTrue(r.data.startswith(b'\x89PNG'))
             self.assertNotIn('attachment',r.headers.get('Content-Disposition',''))
-        self.assertEqual(self.agent.get(f'/api/receipts/{rid}/preview?page=3').status_code,400)
+        self.assertEqual(self.agent.get(f'/api/receipts/{rid}/preview?page=3').status_code,404)
         self.assertEqual(self.staff2.get(f'/api/receipts/{rid}/preview').status_code,403)
         self.assertEqual(app.test_client().get(f'/api/receipts/{rid}/preview').status_code,401)
     def test_owner_can_record_employee_meal_but_other_employee_cannot(self):

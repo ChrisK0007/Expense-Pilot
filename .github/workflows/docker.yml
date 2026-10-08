@@ -32,6 +32,7 @@ jobs:
       - name: Integration tests
         run: docker run --rm --entrypoint python -v "$PWD/tests:/app/tests:ro" expense-pilot:test -m unittest discover -s tests -v
       - name: Browser workflow tests
+        id: browser
         env:
           UI_OUTPUT: ${{ runner.temp }}/expense-pilot-ui
         run: |
@@ -40,7 +41,7 @@ jobs:
           docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_smoke.cjs
       - name: Container memory evidence
-        if: always()
+        if: always() && steps.browser.outcome != 'skipped'
         run: |
           mkdir -p "$RUNNER_TEMP/expense-pilot-ui"
           docker exec expense-pilot-ui cat /sys/fs/cgroup/memory.peak | tee "$RUNNER_TEMP/expense-pilot-ui/memory-peak-bytes.txt"
