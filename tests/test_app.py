@@ -4,6 +4,7 @@ _test_data=tempfile.TemporaryDirectory()
 os.environ['DATA_DIR']=_test_data.name
 os.environ['SETUP_TOKEN']='integration-test-setup-token-123456789'
 from app import app, db
+from werkzeug.security import generate_password_hash
 
 class AppTest(unittest.TestCase):
     def setUp(self):
@@ -15,7 +16,9 @@ class AppTest(unittest.TestCase):
         self.owner=app.test_client();self.call(self.owner,'setup',{'token':os.environ['SETUP_TOKEN'],'name':'Owner','email':'owner@example.test','password':'Owner-password-123'})
         self.login(self.owner,'owner@example.test','Owner-password-123')
         for email,role in [('staff@example.test','employee'),('staff2@example.test','employee'),('agent@example.test','tax_agent')]:
-            self.assertEqual(self.call(self.owner,'users',{'name':role,'email':email,'role':role,'password':'Testing-password-123'}).status_code,200)
+            # Existing-account fixtures; invitation delivery and onboarding have dedicated tests.
+            with app.app_context():
+                db().execute('INSERT INTO users(name,email,password,role) VALUES (?,?,?,?)',(role,email,generate_password_hash('Testing-password-123'),role));db().commit()
         self.staff=app.test_client();self.login(self.staff,'staff@example.test','Testing-password-123')
         self.staff2=app.test_client();self.login(self.staff2,'staff2@example.test','Testing-password-123')
         self.agent=app.test_client();self.login(self.agent,'agent@example.test','Testing-password-123')

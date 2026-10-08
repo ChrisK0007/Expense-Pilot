@@ -28,7 +28,8 @@ jobs:
           node --check static/workspace.js
           node --check static/theme.js
           node --check static/tracking.js
-          python -m py_compile app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
+          node --check static/security.js
+          python -m py_compile app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py security.py location_core.py date_core.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
           bash -n prepare.sh backup.sh
       - name: Build image
         run: docker build -t expense-pilot:test .
@@ -41,9 +42,10 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/expense-pilot-browser" playwright@1.62.1
           node "$RUNNER_TEMP/expense-pilot-browser/node_modules/playwright/cli.js" install --with-deps chromium
-          docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test
+          docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui --entrypoint python -v "$PWD/tests:/app/tests:ro" -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_smoke.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_tracking.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_security.cjs
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |

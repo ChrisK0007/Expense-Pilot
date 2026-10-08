@@ -1,8 +1,20 @@
 # Expense Pilot
 
+## v0.7.0 — invitations, authenticator 2FA and receipt improvements
+
+- Typed dates automatically become **DD/MM/YYYY** when you leave the field. Accepted examples: `8/10/2026`, `8-10-26`, `08.10.2026`, `081026`, `08102026` and `2026-10-08`. Two-digit years mean 2000–2099. Impossible dates and missing years are rejected; month/day order is never guessed.
+- **Settings → Home base & receipt sorting:** search a suburb, city, area or postcode and select a suggestion. Nearby suburbs are recognised from the bundled Australian location list using an adjustable **50 km default local radius**. A preview shows the number of included suburbs and examples. Keep extra local names only for exceptions. Existing recognised bases such as Sunshine Coast work without re-entering every suburb. Coordinates are approximate suburb or area centres; choose a suburb for a more precise base. Unknown, ambiguous or unrecognised overseas locations stay in the inbox for manual review. Foreign currency alone does not prove a foreign location. All suggested overnight trips still require review and acceptance.
+- **Settings → Account invitations:** save the URL people use to access Expense Pilot. Configure **Email delivery & templates** with SMTP. Then **People & access → Add person** sends an invitation with a generated temporary password, valid for **48 hours**. No manually entered initial password is required. The new person must replace it before accessing records. Failed or uncertain email delivery is shown against the person; **Resend invitation** generates a replacement and invalidates the old password. Existing accounts keep their passwords.
+- **Settings → Two-factor authentication:** enter your current password, scan the QR code with a TOTP authenticator (for example Microsoft Authenticator, Google Authenticator or 1Password), then enter its six-digit code. Save the ten recovery codes shown once after setup. Every code works once. Future sign-ins require the password and an authenticator or recovery code. Each account enables 2FA individually, including read-only tax agents; the owner can see 2FA status under People & access.
+- QR codes are generated locally. Authenticator secrets are encrypted using the persisted `session.key`; recovery codes are stored only as hashes. Enabling/disabling 2FA and changing passwords revoke other sessions. Reused authenticator codes are rejected and failed attempts are limited. Keep the server clock accurate and retain `session.key` in backups.
+- Lost phone: use an unused recovery code to sign in. To replace your authenticator, disable 2FA with your password and a fresh recovery/authenticator code, then set it up again. If all recovery methods are lost, use the existing terminal recovery command (`python reset_password.py` inside the container); it now offers an explicit 2FA reset. It also clears a pending temporary-password requirement. Disabled accounts stay disabled.
+
+Australian location data attribution and age are recorded in `datasets/README.md` and `datasets/LICENSE-au-suburbs.txt`. No external geocoding account, API key or receipt-location upload is needed. This lookup helps organise receipts; it does not decide overnight eligibility or tax deductibility.
+
+
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.6.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.7.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -109,7 +121,7 @@ Nothing is sent to Ollama until you select **Read with AI** or enable **Read wit
 | Employee | Only their own business expenses, receipts and trips |
 | Tax agent | Read all financial records; optionally create/edit financial records with Read & write permission |
 
-All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in People & access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation does not send an invitation email; provide credentials through your normal secure channel. Employees can change passwords in Settings.
+All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in People & access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation sends an invitation through the configured SMTP account. The generated password expires after 48 hours and must be replaced on first sign-in. All people can manage their own password and authenticator 2FA in Settings.
 
 For terminal-only recovery:
 
@@ -164,7 +176,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.6.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.7.0**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
