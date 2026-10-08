@@ -64,7 +64,7 @@ A template is supplied in `unraid/expense-pilot.xml`. Copy it to `/boot/config/p
 | Ollama model | Name of an installed model; photos/scans require vision support |
 | Secure cookie | `false` for LAN HTTP setup; `true` when using HTTPS |
 
-The template keeps the database and receipts outside the image. Open `http://YOUR-UNRAID-IP:8788`, enter the setup token and create your owner login. No default password is provided. Enable **Autostart** for the container in Unraid.
+The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8788`, enter the setup token and create your owner login. No default password is provided. Enable **Autostart** for the container in Unraid.
 
 When a tested image is published, use the normal Unraid Docker update controls to pull it. Keep the `/data` mapping unchanged. For private packages the server must remain authenticated to GHCR. Back up before updating.
 
@@ -220,10 +220,12 @@ The forecast applies Australian resident individual brackets and LITO, with a cl
 
 The supplied 1 GB memory cap is a starting guardrail for the application. Ollama is a separate service and needs its own model-dependent resources. A hard cap does not reserve 1 GB; it bounds how much this container may consume. Keep the cap unless observed out-of-memory events or large concurrent PDF workloads justify raising it. Browser CI runs with `--memory 1g --memory-swap 1g` and captures peak memory as evidence, not a production capacity guarantee.
 
-In Unraid, open **Docker → expense-pilot → Edit → Advanced View** and set **Icon URL** to the application's logo endpoint, using your server's address:
+The template includes a placeholder in **Icon URL**. Before applying a new container, open **Advanced View** and replace `<server-ip>` with your Unraid server’s actual LAN IP address. For an existing container, open **Docker → expense-pilot → Edit → Advanced View** and set **Icon URL** to:
 
 ```text
-http://YOUR-UNRAID-IP:8788/static/expense-pilot-logo.png
+http://<server-ip>:8788/static/expense-pilot-logo.png
 ```
 
-Keep the app running while Unraid fetches the icon, then Apply. This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
+For example, if your server is `192.168.3.25`, enter `http://192.168.3.25:8788/static/expense-pilot-logo.png`. Replace port `8788` too if you choose a different host web port. The `<server-ip>` text is a placeholder and is not filled automatically.
+
+The logo becomes reachable once Expense Pilot is running. If the icon does not appear on the first install, start the container, then reopen Edit and Apply the completed Icon URL. This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
