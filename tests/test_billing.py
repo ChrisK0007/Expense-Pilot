@@ -224,6 +224,12 @@ class BillingTest(unittest.TestCase):
         outgoing = smtp.return_value.send_message.call_args.args[0]
         attachment = list(outgoing.iter_attachments())[0]
         self.assertTrue(attachment.get_payload(decode=True).startswith(b'%PDF'))
+        self.assertEqual(attachment.get_content_type(), 'application/pdf')
+        self.assertEqual(attachment.get_filename(), doc['number']+'.pdf')
+        from pypdf import PdfReader
+        attached_text='\n'.join(p.extract_text() for p in PdfReader(io.BytesIO(attachment.get_payload(decode=True))).pages)
+        for text in ('TAX INVOICE',doc['number'],'Example Flight Testing','Example Client','PAYMENT DETAILS'):
+            self.assertIn(text,attached_text)
         self.assertEqual(outgoing['To'], 'client@example.test')
         smtp.return_value.login.assert_called_once_with('owner@example.test','smtp-test-secret-123')
         self.assertEqual(self.get(doc['id'])['state'], 'issued')
@@ -292,7 +298,7 @@ class BillingTest(unittest.TestCase):
         pdf = PdfReader(io.BytesIO(response.data))
         self.assertGreater(len(pdf.pages), 1)
         text = '\n'.join(p.extract_text() for p in pdf.pages)
-        for value in ('TAX INVOICE','INV-0001','Example Flight Testing','12 345 678 901','Example Client','Service 49','Balance due AUD'):
+        for value in ('TAX INVOICE','INV-0001','Example Flight Testing','12 345 678 901','Example Client','Service 49','Total'):
             self.assertIn(value, text)
 
     def test_existing_database_and_receipt_survive_restart_migration(self):

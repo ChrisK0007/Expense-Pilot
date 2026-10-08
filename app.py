@@ -44,6 +44,7 @@ with app.app_context():
     CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id),date TEXT NOT NULL,merchant TEXT NOT NULL,amount_cents INTEGER NOT NULL,scope TEXT NOT NULL,category TEXT NOT NULL,percent INTEGER NOT NULL DEFAULT 100,reimbursed INTEGER NOT NULL DEFAULT 0,notes TEXT NOT NULL DEFAULT '',trip_id INTEGER REFERENCES trips(id),meal TEXT NOT NULL DEFAULT '',receipt_id TEXT REFERENCES receipts(id),account_id INTEGER REFERENCES accounts(id),status TEXT NOT NULL DEFAULT 'review',shared INTEGER NOT NULL DEFAULT 0,import_key TEXT UNIQUE);
     CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id INTEGER,action TEXT,entity TEXT);
     CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY,count INTEGER,until REAL);
+    CREATE TABLE IF NOT EXISTS receipt_details(receipt_id TEXT PRIMARY KEY REFERENCES receipts(id) ON DELETE CASCADE,uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,fingerprint TEXT NOT NULL DEFAULT '',extraction TEXT NOT NULL DEFAULT '{}',scan_status TEXT NOT NULL DEFAULT 'captured',scan_error TEXT NOT NULL DEFAULT '');
     '''); db().commit()
 @app.errorhandler(HTTPException)
 def errors(e): return jsonify(error=e.description),e.code
@@ -96,7 +97,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.2.0')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.3.0')
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -180,6 +181,8 @@ def payload(d,existing=None):
     if rid:
         r=one('SELECT * FROM receipts WHERE id=?',(rid,))
         if not r or r['user_id']!=uid: fail('Receipt does not belong to this person.')
+        linked=one('SELECT id FROM expenses WHERE receipt_id=?',(rid,))
+        if linked and (not existing or linked['id']!=existing.get('id')): fail('This receipt is already linked to another expense.',409)
     if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']!='owner' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
     shared=int(bool(d.get('shared'))) if g.user['role']=='owner' else (existing['shared'] if existing else 0)
     if scope=='personal': percent=0;shared=0
@@ -190,10 +193,12 @@ def expenses():
     if request.method=='GET':
         w,a=visible();return jsonify(rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
     if g.user['role']=='tax_agent': fail('Read-only access.',403)
+    db().execute('BEGIN IMMEDIATE')
     p=payload(request.get_json());c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(g.user['id'],)+p);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
+    db().execute('BEGIN IMMEDIATE')
     e=expense(eid,True)
     if request.method=='DELETE': db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
     else:
@@ -222,8 +227,16 @@ def upload():
     upload_uid=g.user['id']
     if request.form.get('expense_id'):
         upload_uid=expense(int(request.form['expense_id']),True)['user_id']
+    fingerprint=hashlib.sha256(b).hexdigest()
+    # Serialise duplicate detection across simultaneous phone / desktop uploads.
+    db().execute('BEGIN IMMEDIATE')
+    duplicate=one('SELECT r.id,r.filename FROM receipts r JOIN receipt_details d ON d.receipt_id=r.id WHERE r.user_id=? AND d.fingerprint=?',(upload_uid,fingerprint))
+    if duplicate:
+        db().commit();return jsonify(**duplicate,duplicate=True)
     rid=secrets.token_hex(20);(DATA/'receipts'/rid).write_bytes(b)
-    db().execute('INSERT INTO receipts VALUES (?,?,?,?)',(rid,upload_uid,name,mime));audit('receipt uploaded',rid);db().commit();return jsonify(id=rid,filename=name)
+    db().execute('INSERT INTO receipts VALUES (?,?,?,?)',(rid,upload_uid,name,mime))
+    db().execute('INSERT INTO receipt_details(receipt_id,fingerprint) VALUES (?,?)',(rid,fingerprint))
+    audit('receipt uploaded',rid);db().commit();return jsonify(id=rid,filename=name,duplicate=False)
 def receipt(rid):
     r=one('SELECT * FROM receipts WHERE id=?',(rid,))
     if not r: fail('Receipt not found.',404)
@@ -240,6 +253,8 @@ def download(rid):
 def extract(rid):
     r=receipt(rid);url=os.environ.get('OLLAMA_URL','').rstrip('/');model=os.environ.get('OLLAMA_MODEL','')
     if not url or not model: fail('Configure OLLAMA_URL and OLLAMA_MODEL to enable receipt AI.',503)
+    db().execute('INSERT OR IGNORE INTO receipt_details(receipt_id) VALUES (?)',(rid,))
+    db().execute("UPDATE receipt_details SET scan_status='reading',scan_error='' WHERE receipt_id=?",(rid,));db().commit()
     raw=(DATA/'receipts'/rid).read_bytes();images=[];body=''
     if r['mime']=='application/pdf':
         from pypdf import PdfReader
@@ -259,8 +274,69 @@ def extract(rid):
         with urllib.request.urlopen(req,timeout=150) as resp: result=json.loads(resp.read(1024*1024))
         result=json.loads(result['message']['content'])
         if not isinstance(result,dict): raise ValueError()
-    except Exception: fail('AI extraction failed. Check the Ollama address and vision model, or enter the receipt manually.',502)
-    safe={k:result.get(k) for k in ('merchant','date','amount','currency','category','notes')};audit('receipt AI requested',rid);db().commit();return jsonify(safe)
+    except Exception:
+        db().execute("UPDATE receipt_details SET scan_status='failed',scan_error='AI could not read this receipt. Retry or enter the details manually.' WHERE receipt_id=?",(rid,));db().commit()
+        fail('AI extraction failed. Check the Ollama address and vision model, or enter the receipt manually.',502)
+    safe={'merchant':textval(result.get('merchant'),200) if isinstance(result.get('merchant'),str) else '',
+          'notes':textval(result.get('notes'),3000) if isinstance(result.get('notes'),str) else '',
+          'category':result.get('category') if result.get('category') in CATEGORIES else 'Uncategorised',
+          'currency':str(result.get('currency') or '').upper()[:3], 'date':None,'amount':None}
+    try: safe['date']=date.fromisoformat(str(result.get('date'))).isoformat()
+    except ValueError: pass
+    try:
+        value=Decimal(str(result.get('amount')))
+        if value.is_finite() and abs(value)<=10000000: safe['amount']=float(value.quantize(Decimal('.01'),rounding=ROUND_HALF_UP))
+    except (InvalidOperation,ValueError,TypeError): pass
+    db().execute("UPDATE receipt_details SET extraction=?,scan_status='scanned',scan_error='' WHERE receipt_id=?",(json.dumps(safe),rid))
+    audit('receipt AI requested',rid);db().commit();return jsonify(safe)
+
+@app.get('/api/receipts')
+@auth('owner','employee')
+def receipt_inbox():
+    where,args=('1=1',[]) if g.user['role']=='owner' else ('r.user_id=?',[g.user['id']])
+    result=rows(f'''SELECT r.*,u.name AS owner,d.uploaded_at,d.scan_status,d.scan_error,d.extraction,
+        (SELECT e.id FROM expenses e WHERE e.receipt_id=r.id LIMIT 1) AS expense_id
+        FROM receipts r JOIN users u ON u.id=r.user_id LEFT JOIN receipt_details d ON d.receipt_id=r.id
+        WHERE {where} ORDER BY COALESCE(d.uploaded_at,'') DESC,r.rowid DESC''',args)
+    for r in result:
+        r['extraction']=json.loads(r['extraction'] or '{}')
+        r['scan_status']=r['scan_status'] or 'captured'
+        r['suggestion']=None;r['matches']=[]
+        merchant=r['extraction'].get('merchant','')
+        if merchant:
+            # Only learn from this person's explicitly reviewed records; never infer deductibility.
+            r['suggestion']=one("SELECT category,scope FROM expenses WHERE user_id=? AND lower(trim(merchant))=lower(trim(?)) AND status='ready' AND category!='Uncategorised' ORDER BY id DESC LIMIT 1",(r['user_id'],merchant))
+        extracted=r['extraction']
+        if extracted.get('amount') is not None and extracted.get('currency')=='AUD' and extracted.get('date'):
+            r['matches']=rows('SELECT id,date,merchant,amount_cents,receipt_id FROM expenses WHERE user_id=? AND date=? AND amount_cents=? ORDER BY id DESC LIMIT 8',(r['user_id'],extracted['date'],money(extracted['amount'])))
+    return jsonify(result)
+
+@app.post('/api/receipts/<rid>/expense')
+@auth('owner','employee')
+def categorise_receipt(rid):
+    db().execute('BEGIN IMMEDIATE')
+    r=receipt(rid)
+    if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already linked to an expense.',409)
+    d=request.get_json()
+    if d.get('existing_expense_id'):
+        e=expense(d['existing_expense_id'],True)
+        if e['user_id']!=r['user_id'] or e['receipt_id']: fail('Choose an expense for the same person without a receipt.',409)
+        db().execute('UPDATE expenses SET receipt_id=? WHERE id=?',(rid,e['id']));eid=e['id']
+    else:
+        d['receipt_id']=rid
+        p=payload(d,{'user_id':r['user_id'],'shared':0,'account_id':None})
+        if r['user_id']!=g.user['id'] and p[3]!='business': fail('Employee receipts must remain business expenses.')
+        cur=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(r['user_id'],)+p);eid=cur.lastrowid
+    audit('receipt categorised',rid);db().commit();return jsonify(id=eid)
+
+@app.delete('/api/receipts/<rid>')
+@auth('owner','employee')
+def delete_receipt(rid):
+    db().execute('BEGIN IMMEDIATE');receipt(rid)
+    if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Unlink the receipt from its expense before deleting it.',409)
+    db().execute('DELETE FROM receipts WHERE id=?',(rid,));audit('receipt deleted',rid);db().commit()
+    (DATA/'receipts'/rid).unlink(missing_ok=True)
+    return jsonify(ok=True)
 
 def csv_rows(file):
     try:

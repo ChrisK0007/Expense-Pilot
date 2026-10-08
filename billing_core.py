@@ -106,7 +106,7 @@ def pdf_document(doc):
     colour = seller.get('accent', '#355c46')
     if not re.fullmatch(r'#[0-9a-fA-F]{6}', colour):
         colour = '#355c46'
-    ink, muted, accent = colors.HexColor('#25382d'), colors.HexColor('#647166'), colors.HexColor(colour)
+    ink, muted, accent = colors.HexColor('#252b3b'), colors.HexColor('#737b8d'), colors.HexColor(colour)
     font = 'Helvetica'
     font_path = Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
     if font_path.exists():
@@ -122,62 +122,74 @@ def pdf_document(doc):
     def p(value, style=normal):
         # Escape user content before the ReportLab paragraph parser sees it.
         return Paragraph(escape(str(value or '')).replace('\n', '<br/>'), style)
-    story = []
+    # A restrained two-column layout, matching the supplied invoice reference.
+    rule = colors.HexColor('#e2e5eb')
+    label_style = ParagraphStyle('label', parent=small, textColor=accent, spaceAfter=8)
+    headline = ParagraphStyle('headline', parent=right, fontSize=15, leading=19, textColor=ink)
+    left = []
     logo = seller.get('logo', '')
     if logo:
-        raw = io.BytesIO(base64.b64decode(logo))
-        im = Image(raw)
-        factor = min(48 * mm / im.imageWidth, 22 * mm / im.imageHeight)
+        im = Image(io.BytesIO(base64.b64decode(logo)))
+        factor = min(44 * mm / im.imageWidth, 24 * mm / im.imageHeight)
         im.drawWidth, im.drawHeight = im.imageWidth * factor, im.imageHeight * factor
         im.hAlign = 'LEFT'
-        story += [im, Spacer(1, 5 * mm)]
+        left += [im, Spacer(1, 5 * mm)]
+    left.append(p(seller.get('name', 'Your business')))
+    for key in ('address', 'phone', 'email'):
+        if seller.get(key): left.append(p(seller[key]))
+    if seller.get('abn'): left.append(p('ABN: ' + seller['abn']))
     label = 'QUOTE' if doc['kind'] == 'quote' else ('TAX INVOICE' if seller.get('gst_registered') else 'INVOICE')
-    if doc['state'] == 'draft':
-        label = 'DRAFT ' + label
-    elif doc['state'] == 'void':
-        label = 'VOID ' + label
-    story += [p(label, title), p(seller.get('name', 'Your business'))]
-    contact = '\n'.join(str(seller.get(k, '')) for k in ('address', 'email', 'phone') if seller.get(k))
-    if seller.get('abn'):
-        contact += '\nABN ' + seller['abn']
-    story += [p(contact, small), Spacer(1, 7 * mm)]
+    if doc['state'] in ('draft', 'void'): label = doc['state'].upper() + ' ' + label
+    right_side = [p(label, headline), Spacer(1, 5 * mm)]
     buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k))
-    if client.get('abn'):
-        buyer += '\nABN ' + client['abn']
-    due_label = 'Valid until' if doc['kind'] == 'quote' else 'Due date'
-    details = f"{doc['number']}\nIssued: {doc['issue_date']}\n{due_label}: {doc['due_date']}\nCurrency: AUD"
-    if doc.get('reference'):
-        details += '\nReference: ' + doc['reference']
-    top = Table([[p('BILL TO' if doc['kind'] == 'invoice' else 'PREPARED FOR', small), p('DOCUMENT DETAILS', small)],
-                 [p(buyer), p(details)]], colWidths=[97 * mm, 77 * mm])
-    top.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 0)]))
-    story += [top, Spacer(1, 7 * mm)]
-    headings = ['Description', 'Qty', 'Unit AUD', 'GST', 'Total AUD']
-    table_data = [[p(x, white) for x in headings]]
+    if client.get('abn'): buyer += '\nABN: ' + client['abn']
+    right_side += [p(buyer, right), Spacer(1, 3 * mm)]
+    def pretty_date(value):
+        return date.fromisoformat(value).strftime('%d %b, %Y')
+    metadata = [('Number', doc['number']), ('Issued', pretty_date(doc['issue_date'])),
+                ('Valid until' if doc['kind']=='quote' else 'Due', pretty_date(doc['due_date'])),
+                ('Total', 'AU ' + aud(doc['total_cents']))]
+    if doc.get('reference'): metadata.append(('Reference', doc['reference']))
+    details = Table([[p(k),p(v,right)] for k,v in metadata], colWidths=[23*mm,48*mm])
+    details.setStyle(TableStyle([('LINEABOVE',(0,0),(-1,-1),.35,rule),('VALIGN',(0,0),(-1,-1),'TOP'),
+                                ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    right_side.append(details)
+    top = Table([[left,right_side]], colWidths=[103*mm,71*mm])
+    top.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
+                            ('RIGHTPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),12),
+                            ('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
+    story = [top, Spacer(1, 4*mm)]
+    # Notes precede the item table, for flight-test dates and candidate details.
+    if doc.get('notes'): story += [p(doc['notes']), Spacer(1, 5*mm)]
+    taxable = doc['tax_mode'] != 'none'
+    headings = ['DESCRIPTION', 'QUANTITY', 'RATE', 'GST', 'TOTAL'] if taxable else ['DESCRIPTION','QUANTITY','RATE','TOTAL']
+    table_data = [[p(x, label_style if i==0 else ParagraphStyle('column'+str(i),parent=label_style,alignment=TA_RIGHT)) for i,x in enumerate(headings)]]
     for line in doc['lines']:
         description = line['description']
-        if Decimal(line['discount']):
-            description += f"\nDiscount: {line['discount']}%"
-        tax = '10%' if line['tax'] == 'gst' else ('GST-free' if line['tax'] == 'gst_free' else 'No GST')
-        table_data.append([p(description), p(line['quantity'], right), p(aud(cents(Decimal(line['unit_price']) * 100)), right),
-                           p(tax, small), p(aud(line['total_cents']), right)])
-    line_table = Table(table_data, colWidths=[83 * mm, 15 * mm, 27 * mm, 20 * mm, 29 * mm], repeatRows=1, hAlign='LEFT')
-    line_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), accent), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 9), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LINEBELOW', (0, 1), (-1, -1), .35, colors.HexColor('#dce4dd')),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7f9f5')])]))
-    story += [line_table, Spacer(1, 5 * mm)]
-    totals = [('Subtotal (ex GST)', doc['subtotal_cents']), ('GST', doc['gst_cents']), ('Total AUD', doc['total_cents'])]
-    if doc['kind'] == 'invoice':
-        totals += [('Payments recorded', doc.get('paid_cents', 0)), ('Balance due AUD', doc.get('balance_cents', doc['total_cents']))]
-    total_table = Table([[p(k, right), p(aud(v), right)] for k, v in totals], colWidths=[131 * mm, 43 * mm])
-    total_table.setStyle(TableStyle([('LINEABOVE', (0, -1), (-1, -1), 1, accent), ('TOPPADDING', (0, -1), (-1, -1), 9)]))
-    story += [KeepTogether([total_table]), p('Unit prices include GST where applicable.' if doc['tax_mode'] == 'inclusive' else
-                                         'Unit prices exclude GST.' if doc['tax_mode'] == 'exclusive' else 'No GST charged.', small)]
-    for heading, value in [('Payment details', doc.get('payment_details') if doc['kind'] == 'invoice' else ''), ('Notes & terms', doc.get('notes'))]:
-        if value:
-            story += [Spacer(1, 5 * mm), p(heading), p(value, small)]
+        if Decimal(line['discount']): description += f"\nDiscount: {line['discount']}%"
+        cells = [p(description),p(line['quantity'],right),p(aud(cents(Decimal(line['unit_price'])*100)),right)]
+        if taxable: cells.append(p('10%' if line['tax']=='gst' else 'GST-free' if line['tax']=='gst_free' else 'No GST',right))
+        cells.append(p(aud(line['total_cents']),right));table_data.append(cells)
+    widths = [80*mm,20*mm,27*mm,20*mm,27*mm] if taxable else [93*mm,24*mm,27*mm,30*mm]
+    line_table = Table(table_data,colWidths=widths,repeatRows=1,hAlign='LEFT')
+    line_table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
+        ('RIGHTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),10),
+        ('TOPPADDING',(0,1),(-1,-1),8),('BOTTOMPADDING',(0,1),(-1,-1),8),
+        ('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
+    story += [line_table,Spacer(1,3*mm)]
+    totals = [('Subtotal (ex GST)', doc['subtotal_cents']),('GST',doc['gst_cents'])] if taxable else []
+    totals.append(('Total', doc['total_cents']))
+    if doc['kind']=='invoice' and doc.get('paid_cents'):
+        totals += [('Payments recorded',doc['paid_cents']),('Balance due',doc['balance_cents'])]
+    total_table = Table([[p(k,right),p('AU '+aud(v),right)] for k,v in totals],colWidths=[131*mm,43*mm])
+    total_table.setStyle(TableStyle([('LINEBELOW',(0,-1),(-1,-1),.5,rule),('RIGHTPADDING',(0,0),(-1,-1),0)]))
+    note = 'Rates include GST where applicable.' if doc['tax_mode']=='inclusive' else 'Rates exclude GST.' if taxable else 'No GST has been charged'
+    story += [KeepTogether([total_table,p(note,ParagraphStyle('tax-note',parent=small,alignment=TA_RIGHT))])]
+    if doc['kind']=='invoice' and doc.get('payment_details'):
+        payment_heading=Table([[p('PAYMENT DETAILS',label_style)]],colWidths=[174*mm])
+        payment_heading.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
+        story += [Spacer(1,8*mm),KeepTogether([payment_heading,Spacer(1,3*mm),p(doc['payment_details'])])]
+    story += [Spacer(1,7*mm),p('Thank you for your business.',small)]
     def footer(canvas, layout):
         canvas.saveState()
         canvas.setStrokeColor(accent)

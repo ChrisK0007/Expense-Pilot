@@ -23,6 +23,7 @@ jobs:
         run: |
           node --check static/app.js
           node --check static/billing.js
+          node --check static/receipts.js
           python -m py_compile app.py billing.py billing_core.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
           bash -n prepare.sh backup.sh
       - name: Build image
