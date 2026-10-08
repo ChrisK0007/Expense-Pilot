@@ -1,7 +1,9 @@
 Expense Pilot 0.1.0 — 8 October 2026
 
-PASSED: Python compilation, JavaScript syntax, Bash syntax, SQLite schema creation.
-NOT RUN: Flask integration suite (missing Flask; package installation blocked by network restrictions), Docker build, browser visual QA, real Ollama extraction and actual bank CSV samples.
-Included tests: 15 integration tests; run inside the built Docker image as described in README.html before entering live data.
+PASSED locally: Python compilation, JavaScript syntax, Bash syntax, SQLite schema, Unraid XML syntax.
+PASSED in GitHub Actions: Docker image build, 15 integration tests, publication to ghcr.io/chrisk0007/expense-pilot:latest.
+Application commit: 406df145794a993b1d27b6ddc3af173af566929f
+Build: https://github.com/ChrisK0007/Expense-Pilot/actions/runs/37716069074
 
-No deployment to Unraid has taken place.
+NOT VERIFIED: browser visual QA, real Ollama extraction and actual bank CSV samples.
+No deployment to the user's Unraid server has taken place.

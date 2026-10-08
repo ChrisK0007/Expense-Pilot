@@ -125,7 +125,9 @@ The script pauses the app by stopping its container, backs up the database, rece
 
 ## Verification
 
-Local syntax and SQLite-schema checks passed. The local integration suite and Docker build could not run in the authoring environment because Python dependency downloads were unavailable. GitHub Actions supplies the required build and integration-test gate before publication. Actual bank-export samples, a live Ollama service and browser visual QA still require deployment checks.
+The first GitHub Actions build passed on 8 October 2026: Docker image build, all 15 integration tests and publication to GitHub Container Registry. [View the successful build](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/37716069074). Application commit: `406df145794a993b1d27b6ddc3af173af566929f`.
+
+Local syntax and SQLite-schema checks also passed. Actual bank-export samples, a live Ollama service and browser visual QA still require deployment checks. The app has not been installed on your Unraid server by this workflow.
 
 The 15 tests cover authentication, CSRF, role isolation, sharing, session revocation, date/trip validation, receipt access, CSV duplicate/credit handling, amount rounding, formula escaping and export boundaries.
 
