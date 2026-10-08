@@ -30,7 +30,7 @@ class ReceiptTest(unittest.TestCase):
         row=self.owner.get('/api/receipts').json[0]
         self.assertEqual(row['id'],rid);self.assertEqual(row['scan_status'],'captured')
         self.assertIsNone(row['expense_id'])
-        self.assertEqual(self.agent.get('/api/receipts').status_code,403)
+        self.assertEqual(self.agent.get('/api/receipts').status_code,200)
 
     def test_duplicate_upload_same_user_only(self):
         first=self.upload().json;second=self.upload().json
@@ -45,7 +45,7 @@ class ReceiptTest(unittest.TestCase):
         result=self.call(self.owner,'receipts/'+rid+'/expense',payload)
         self.assertEqual(result.status_code,200,result.json)
         self.assertEqual(len(self.staff.get('/api/expenses').json),1)
-        self.assertEqual(self.agent.get('/api/expenses').json,[])
+        self.assertEqual(len(self.agent.get('/api/expenses').json),1)
         self.assertEqual(self.call(self.owner,'receipts/'+rid+'/expense',payload).status_code,409)
 
     def test_ai_result_survives_refresh_and_bad_values_are_not_trusted(self):

@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils f
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py reset_password.py billing.py billing_core.py gunicorn.conf.py ./
+COPY app.py reset_password.py billing.py billing_core.py tax_core.py gunicorn.conf.py ./
 COPY static ./static
 RUN mkdir /data && chown 99:100 /data
 USER 99:100

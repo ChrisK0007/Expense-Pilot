@@ -45,7 +45,10 @@ with app.app_context():
     CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id INTEGER,action TEXT,entity TEXT);
     CREATE TABLE IF NOT EXISTS attempts(key TEXT PRIMARY KEY,count INTEGER,until REAL);
     CREATE TABLE IF NOT EXISTS receipt_details(receipt_id TEXT PRIMARY KEY REFERENCES receipts(id) ON DELETE CASCADE,uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,fingerprint TEXT NOT NULL DEFAULT '',extraction TEXT NOT NULL DEFAULT '{}',scan_status TEXT NOT NULL DEFAULT 'captured',scan_error TEXT NOT NULL DEFAULT '');
-    '''); db().commit()
+    ''')
+    if 'permission' not in {r['name'] for r in db().execute('PRAGMA table_info(users)')}:
+        db().execute("ALTER TABLE users ADD COLUMN permission TEXT NOT NULL DEFAULT 'read_only'")
+    db().commit()
 @app.errorhandler(HTTPException)
 def errors(e): return jsonify(error=e.description),e.code
 @app.after_request
@@ -57,16 +60,18 @@ def headers(r):
 def guard():
     g.user=None
     if session.get('uid'):
-        g.user=one('SELECT id,name,email,role,active,version FROM users WHERE id=?',(session['uid'],))
+        g.user=one('SELECT id,name,email,role,active,version,permission FROM users WHERE id=?',(session['uid'],))
         if not g.user or not g.user['active'] or g.user['version']!=session.get('version'): session.clear(); g.user=None
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password'):
+            fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
     def deco(fn):
         @wraps(fn)
         def wrapped(*a,**kw):
             if not g.user: fail('Please sign in.',401)
-            if roles and g.user['role'] not in roles: fail('Access denied.',403)
+            if roles and g.user['role'] not in roles and not (roles==('owner','employee') and can_write()): fail('Access denied.',403)
             return fn(*a,**kw)
         return wrapped
     return deco
@@ -83,21 +88,24 @@ def day(v):
 def newpass(p):
     if not isinstance(p,str) or len(p)<12 or len(p)>256: fail('Use a password between 12 and 256 characters.')
     return generate_password_hash(p)
+def can_write():
+    return bool(g.user and (g.user['role'] in ('owner','employee') or g.user.get('permission')=='read_write'))
+def record_user_id():
+    return one("SELECT id FROM users WHERE role='owner' ORDER BY id LIMIT 1")['id'] if g.user['role']=='tax_agent' else g.user['id']
 def visible(alias='e'):
-    if g.user['role']=='owner': return '1=1',[]
-    if g.user['role']=='tax_agent': return f'{alias}.shared=1',[]
+    if g.user['role'] in ('owner','tax_agent'): return '1=1',[]
     return f"{alias}.user_id=? AND {alias}.scope='business'",[g.user['id']]
 def expense(eid,write=False):
     where,args=visible(); e=one(f'SELECT e.* FROM expenses e WHERE e.id=? AND {where}',[eid]+args)
     if not e: fail('Expense not found.',404)
-    if write and g.user['role']=='tax_agent': fail('Read-only access.',403)
+    if write and not can_write(): fail('Read-only access.',403)
     return e
 @app.get('/')
 def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.3.0')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.4.0')
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -130,13 +138,22 @@ def password():
 @app.route('/api/users',methods=['GET','POST'])
 @auth('owner')
 def users():
-    if request.method=='GET': return jsonify(rows('SELECT id,name,email,role,active FROM users'))
+    if request.method=='GET': return jsonify(rows('SELECT id,name,email,role,active,permission FROM users'))
     d=request.get_json();role=d.get('role')
     if role not in ('employee','tax_agent'): fail('Invalid role.')
     if not textval(d.get('name')) or '@' not in textval(d.get('email')): fail('Name and email are required.')
-    try: c=db().execute('INSERT INTO users(name,email,password,role) VALUES (?,?,?,?)',(textval(d.get('name'),100),textval(d.get('email'),200).lower(),newpass(d.get('password')),role))
+    permission=d.get('permission','read_only') if role=='tax_agent' else 'read_only'
+    if permission not in ('read_only','read_write'): fail('Invalid tax-agent permission.')
+    try: c=db().execute('INSERT INTO users(name,email,password,role,permission) VALUES (?,?,?,?,?)',(textval(d.get('name'),100),textval(d.get('email'),200).lower(),newpass(d.get('password')),role,permission))
     except sqlite3.IntegrityError: fail('Email already exists.',409)
     audit('user created',c.lastrowid);db().commit();return jsonify(ok=True)
+@app.put('/api/users/<int:uid>/permission')
+@auth('owner')
+def user_permission(uid):
+    user=one('SELECT * FROM users WHERE id=?',(uid,));permission=request.get_json().get('permission')
+    if not user or user['role']!='tax_agent' or permission not in ('read_only','read_write'): fail('Choose a tax agent and a valid permission.')
+    db().execute('UPDATE users SET permission=? WHERE id=?',(permission,uid));audit('tax agent permission changed',uid);db().commit()
+    return jsonify(ok=True)
 @app.post('/api/users/<int:uid>/access')
 @auth('owner')
 def access(uid):
@@ -144,7 +161,7 @@ def access(uid):
     if not u or u['role']=='owner': fail('Cannot change this account.')
     db().execute('UPDATE users SET active=?,version=version+1 WHERE id=?',(int(bool(request.get_json().get('active'))),uid));audit('user access changed',uid);db().commit();return jsonify(ok=True)
 @app.route('/api/accounts',methods=['GET','POST'])
-@auth('owner')
+@auth('owner','tax_agent')
 def accounts():
     if request.method=='GET': return jsonify(rows('SELECT * FROM accounts'))
     d=request.get_json()
@@ -154,17 +171,16 @@ def accounts():
 @auth()
 def trips():
     if request.method=='GET':
-        if g.user['role']=='owner': return jsonify(rows('SELECT t.*,u.name AS owner FROM trips t JOIN users u ON u.id=t.user_id ORDER BY start DESC'))
-        if g.user['role']=='tax_agent': return jsonify(rows('SELECT DISTINCT t.* FROM trips t JOIN expenses e ON e.trip_id=t.id WHERE e.shared=1 ORDER BY start DESC'))
+        if g.user['role'] in ('owner','tax_agent'): return jsonify(rows('SELECT t.*,u.name AS owner FROM trips t JOIN users u ON u.id=t.user_id ORDER BY start DESC'))
         return jsonify(rows('SELECT * FROM trips WHERE user_id=? ORDER BY start DESC',(g.user['id'],)))
-    if g.user['role']=='tax_agent': fail('Read-only access.',403)
+    if not can_write(): fail('Read-only access.',403)
     d=request.get_json();s=day(d.get('start'));e=day(d.get('end'));scope=d.get('scope')
     if e<=s: fail('An overnight trip must end after its start date.')
     if scope not in ('work','business') or (g.user['role']=='employee' and scope!='business'): fail('Invalid trip scope.')
     if not textval(d.get('location')) or not textval(d.get('purpose')): fail('Location and purpose are required.')
-    c=db().execute('INSERT INTO trips(user_id,scope,location,start,end,purpose,allowance_cents) VALUES (?,?,?,?,?,?,?)',(g.user['id'],scope,textval(d['location'],100),s,e,textval(d['purpose']),money(d.get('allowance',0))));audit('trip created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+    c=db().execute('INSERT INTO trips(user_id,scope,location,start,end,purpose,allowance_cents) VALUES (?,?,?,?,?,?,?)',(record_user_id(),scope,textval(d['location'],100),s,e,textval(d['purpose']),money(d.get('allowance',0))));audit('trip created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 def payload(d,existing=None):
-    scope=d.get('scope');cat=d.get('category');status=d.get('status','review');uid=existing['user_id'] if existing else g.user['id']
+    scope=d.get('scope');cat=d.get('category');status=d.get('status','review');uid=existing['user_id'] if existing else record_user_id()
     if scope not in ('work','business','personal') or (g.user['role']=='employee' and scope!='business'): fail('Invalid expense scope.')
     if cat not in CATEGORIES or status not in ('review','ready'): fail('Invalid category or status.')
     try: percent=int(d.get('percent',100))
@@ -183,18 +199,23 @@ def payload(d,existing=None):
         if not r or r['user_id']!=uid: fail('Receipt does not belong to this person.')
         linked=one('SELECT id FROM expenses WHERE receipt_id=?',(rid,))
         if linked and (not existing or linked['id']!=existing.get('id')): fail('This receipt is already linked to another expense.',409)
-    if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']!='owner' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
-    shared=int(bool(d.get('shared'))) if g.user['role']=='owner' else (existing['shared'] if existing else 0)
-    if scope=='personal': percent=0;shared=0
+    if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']=='employee' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
+    shared=1
+    if scope=='personal': percent=0
     return (when,merchant,money(d.get('amount')),scope,cat,percent,int(bool(d.get('reimbursed'))),textval(d.get('notes'),3000),tid,meal,rid,aid,status,shared)
 @app.route('/api/expenses',methods=['GET','POST'])
 @auth()
 def expenses():
     if request.method=='GET':
         w,a=visible();return jsonify(rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
-    if g.user['role']=='tax_agent': fail('Read-only access.',403)
+    if not can_write(): fail('Read-only access.',403)
     db().execute('BEGIN IMMEDIATE')
-    p=payload(request.get_json());c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(g.user['id'],)+p);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+    d=request.get_json();uid=record_user_id();existing=None
+    if d.get('meal') and d.get('trip_id'):
+        t=one('SELECT * FROM trips WHERE id=?',(d['trip_id'],))
+        if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
+        uid=t['user_id'];existing={'user_id':uid,'account_id':None}
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -224,9 +245,13 @@ def upload():
         except Exception: fail('Invalid PDF.')
         mime='application/pdf'
     else: fail('Use JPEG, PNG, WebP or PDF (maximum 12 MB).')
-    upload_uid=g.user['id']
+    upload_uid=record_user_id()
     if request.form.get('expense_id'):
         upload_uid=expense(int(request.form['expense_id']),True)['user_id']
+    elif request.form.get('trip_id'):
+        t=one('SELECT * FROM trips WHERE id=?',(request.form['trip_id'],))
+        if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
+        upload_uid=t['user_id']
     fingerprint=hashlib.sha256(b).hexdigest()
     # Serialise duplicate detection across simultaneous phone / desktop uploads.
     db().execute('BEGIN IMMEDIATE')
@@ -240,14 +265,37 @@ def upload():
 def receipt(rid):
     r=one('SELECT * FROM receipts WHERE id=?',(rid,))
     if not r: fail('Receipt not found.',404)
-    if g.user['role']=='tax_agent':
-        if not one('SELECT id FROM expenses WHERE receipt_id=? AND shared=1',(rid,)): fail('Access denied.',403)
-    elif g.user['role']!='owner' and r['user_id']!=g.user['id']: fail('Access denied.',403)
+    if g.user['role']=='employee' and r['user_id']!=g.user['id']: fail('Access denied.',403)
     return r
 @app.get('/api/receipts/<rid>')
 @auth()
 def download(rid):
     r=receipt(rid);return send_file(DATA/'receipts'/rid,mimetype=r['mime'],as_attachment=True,download_name=r['filename'])
+@app.get('/api/receipts/<rid>/info')
+@auth()
+def receipt_info(rid):
+    r=receipt(rid);pages=1
+    if r['mime']=='application/pdf':
+        from pypdf import PdfReader
+        pages=len(PdfReader(DATA/'receipts'/rid).pages)
+    return jsonify(id=rid,filename=r['filename'],mime=r['mime'],pages=pages)
+
+@app.get('/api/receipts/<rid>/preview')
+@auth()
+def preview_receipt(rid):
+    r=receipt(rid)
+    if r['mime']!='application/pdf': return send_file(DATA/'receipts'/rid,mimetype=r['mime'],as_attachment=False)
+    try: page=int(request.args.get('page','1'))
+    except ValueError: fail('Invalid page.')
+    from pypdf import PdfReader
+    if not 1<=page<=len(PdfReader(DATA/'receipts'/rid).pages): fail('Page not found.',404)
+    # Rasterise a single page. No active PDF content is embedded in the application.
+    with tempfile.TemporaryDirectory() as tmp:
+        target=Path(tmp)/'preview'
+        try: subprocess.run(['pdftoppm','-f',str(page),'-l',str(page),'-singlefile','-scale-to','1600','-png',str(DATA/'receipts'/rid),str(target)],timeout=30,check=True,capture_output=True)
+        except Exception: fail('Could not preview this PDF. The original can still be downloaded.',422)
+        return send_file(io.BytesIO(target.with_suffix('.png').read_bytes()),mimetype='image/png')
+
 @app.post('/api/receipts/<rid>/extract')
 @auth('owner','employee')
 def extract(rid):
@@ -291,10 +339,10 @@ def extract(rid):
     audit('receipt AI requested',rid);db().commit();return jsonify(safe)
 
 @app.get('/api/receipts')
-@auth('owner','employee')
+@auth()
 def receipt_inbox():
-    where,args=('1=1',[]) if g.user['role']=='owner' else ('r.user_id=?',[g.user['id']])
-    result=rows(f'''SELECT r.*,u.name AS owner,d.uploaded_at,d.scan_status,d.scan_error,d.extraction,
+    where,args=('1=1',[]) if g.user['role']!='employee' else ('r.user_id=?',[g.user['id']])
+    result=rows(f'''SELECT r.*,u.name AS owner,u.role AS owner_role,d.uploaded_at,d.scan_status,d.scan_error,d.extraction,
         (SELECT e.id FROM expenses e WHERE e.receipt_id=r.id LIMIT 1) AS expense_id
         FROM receipts r JOIN users u ON u.id=r.user_id LEFT JOIN receipt_details d ON d.receipt_id=r.id
         WHERE {where} ORDER BY COALESCE(d.uploaded_at,'') DESC,r.rowid DESC''',args)
@@ -325,7 +373,7 @@ def categorise_receipt(rid):
     else:
         d['receipt_id']=rid
         p=payload(d,{'user_id':r['user_id'],'shared':0,'account_id':None})
-        if r['user_id']!=g.user['id'] and p[3]!='business': fail('Employee receipts must remain business expenses.')
+        if one('SELECT role FROM users WHERE id=?',(r['user_id'],))['role']=='employee' and p[3]!='business': fail('Employee receipts must remain business expenses.')
         cur=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(r['user_id'],)+p);eid=cur.lastrowid
     audit('receipt categorised',rid);db().commit();return jsonify(id=eid)
 
@@ -345,13 +393,13 @@ def csv_rows(file):
     if len(data)>5001 or len(data)<2: fail('Use a header and 1–5,000 transaction rows.')
     return data
 @app.post('/api/import/preview')
-@auth('owner')
+@auth('owner','tax_agent')
 def import_preview():
     f=request.files.get('file')
     if not f: fail('Choose a CSV file.')
     data=csv_rows(f);return jsonify(headers=data[0],sample=data[1:7],count=len(data)-1)
 @app.post('/api/import')
-@auth('owner')
+@auth('owner','tax_agent')
 def bank_import():
     f=request.files.get('file')
     if not f: fail('Choose a CSV file.')
@@ -375,7 +423,7 @@ def bank_import():
         canonical=json.dumps([aid,when,merchant,amount]);seen[canonical]=seen.get(canonical,0)+1;key=hashlib.sha256((canonical+'|'+str(seen[canonical])).encode()).hexdigest();parsed.append((when,merchant,amount,key))
     added=duplicate=0
     for when,merchant,amount,key in parsed:
-        c=db().execute("INSERT OR IGNORE INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,account_id,import_key) VALUES (?,?,?,?,'personal','Uncategorised',0,?,?)",(g.user['id'],when,merchant,amount,aid,key))
+        c=db().execute("INSERT OR IGNORE INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,account_id,import_key) VALUES (?,?,?,?,'personal','Uncategorised',0,?,?)",(record_user_id(),when,merchant,amount,aid,key))
         if c.rowcount: added+=1
         else: duplicate+=1
     audit('bank CSV imported',json.dumps({'account':aid,'added':added,'duplicates':duplicate,'credits_skipped':skipped}));db().commit();return jsonify(added=added,duplicates=duplicate,credits_skipped=skipped)
@@ -386,13 +434,13 @@ def export():
     if start: w+=' AND e.date>=?';a.append(day(start))
     if end: w+=' AND e.date<=?';a.append(day(end))
     data=rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY date',a)
-    out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Shared with agent','Overnight location','Meal','Receipt ID','Notes'])
+    out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Overnight location','Meal','Receipt ID','Notes'])
     def safe(v):
         s=str(v or '')
         return "'"+s if s.lstrip().startswith(('=','+','-','@','\t','\r')) else s
     for e in data:
         alloc=Decimal('0') if e['reimbursed'] or e['scope']=='personal' else (Decimal(e['amount_cents'])*e['percent']/10000).quantize(Decimal('0.01'),rounding=ROUND_HALF_UP)
-        writer.writerow([e['id'],e['date'],safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],e['shared'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes'])])
+        writer.writerow([e['id'],e['date'],safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes'])])
     return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-expenses.csv')
 @app.get('/api/audit')
 @auth('owner')
@@ -402,7 +450,7 @@ def history(): return jsonify(rows('SELECT a.*,u.name FROM audit a LEFT JOIN use
 @auth('owner','employee')
 def update_trip(tid):
     t=one('SELECT * FROM trips WHERE id=?',(tid,))
-    if not t or (g.user['role']!='owner' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
+    if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
     linked=rows('SELECT id,date,scope FROM expenses WHERE trip_id=?',(tid,))
     if request.method=='DELETE':
         if linked: fail('Unlink expenses before deleting this trip.',409)
@@ -415,6 +463,76 @@ def update_trip(tid):
         if not textval(d.get('location')) or not textval(d.get('purpose')): fail('Location and purpose are required.')
         db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=? WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
     db().commit();return jsonify(ok=True)
+
+# Employment ledger and one resident/sole-trader tax forecast for the owner's workspace.
+with app.app_context():
+    db().executescript("""
+      CREATE TABLE IF NOT EXISTS employment_income(id INTEGER PRIMARY KEY,date TEXT NOT NULL,employer TEXT NOT NULL,gross_cents INTEGER NOT NULL,withheld_cents INTEGER NOT NULL,notes TEXT NOT NULL DEFAULT '');
+      CREATE TABLE IF NOT EXISTS tax_settings(year INTEGER PRIMARY KEY,settings TEXT NOT NULL);
+    """)
+    db().commit()
+
+@app.route('/api/employment',methods=['GET','POST'])
+@auth('owner','tax_agent')
+def employment_income():
+    if request.method=='GET': return jsonify(rows('SELECT * FROM employment_income ORDER BY date DESC,id DESC'))
+    d=request.get_json();values=employment_values(d)
+    c=db().execute('INSERT INTO employment_income(date,employer,gross_cents,withheld_cents,notes) VALUES (?,?,?,?,?)',values)
+    audit('employment income created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+
+def employment_values(d):
+    employer=textval(d.get('employer'),200);gross=money(d.get('gross'));withheld=money(d.get('withheld',0))
+    if not employer or gross<0 or not 0<=withheld<=gross: fail('Enter employer, non-negative gross pay, and withholding no greater than gross pay.')
+    return day(d.get('date')),employer,gross,withheld,textval(d.get('notes'),2000)
+
+@app.route('/api/employment/<int:eid>',methods=['PUT','DELETE'])
+@auth('owner','tax_agent')
+def edit_employment(eid):
+    if not one('SELECT id FROM employment_income WHERE id=?',(eid,)): fail('Income record not found.',404)
+    if request.method=='DELETE': db().execute('DELETE FROM employment_income WHERE id=?',(eid,))
+    else: db().execute('UPDATE employment_income SET date=?,employer=?,gross_cents=?,withheld_cents=?,notes=? WHERE id=?',employment_values(request.get_json())+(eid,))
+    audit('employment income updated',eid);db().commit();return jsonify(ok=True)
+
+TAX_FIELDS=('annual_salary','annual_withheld','annual_business_income','annual_business_deductions','annual_work_deductions','other_income','other_deductions','gst_credits','instalments','medicare_override','other_tax','set_aside')
+@app.route('/api/tax/<int:year>',methods=['GET','PUT'])
+@auth('owner','tax_agent')
+def tax_forecast(year):
+    if year not in (2024,2025,2026,2027): fail('Choose FY 2024–25 to FY 2027–28.')
+    if request.method=='PUT':
+        d=request.get_json();settings={}
+        for key in TAX_FIELDS:
+            value=d.get(key)
+            settings[key]=None if value in ('',None) else money(value)
+            if settings[key] is not None and settings[key]<0: fail('Forecast inputs cannot be negative.')
+        settings['annualise']=d.get('annualise') is True
+        db().execute('INSERT INTO tax_settings(year,settings) VALUES (?,?) ON CONFLICT(year) DO UPDATE SET settings=excluded.settings',(year,json.dumps(settings)))
+        audit('tax forecast assumptions updated',year);db().commit()
+    saved=one('SELECT settings FROM tax_settings WHERE year=?',(year,));settings=json.loads(saved['settings']) if saved else {}
+    start=f'{year}-07-01';end=f'{year+1}-06-30'
+    salary=one('SELECT COALESCE(SUM(gross_cents),0) gross,COALESCE(SUM(withheld_cents),0) withheld FROM employment_income WHERE date BETWEEN ? AND ?',(start,end))
+    # Allocate GST consistently across partial payments before filtering the year.
+    payments=rows('SELECT p.*,d.gst_cents,d.total_cents FROM billing_payments p JOIN billing_documents d ON d.id=p.document_id WHERE p.reversed_at IS NULL ORDER BY p.document_id,p.id')
+    running={};business_income=0
+    from tax_core import rounded,estimate
+    for payment in payments:
+        before=running.get(payment['document_id'],0);after=before+payment['amount_cents'];running[payment['document_id']]=after
+        gst=rounded(Decimal(payment['gst_cents'])*after/payment['total_cents'])-rounded(Decimal(payment['gst_cents'])*before/payment['total_cents'])
+        if start<=payment['date']<=end: business_income+=payment['amount_cents']-gst
+    expenses=rows("SELECT e.* FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.date BETWEEN ? AND ? AND e.status='ready' AND e.scope!='personal' AND e.reimbursed=0 AND (e.scope='business' OR u.role='owner')",(start,end))
+    business_deductions=sum(rounded(Decimal(e['amount_cents'])*e['percent']/100) for e in expenses if e['scope']=='business')
+    work_deductions=sum(rounded(Decimal(e['amount_cents'])*e['percent']/100) for e in expenses if e['scope']=='work')
+    unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review'",(start,end))['n']
+    current=datetime.now(timezone(timedelta(hours=10))).date();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
+    elapsed=max(1,min((current-begin).days+1,(finish-begin).days+1));factor=Decimal((finish-begin).days+1)/elapsed if settings.get('annualise') and begin<=current<=finish else Decimal(1)
+    def value(key,recorded=0):
+        v=settings.get(key)
+        return v if v is not None else rounded(Decimal(recorded)*factor)
+    forecast=dict(salary_cents=value('annual_salary',salary['gross']),withheld_cents=value('annual_withheld',salary['withheld']),business_income_cents=value('annual_business_income',business_income),business_deductions_cents=value('annual_business_deductions',business_deductions),work_deductions_cents=value('annual_work_deductions',work_deductions))
+    # A loss is carried for adviser review rather than silently offsetting salary.
+    profit=forecast['business_income_cents']-forecast['business_deductions_cents']+(settings.get('gst_credits') or 0)
+    taxable=forecast['salary_cents']+max(0,profit)-forecast['work_deductions_cents']+(settings.get('other_income') or 0)-(settings.get('other_deductions') or 0)
+    result=estimate(taxable,year,forecast['withheld_cents'],settings.get('instalments') or 0,settings.get('medicare_override'),settings.get('other_tax') or 0,settings.get('set_aside') or 0)
+    return jsonify(year=year,start=start,end=end,settings=settings,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat())
 
 from billing import register as register_billing
 register_billing(app, db, one, rows, fail, audit, DATA)

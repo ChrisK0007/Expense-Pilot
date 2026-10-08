@@ -74,14 +74,14 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(app.test_client().get('/api/billing/documents').status_code, 401)
         self.assertEqual(self.owner.post('/api/billing/documents', json={}).status_code, 403)
         for path in ('settings', 'clients', 'time', 'schedules', 'services'):
-            self.assertEqual(self.agent.get('/api/billing/' + path).status_code, 403)
+            self.assertEqual(self.agent.get('/api/billing/' + path).status_code, 200)
         self.assertEqual(self.call(self.agent, 'billing/documents', {}).status_code, 403)
 
-    def test_agent_share_scope_and_internal_notes(self):
+    def test_agent_all_documents_and_internal_notes(self):
         doc = self.issue(self.create())
-        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}").status_code, 404)
-        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/pdf").status_code, 404)
-        self.assertEqual(self.agent.get('/api/billing/documents').json, [])
+        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}").status_code, 200)
+        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/pdf").status_code, 200)
+        self.assertEqual(len(self.agent.get('/api/billing/documents').json), 1)
         self.assertEqual(self.pay(doc, '20').status_code, 200)
         doc = self.get(doc['id'])
         self.call(self.owner, f"billing/documents/{doc['id']}/sharing", dict(version=doc['version'], shared=True), 'PUT')
@@ -312,6 +312,9 @@ class BillingTest(unittest.TestCase):
                 target.execute('PRAGMA foreign_keys=OFF')
                 for row in target.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'billing_%'").fetchall():
                     target.execute('DROP TABLE '+row[0])
+                target.execute('ALTER TABLE users DROP COLUMN permission')
+                target.execute('DROP TABLE employment_income')
+                target.execute('DROP TABLE tax_settings')
                 target.commit();target.close()
             (path/'session.key').write_text('existing-session-key')
             (path/'receipts').mkdir()

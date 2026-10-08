@@ -52,6 +52,9 @@ def owner(fn):
     return wrapped
 
 
+def can_write():
+    return g.user['role']=='owner' or (g.user['role']=='tax_agent' and g.user.get('permission')=='read_write')
+
 def reader(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
@@ -59,6 +62,8 @@ def reader(fn):
             fail('Please sign in.', 401)
         if g.user['role'] not in ('owner', 'tax_agent'):
             fail('Access denied.', 403)
+        if request.method not in ('GET','HEAD') and not can_write():
+            fail('Read-only access.',403)
         try:
             return fn(*args, **kwargs)
         except ValueError as exc:
@@ -151,7 +156,7 @@ def hydrate(row):
 
 def document(did):
     row = one('SELECT * FROM billing_documents WHERE id=?', (did,))
-    if not row or (g.user and g.user['role'] == 'tax_agent' and not row['shared']):
+    if not row:
         fail('Document not found.', 404)
     return hydrate(row)
 
@@ -206,8 +211,11 @@ def ready_to_issue(doc):
 
 
 @bp.route('/settings', methods=['GET', 'PUT'])
-@owner
+@reader
 def configure():
+    if g.user['role']!='owner':
+        if request.method!='GET': fail('Only the owner can change business settings.',403)
+        return jsonify(business=business())
     if request.method == 'PUT':
         payload = body()
         old = business()
@@ -352,7 +360,7 @@ def email_test():
 
 
 @bp.route('/clients', methods=['GET', 'POST'])
-@owner
+@reader
 def clients():
     if request.method == 'POST':
         values = client_values(body())
@@ -373,7 +381,7 @@ def client_values(payload):
 
 
 @bp.put('/clients/<int:cid>')
-@owner
+@reader
 def edit_client(cid):
     if not one('SELECT id FROM billing_clients WHERE id=?', (cid,)):
         fail('Client not found.', 404)
@@ -385,7 +393,7 @@ def edit_client(cid):
 
 
 @bp.route('/services', methods=['GET', 'POST'])
-@owner
+@reader
 def services():
     if request.method == 'GET':
         return jsonify(rows('SELECT * FROM billing_services ORDER BY description'))
@@ -403,7 +411,7 @@ def services():
 
 
 @bp.delete('/services/<int:sid>')
-@owner
+@reader
 def delete_service(sid):
     db().execute('DELETE FROM billing_services WHERE id=?', (sid,))
     db().commit()
@@ -414,14 +422,14 @@ def delete_service(sid):
 @reader
 def documents():
     if request.method == 'POST':
-        if g.user['role'] != 'owner':
+        if not can_write():
             fail('Read-only access.', 403)
         values = validate_document(body())
         db().execute('BEGIN IMMEDIATE')
         did = insert_document(values)
         db().commit()
         return jsonify(id=did)
-    where = '1=1' if g.user['role'] == 'owner' else 'shared=1'
+    where = '1=1'
     results = [hydrate(r) for r in rows(f'SELECT * FROM billing_documents WHERE {where} ORDER BY issue_date DESC,id DESC')]
     for doc in results:
         doc['business'].pop('logo', None)
@@ -437,7 +445,7 @@ def document_detail(did):
         doc['payments'] = rows('SELECT * FROM billing_payments WHERE document_id=? ORDER BY id', (did,))
         doc['emails'] = rows('SELECT id,recipient,subject,state,error,created_at FROM billing_outbox WHERE document_id=? ORDER BY id DESC', (did,)) if g.user['role'] == 'owner' else []
         return jsonify(doc)
-    if g.user['role'] != 'owner':
+    if not can_write():
         fail('Read-only access.', 403)
     payload = body()
     db().execute('BEGIN IMMEDIATE')
@@ -467,7 +475,7 @@ def document_detail(did):
 
 
 @bp.post('/documents/<int:did>/action')
-@owner
+@reader
 def document_action(did):
     payload = body()
     action = payload.get('action')
@@ -536,7 +544,7 @@ def request_key(value):
 
 
 @bp.post('/documents/<int:did>/payments')
-@owner
+@reader
 def add_payment(did):
     payload = body()
     key = request_key(payload.get('request_key'))
@@ -563,7 +571,7 @@ def add_payment(did):
 
 
 @bp.post('/payments/<int:pid>/reverse')
-@owner
+@reader
 def reverse_payment(pid):
     payload = body()
     reason = txt(payload.get('reason'), 500)
@@ -660,7 +668,7 @@ def resolve_email(oid):
 
 
 @bp.route('/time', methods=['GET', 'POST'])
-@owner
+@reader
 def time_entries():
     if request.method == 'GET':
         return jsonify(rows('SELECT t.*,c.name AS client_name,d.number AS document_number FROM billing_time t JOIN billing_clients c ON c.id=t.client_id LEFT JOIN billing_documents d ON d.id=t.document_id ORDER BY t.date DESC,t.id DESC'))
@@ -683,7 +691,7 @@ def time_entries():
 
 
 @bp.delete('/time/<int:tid>')
-@owner
+@reader
 def delete_time(tid):
     db().execute('BEGIN IMMEDIATE')
     entry = one('SELECT * FROM billing_time WHERE id=?', (tid,))
@@ -696,7 +704,7 @@ def delete_time(tid):
 
 
 @bp.post('/time/invoice')
-@owner
+@reader
 def invoice_time():
     payload = body()
     ids = payload.get('ids')
@@ -718,7 +726,7 @@ def invoice_time():
 
 
 @bp.route('/schedules', methods=['GET', 'POST'])
-@owner
+@reader
 def schedules():
     if request.method == 'GET':
         return jsonify(rows('SELECT s.*,c.name AS client_name FROM billing_schedules s JOIN billing_clients c ON c.id=s.client_id ORDER BY s.active DESC,s.next_date'))
@@ -745,7 +753,7 @@ def schedules():
 
 
 @bp.put('/schedules/<int:sid>')
-@owner
+@reader
 def pause_schedule(sid):
     payload = body()
     row = one('SELECT * FROM billing_schedules WHERE id=?', (sid,))
@@ -797,7 +805,7 @@ def run_due(today=None):
 
 
 @bp.post('/schedules/run')
-@owner
+@reader
 def generate_due():
     return jsonify(created=run_due())
 
@@ -821,7 +829,7 @@ def report():
     end = day(request.args.get('end') or local_today())
     if end < start:
         fail('End date must follow start date.')
-    where = '1=1' if g.user['role'] == 'owner' else 'd.shared=1'
+    where = '1=1'
     # Include earlier receipts when assigning GST rounding, then apply the report date filter.
     payments = rows(f'''SELECT p.*,d.number,d.client,d.total_cents,d.gst_cents FROM billing_payments p
                       JOIN billing_documents d ON d.id=p.document_id WHERE p.reversed_at IS NULL AND {where} ORDER BY p.document_id,p.id''')
