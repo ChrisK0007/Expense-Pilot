@@ -112,5 +112,5 @@ class AppTest(unittest.TestCase):
     def test_export_date_filter(self):
         self.expense(self.owner,date='2026-06-30');self.expense(self.owner,date='2026-07-01')
         data=list(csv.reader(io.StringIO(self.owner.get('/api/export?start=2026-07-01&end=2027-06-30').data.decode('utf-8-sig'))))
-        self.assertEqual(len(data),2);self.assertEqual(data[1][1],'2026-07-01')
+        self.assertEqual(len(data),2);self.assertEqual(data[1][1],'01/07/2026')
 if __name__=='__main__': unittest.main()
