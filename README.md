@@ -1,8 +1,8 @@
 # Expense Pilot
 
-A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and share selected records with your tax agent.
+A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.3.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.4.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -13,8 +13,8 @@ A self-hosted expense workspace with a clean, Rounded-inspired interface. Separa
 - CommBank, Macquarie and American Express account labels; mapped CSV imports and duplicate detection.
 - Receipt photos and PDFs; optional Ollama extraction into a draft you review before saving.
 - Overnight trips, linked breakfast/lunch/dinner/incidentals and a separate allowance record.
-- Owner, employee and read-only tax-agent logins with server-side access restrictions.
-- Explicit sharing of expenses, receipts and linked trip details with tax-agent accounts.
+- Owner, employee and tax-agent logins, with per-agent Read only / Read & write permissions.
+- Automatic tax-agent access to all financial records, including personal expenses and unfiled receipts.
 - Financial-year CSV exports, activity history, password changes and account disabling.
 - Persistent SQLite database, Docker health check and backup helper.
 
@@ -99,17 +99,17 @@ docker compose up -d --build
 
 Set `OLLAMA_URL` to an address reachable from inside the app container, such as your Unraid host's LAN IP and Ollama port. `localhost` means the expense container itself. Set `OLLAMA_MODEL` to an installed model. Text PDFs send extracted text; scanned PDFs are rendered into images, as are receipt photos. PDFs are limited to eight pages and uploads to 12 MB.
 
-Nothing is sent to Ollama until you select **Read with AI**. Check all suggested values before saving. Foreign amounts need manual AUD conversion. This version supports Ollama, not OpenAI API connections. If using the Unraid template, edit its environment-variable fields and Apply; if using Compose, edit `.env` and recreate the container.
+Nothing is sent to Ollama until you select **Read with AI** or enable **Read with AI after upload** during capture. Check all suggested values before saving. Foreign amounts need manual AUD conversion. This version supports Ollama, not OpenAI API connections. If using the Unraid template, edit its environment-variable fields and Apply; if using Compose, edit `.env` and recreate the container.
 
 ## Access
 
 | Role | Access |
 | --- | --- |
-| Owner | All records, invoicing, clients, SMTP settings, imports, sharing, people and reports |
+| Owner | All records, invoicing, clients, SMTP settings, imports, people and reports |
 | Employee | Only their own business expenses, receipts and trips |
-| Tax agent | Read/export explicitly shared expenses, invoices/quotes, payment records and linked evidence/trip details |
+| Tax agent | Read all financial records; optionally create/edit financial records with Read & write permission |
 
-All active tax-agent accounts see the same shared set. Disabling an account revokes active sessions. Personal expenses cannot be shared. Account creation does not send an invitation email; provide credentials through your normal secure channel. Employees can change passwords in Settings.
+All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in People & access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation does not send an invitation email; provide credentials through your normal secure channel. Employees can change passwords in Settings.
 
 For terminal-only recovery:
 
@@ -147,7 +147,7 @@ Email templates support `{kind}`, `{number}`, `{client}`, `{business}`, `{total}
 ### Billing records and access
 
 - Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued documents are immutable, so changing a client address or business name does not rewrite old invoices.
-- Employee accounts have no access to clients, invoices, time billing or email settings. Tax-agent accounts can read/download only explicitly shared invoices/quotes and their payment records. Internal client notes, SMTP settings and email delivery history remain owner-only.
+- Employee accounts have no access to clients, invoices, time billing or email settings. Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
 - Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
 - Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. Credit notes and actual refund processing are not yet implemented.
 - **Saved services & prices** keeps common line items ready to use.
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.3.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.4.0**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -172,13 +172,13 @@ New database tables are created automatically on startup. Existing users, expens
 
 The billing workflows were informed by [Rounded's feature list](https://rounded.com.au/features) and [invoicing overview](https://rounded.com.au/features/invoicing), with an original interface and implementation. This version adds the core client, quote, invoice, payment and email workflows, not every Rounded feature.
 
-Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic reminder emails, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, client statements, a running time stopwatch, recurring expenses, vehicle tracking, BAS preparation or income-tax estimates. Bank imports and AI receipt reading continue to work as in v0.1.0.
+Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic reminder emails, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, client statements, a running time stopwatch, recurring expenses, vehicle tracking, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
 
 ## Verification
 
 The GitHub workflow builds the Docker image and gates publication on the original expense tests, billing/access/SMTP/upgrade regression tests, and real-browser desktop/mobile workflows. All SMTP calls in automated tests are mocked; browser tests never send mail. See the repository Actions tab for the build outcome for your installed image.
 
-A clean test copy of the original database structure is upgraded in tests, checking that existing expenses, receipt bytes and session key survive. The browser workflow exercises setup, client and business forms, invoice GST, issue/partial payment, PDF download, sharing, income report, quote conversion, recurring draft setup, and SMTP password retention. Real delivery through your own provider still requires the in-app test after you enter your settings.
+A clean test copy of the original database structure is upgraded in tests, checking that existing expenses, receipt bytes and session key survive. The browser workflow exercises setup, client and business forms, invoice GST, issue/partial payment, PDF download, agent permissions, employment income, tax forecasts, receipt preview, separate meals, income report, quote conversion, recurring draft setup, and SMTP password retention. Real delivery through your own provider still requires the in-app test after you enter your settings.
 
 Local PDF generation is checked with a single-page and multiple-page invoice. Actual bank-export samples and real Ollama extraction still require deployment checks.
 
@@ -197,10 +197,33 @@ Expense Pilot is an original implementation, not affiliated with Rounded.
 - New Expense Pilot logo, blue navigation, cleaner cards, expense activity chart and mobile layout.
 - Choose **Capture receipts** on Overview or Expenses, or open **Receipt inbox**. Upload several photos/PDFs or take a photo. Files are saved immediately without creating expenses or requiring a category.
 - With Ollama configured, **Read with AI after upload** reads each uploaded receipt. Keep the capture window open until the queue finishes. Results are saved; failed scans retain the original and can be retried or entered manually. If interrupted, use Read with AI on the saved receipt.
-- Review later: confirm merchant, date, AUD total, Employment/Business/Personal, category and use percentage. AI never chooses a use percentage or shares records with an accountant. Unfiled receipts stay out of expense totals and exports.
+- Review later: confirm merchant, date, AUD total, Employment/Business/Personal, category and use percentage. AI never chooses a use percentage. Tax agents automatically have access to all saved receipts. Unfiled receipts stay out of expense totals and exports.
 - The review screen suggests a category/workspace from that person's latest reviewed expense at the same merchant. Matching date/amount transactions can be explicitly linked instead of creating another expense. Foreign/unknown currencies require an AUD amount entered by you.
-- Exact duplicate uploaded files for the same person are reused. Different photographs of the same receipt still need your review. Employees see only their own receipts; tax agents see only receipts attached to shared expenses.
+- Exact duplicate uploaded files for the same person are reused. Different photographs of the same receipt still need your review. Employees see only their own receipts; tax agents see all receipts, including unfiled ones.
 - Invoice/quote PDFs use a clean two-column layout inspired by the supplied example: business branding, client and invoice details, notes above the line items, totals and payment details. Invoice emails continue to carry a real PDF attachment. Your business logo in Settings stays separate from the application logo. Online card payments are not added by this update.
 - Set `OLLAMA_URL` and a vision-capable `OLLAMA_MODEL` in the container to enable photo/scanned-PDF extraction. No new external AI provider or subscription is required. Text PDFs also work.
 
 The app logo was generated with the built-in image generation tool using the direction: a cobalt blue paper aircraft integrated with a receipt/checkmark, a turquoise accent and a transparent background. It is included at `static/expense-pilot-logo.png`.
+
+
+## Financial workspace (v0.4.0)
+
+- **People & access:** choose Read only or Read & write for each tax agent. All financial records are visible automatically. Read & write includes expenses, receipt filing, trips, clients, invoices, payments, employment income and forecast assumptions; it does not grant user administration or SMTP/email sending.
+- **Trips & meals:** add a trip, then choose **Add meal** on its card. Ordinary expense forms and category lists no longer offer meals. Earlier unlinked meal records remain available under **Meals needing a trip**. Meals still count once in financial totals and reviewed tax allocations.
+- **Receipt preview:** View receipt opens a viewer inside the app. Images and multi-page PDFs support zoom and page navigation. Download remains optional. PDF pages render individually; no external document viewer receives your receipts.
+- **Employment income:** record gross taxable salary and PAYG withholding by payment date, using payslips or an annual total for the same income, not both. Employer super is excluded.
+- **Tax forecast:** combines employment income, paid invoice receipts excluding GST and reviewed expense allocations. Choose FY 2024–25 through 2027–28. Enter expected annual totals or enable daily-rate projection; annual overrides replace recorded totals. Without either, it uses recorded totals only.
+
+The forecast applies Australian resident individual brackets and LITO, with a clearly labelled 2% Medicare provision. Medicare low-income/family adjustments and exemptions require an override. HELP, Medicare levy surcharge and other special obligations require an Other tax provision. Set PAYG instalments, other income/deductions, expense GST credits and savings set aside in assumptions. Business losses are flagged for adviser review and do not automatically offset salary. It is a planning estimate for an individual/sole trader, not company/trust tax, BAS or a lodged assessment. Supported rates are recorded in `tax_core.py` with sources checked 8 October 2026.
+
+### Container memory and icon
+
+The supplied 1 GB memory cap is a starting guardrail for the application. Ollama is a separate service and needs its own model-dependent resources. A hard cap does not reserve 1 GB; it bounds how much this container may consume. Keep the cap unless observed out-of-memory events or large concurrent PDF workloads justify raising it. Browser CI runs with `--memory 1g --memory-swap 1g` and captures peak memory as evidence, not a production capacity guarantee.
+
+In Unraid, open **Docker → expense-pilot → Edit → Advanced View** and set **Icon URL** to the application's logo endpoint, using your server's address:
+
+```text
+http://YOUR-UNRAID-IP:8788/static/expense-pilot-logo.png
+```
+
+Keep the app running while Unraid fetches the icon, then Apply. This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.

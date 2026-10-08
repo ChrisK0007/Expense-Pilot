@@ -9,7 +9,7 @@ class AppTest(unittest.TestCase):
     def setUp(self):
         app.config['TESTING']=True
         with app.app_context():
-            for table in ['billing_outbox','billing_payments','billing_time','billing_documents','billing_schedules','billing_services','billing_clients','billing_settings','expenses','trips','receipt_details','receipts','accounts','audit','users','attempts']: db().execute('DELETE FROM '+table)
+            for table in ['billing_outbox','billing_payments','billing_time','billing_documents','billing_schedules','billing_services','billing_clients','billing_settings','employment_income','tax_settings','expenses','trips','receipt_details','receipts','accounts','audit','users','attempts']: db().execute('DELETE FROM '+table)
             db().execute('UPDATE billing_counters SET next_number=1')
             db().commit()
         self.owner=app.test_client();self.call(self.owner,'setup',{'token':os.environ['SETUP_TOKEN'],'name':'Owner','email':'owner@example.test','password':'Owner-password-123'})
@@ -40,19 +40,19 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.staff.get('/api/users').status_code,403)
         self.assertEqual(self.staff.get('/api/export').status_code,403)
         self.assertEqual(self.expense(self.staff,scope='work').status_code,400)
-    def test_agent_explicit_share_read_only(self):
+    def test_agent_all_records_read_only(self):
         self.expense(self.owner,shared=False);eid=self.expense(self.owner,shared=True).json['id']
-        self.assertEqual(len(self.agent.get('/api/expenses').json),1)
+        self.assertEqual(len(self.agent.get('/api/expenses').json),2)
         self.assertEqual(self.expense(self.agent).status_code,403)
         self.assertEqual(self.call(self.agent,f'expenses/{eid}',{},'DELETE').status_code,403)
-        self.assertEqual(self.agent.get('/api/accounts').status_code,403)
-        self.assertEqual(len(list(csv.reader(io.StringIO(self.agent.get('/api/export').data.decode('utf-8-sig'))))),2)
-    def test_employee_cannot_grant_agent_access(self):
+        self.assertEqual(self.agent.get('/api/accounts').status_code,200)
+        self.assertEqual(len(list(csv.reader(io.StringIO(self.agent.get('/api/export').data.decode('utf-8-sig'))))),3)
+    def test_employee_records_visible_to_agent(self):
         self.expense(self.staff,shared=True)
-        self.assertEqual(self.agent.get('/api/expenses').json,[])
-    def test_personal_cannot_be_shared_or_allocated(self):
+        self.assertEqual(len(self.agent.get('/api/expenses').json),1)
+    def test_personal_visible_but_not_allocated(self):
         self.expense(self.owner,scope='personal',shared=True,percent=100)
-        e=self.owner.get('/api/expenses').json[0];self.assertEqual(e['shared'],0);self.assertEqual(e['percent'],0)
+        e=self.owner.get('/api/expenses').json[0];self.assertEqual(e['shared'],1);self.assertEqual(e['percent'],0)
     def test_disable_revokes_session(self):
         uid=next(u['id'] for u in self.owner.get('/api/users').json if u['email']=='staff@example.test')
         self.call(self.owner,f'users/{uid}/access',{'active':False})
@@ -103,7 +103,7 @@ class AppTest(unittest.TestCase):
         csrf=self.staff.get('/api/session').json['csrf']
         r=self.staff.post('/api/receipts',data={'file':(buf,'receipt.png')},headers={'X-CSRF-Token':csrf});self.assertEqual(r.status_code,200);rid=r.json['id']
         self.assertEqual(self.staff2.get('/api/receipts/'+rid).status_code,403)
-        self.assertEqual(self.agent.get('/api/receipts/'+rid).status_code,403)
+        self.assertEqual(self.agent.get('/api/receipts/'+rid).status_code,200)
         self.assertEqual(self.expense(self.owner,receipt_id=rid).status_code,400)
         self.assertEqual(self.staff.get('/api/receipts/'+rid).status_code,200)
         eid=self.expense(self.staff,receipt_id=rid).json['id'];e=self.owner.get('/api/expenses').json[0];e['amount']=e['amount_cents']/100;e['shared']=True
