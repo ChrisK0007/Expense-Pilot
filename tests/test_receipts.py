@@ -71,7 +71,7 @@ class ReceiptTest(unittest.TestCase):
         self.expense(self.owner,merchant='Cafe',status='ready',category='Meals',scope='work')
         self.expense(self.owner,merchant='Cafe',category='Other',status='review')
         self.expense(self.staff,merchant='Cafe',category='Subscriptions',status='ready')
-        rid=self.upload().json['id'];self.scan(rid,dict(merchant='Cafe',date='2026-10-08',amount=23.45,currency='AUD',category='Other'))
+        rid=self.upload().json['id'];self.scan(rid,dict(merchant='Cafe',date='2026-10-08',amount=23.45,currency='AUD',currency_evidence='AUD',category='Other'))
         row=next(r for r in self.owner.get('/api/receipts').json if r['id']==rid)
         self.assertEqual(row['suggestion'],{'category':'Meals','scope':'work'})
         self.assertEqual(len(row['matches']),2)
@@ -91,3 +91,37 @@ class ReceiptTest(unittest.TestCase):
         self.assertEqual(self.call(self.staff,'receipts/'+rid,{},'DELETE').status_code,403)
         self.assertEqual(self.call(self.owner,'receipts/'+rid,{},'DELETE').status_code,200)
         self.assertEqual(self.owner.get('/api/receipts/'+rid).status_code,404)
+
+    def test_manual_currency_survives_rescan_and_does_not_convert_amount(self):
+        rid=self.upload().json['id']
+        self.scan(rid,dict(merchant='Cafe',amount=25,currency='USD',currency_evidence='USD'))
+        response=self.call(self.owner,'receipts/'+rid+'/currency',{'currency':'aud'},'PUT')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json['extraction']['currency'],'AUD')
+        self.assertEqual(response.json['extraction']['amount'],25)
+        self.assertEqual(self.owner.get('/api/expenses').json,[])
+        self.scan(rid,dict(merchant='Cafe',amount=25,currency='USD',currency_evidence='USD'))
+        extracted=self.owner.get('/api/receipts').json[0]['extraction']
+        self.assertEqual(extracted['currency'],'AUD');self.assertEqual(extracted['currency_status'],'confirmed')
+        self.assertEqual(self.call(self.agent,'receipts/'+rid+'/currency',{'currency':'USD'},'PUT').status_code,403)
+        self.assertEqual(self.call(self.staff,'receipts/'+rid+'/currency',{'currency':'USD'},'PUT').status_code,403)
+        self.assertEqual(self.call(self.owner,'receipts/'+rid+'/currency',{'currency':'dollars'},'PUT').status_code,400)
+        eid=self.call(self.owner,'receipts/'+rid+'/expense',dict(date='2026-10-08',merchant='Cafe',amount=25,scope='work',category='Other',percent=100)).json['id']
+        self.call(self.owner,'receipts/'+rid+'/currency',{'currency':'USD'},'PUT')
+        self.assertEqual(next(e for e in self.owner.get('/api/expenses').json if e['id']==eid)['amount_cents'],2500)
+
+    def test_pdf_thumbnail_cache_still_enforces_receipt_access(self):
+        from pypdf import PdfWriter
+        from app import DATA
+        pdf=PdfWriter();pdf.add_blank_page(width=200,height=300);buf=io.BytesIO();pdf.write(buf);buf.seek(0)
+        rid=self.staff.post('/api/receipts',data={'file':(buf,'receipt.pdf')},headers={'X-CSRF-Token':self.staff.get('/api/session').json['csrf']}).json['id']
+        route='/api/receipts/'+rid+'/preview?page=1&thumbnail=1'
+        response=self.owner.get(route);self.assertEqual(response.status_code,200)
+        im=Image.open(io.BytesIO(response.data));self.assertLessEqual(max(im.size),420)
+        with patch('app.subprocess.run',side_effect=AssertionError('Cached thumbnail must not re-render')):
+            self.assertEqual(self.agent.get(route).data,response.data)
+            self.assertEqual(self.staff2.get(route).status_code,403)
+            self.assertEqual(app.test_client().get(route).status_code,401)
+        self.assertTrue((DATA/'receipt_previews'/(rid+'-thumb-v1.png')).exists())
+        self.call(self.owner,'receipts/'+rid,{},'DELETE')
+        self.assertFalse((DATA/'receipt_previews'/(rid+'-thumb-v1.png')).exists())
