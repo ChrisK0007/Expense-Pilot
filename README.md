@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.5.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.5.1.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.5.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.5.1**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -264,3 +264,10 @@ For previously scanned receipts, open **Review & categorise → This receipt is 
 - This is a visual and workflow update: it retains the existing permissions, receipt processing, SMTP/PDF delivery and tax calculations. It does not add live bank feeds, automatic email sending or new tax rules.
 
 Update the Docker image and refresh the browser. Existing appdata and financial records are retained.
+
+
+## Readability and document wording (v0.5.1)
+
+Small interface text is two pixels larger, with more room in the sidebar. The business/trading name from Settings → Business profile & branding appears beneath your name, and refreshes immediately when saved.
+
+Open an issued invoice or quote and choose **Edit wording** to change line descriptions, reference, notes/terms and invoice payment instructions. Owners and tax agents with Read & write access can make these changes. Amounts, GST, dates and payment records are retained; void and converted documents cannot be amended. Earlier wording is retained in appdata history. A newly downloaded or resent PDF includes the updated wording; PDFs already emailed are unchanged. Drafts retain their full **Edit draft** editor.

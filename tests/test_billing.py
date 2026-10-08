@@ -133,6 +133,45 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {**saved,'version':saved['version']}, 'PUT').status_code, 409)
         self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {'version':saved['version']}, 'DELETE').status_code, 409)
 
+    def test_wording_updates_pdf_without_changing_financial_records(self):
+        for kind in ('invoice', 'quote'):
+            doc = self.issue(self.create(kind=kind))
+            if kind == 'invoice':
+                self.assertEqual(self.pay(doc, '40').status_code, 200)
+                doc = self.get(doc['id'])
+            payload = dict(version=doc['version'], descriptions=['Updated examiner services'], reference='Corrected reference', notes='Updated terms', payment_details='Updated payment instructions')
+            path = f"billing/documents/{doc['id']}/wording"
+            self.assertEqual(self.call(self.agent, path, payload, 'PUT').status_code, 403)
+            self.assertEqual(self.call(self.staff, path, payload, 'PUT').status_code, 403)
+            self.assertEqual(self.call(self.owner, path, {**payload, 'total_cents':1}, 'PUT').status_code, 400)
+            self.assertEqual(self.call(self.owner, path, {**payload, 'descriptions':[]}, 'PUT').status_code, 400)
+            self.assertEqual(self.call(self.owner, path, payload, 'PUT').status_code, 200)
+            saved = self.get(doc['id'])
+            for key in ('number','state','client','business','issue_date','due_date','tax_mode','subtotal_cents','gst_cents','total_cents','paid_cents','balance_cents','payments'):
+                self.assertEqual(saved[key], doc[key], key)
+            self.assertEqual(saved['lines'][0]['description'], 'Updated examiner services')
+            self.assertEqual(saved['lines'][0]['unit_price'], doc['lines'][0]['unit_price'])
+            self.assertEqual(self.call(self.owner, path, payload, 'PUT').status_code, 409)
+            from pypdf import PdfReader
+            pdf = self.owner.get(f"/api/billing/documents/{doc['id']}/pdf")
+            text = ''.join(p.extract_text() for p in PdfReader(io.BytesIO(pdf.data)).pages)
+            self.assertIn('Updated examiner services', text)
+            self.assertIn('Updated terms', text)
+            with app.app_context():
+                previous = json.loads(db().execute('SELECT previous FROM billing_wording_history WHERE document_id=?', (doc['id'],)).fetchone()['previous'])
+                self.assertEqual(previous['lines'][0]['description'], doc['lines'][0]['description'])
+            if kind == 'quote':
+                self.assertEqual(self.action(saved, 'accepted').status_code, 200)
+                saved = self.get(doc['id'])
+                self.assertEqual(self.action(saved, 'convert').status_code, 200)
+                payload['version'] = self.get(doc['id'])['version']
+                self.assertEqual(self.call(self.owner, path, payload, 'PUT').status_code, 409)
+
+    def test_business_name_in_authenticated_session(self):
+        for client in (self.owner, self.staff, self.agent):
+            self.assertEqual(client.get('/api/session').json['business_name'], 'Example Flight Testing')
+        self.assertEqual(app.test_client().get('/api/session').json['business_name'], '')
+
     def test_stale_draft_update_does_not_overwrite(self):
         doc = self.create()
         data = {**doc, 'notes':'Updated once'}
