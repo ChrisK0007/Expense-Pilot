@@ -86,6 +86,10 @@ def display_status(doc, today):
     return 'part_paid' if doc['paid_cents'] else 'unpaid'
 
 
+def date_au(value):
+    return date.fromisoformat(value).strftime('%d/%m/%Y')
+
+
 def aud(value):
     return f'${value / 100:,.2f}'
 
@@ -144,10 +148,8 @@ def pdf_document(doc):
     buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k))
     if client.get('abn'): buyer += '\nABN: ' + client['abn']
     right_side += [p(buyer, right), Spacer(1, 3 * mm)]
-    def pretty_date(value):
-        return date.fromisoformat(value).strftime('%d %b, %Y')
-    metadata = [('Number', doc['number']), ('Issued', pretty_date(doc['issue_date'])),
-                ('Valid until' if doc['kind']=='quote' else 'Due', pretty_date(doc['due_date'])),
+    metadata = [('Number', doc['number']), ('Issued', date_au(doc['issue_date'])),
+                ('Valid until' if doc['kind']=='quote' else 'Due', date_au(doc['due_date'])),
                 ('Total', 'AU ' + aud(doc['total_cents']))]
     if doc.get('reference'): metadata.append(('Reference', doc['reference']))
     details = Table([[p(k),p(v,right)] for k,v in metadata], colWidths=[23*mm,48*mm])
@@ -160,7 +162,7 @@ def pdf_document(doc):
                             ('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
     story = [top, Spacer(1, 4*mm)]
     # Notes precede the item table, for flight-test dates and candidate details.
-    if doc.get('notes') and doc['notes'].strip() != 'Thank you for your business.':
+    if doc.get('notes'):
         story += [p(doc['notes']), Spacer(1, 5*mm)]
     taxable = doc['tax_mode'] != 'none'
     headings = ['DESCRIPTION', 'QUANTITY', 'RATE', 'GST', 'TOTAL'] if taxable else ['DESCRIPTION','QUANTITY','RATE','TOTAL']
@@ -190,7 +192,6 @@ def pdf_document(doc):
         payment_heading=Table([[p('PAYMENT DETAILS',label_style)]],colWidths=[174*mm])
         payment_heading.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
         story += [Spacer(1,8*mm),KeepTogether([payment_heading,Spacer(1,3*mm),p(doc['payment_details'])])]
-    story += [Spacer(1,7*mm),p('Thank you for your business.',small)]
     def footer(canvas, layout):
         canvas.saveState()
         canvas.setStrokeColor(accent)
