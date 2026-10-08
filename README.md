@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.4.2.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.5.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.4.2**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.5.0**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -252,3 +252,15 @@ PDF inbox cards show the first page, with lazy loading and a small cached thumbn
 Receipt AI now asks for visible currency evidence. Printed currency markers take priority; Australian ABN or GST plus an Australian website can suggest AUD. A dollar sign alone does not establish USD, and ambiguous or conflicting currencies are left for review. Vision-model evidence is still an AI suggestion.
 
 For previously scanned receipts, open **Review & categorise → This receipt is AUD**, or enter a three-letter code in **Receipt currency → Confirm currency**. Corrections persist without re-uploading and survive a new AI scan. Correcting a currency label does not perform an exchange-rate conversion or alter an existing expense. For foreign receipts, enter the actual AUD amount paid. Use **Read with AI** to re-scan an older receipt using the new rules.
+
+
+## Accounting workspace redesign (v0.5.0)
+
+- Compact navigation groups billing, money records and reporting. Line item templates now have their own page as well as the existing Settings shortcut.
+- Choose Light, Dark or System in the sidebar, the mobile header or Settings → Appearance. The choice is remembered in this browser; System follows device changes. Invoice PDFs keep their print colours.
+- The dashboard compares calendar-year business receipts (excluding GST) or allocated expenses, with line/bar views and accessible monthly figures. The separate financial-year selector controls breakdowns and the existing tax forecast summary. No sample financial records are added.
+- Invoice and quote lists have client, status, financial-year and description search filters, sortable columns and final payment dates for fully paid invoices. Summary totals cover all dates.
+- Expense reports show category, merchant or workspace breakdowns and an allocation chart. Refunds reduce totals; chart segments show positive net groups only. The CSV export includes all workspaces for the selected dates. Income reports show a client breakdown.
+- This is a visual and workflow update: it retains the existing permissions, receipt processing, SMTP/PDF delivery and tax calculations. It does not add live bank feeds, automatic email sending or new tax rules.
+
+Update the Docker image and refresh the browser. Existing appdata and financial records are retained.

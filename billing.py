@@ -149,6 +149,7 @@ def hydrate(row):
     for key in ('client', 'business', 'lines'):
         doc[key] = json.loads(doc[key])
     doc['paid_cents'] = one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['n']
+    doc['paid_date'] = one('SELECT MAX(date) AS value FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['value'] if doc['paid_cents'] >= doc['total_cents'] and doc['paid_cents'] > 0 else None
     doc['balance_cents'] = doc['total_cents'] - doc['paid_cents']
     doc['status'] = display_status(doc, local_today())
     return doc

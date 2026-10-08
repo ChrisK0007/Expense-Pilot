@@ -158,10 +158,12 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.pay(doc, '40', key).json['id'], first.json['id'])
         doc = self.get(doc['id'])
         self.assertEqual((doc['paid_cents'],doc['balance_cents'],doc['status']), (4000,7000,'part_paid'))
+        self.assertIsNone(doc['paid_date'])
         self.assertEqual(self.pay(doc, '71').status_code, 409)
         self.assertEqual(self.pay(doc, '70').status_code, 200)
         doc = self.get(doc['id'])
         self.assertEqual(doc['status'], 'paid')
+        self.assertEqual(doc['paid_date'], self.today)
         self.assertEqual(len(doc['payments']), 2)
 
     def test_reverse_payment_audit_then_void(self):
@@ -172,6 +174,7 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, f'billing/payments/{payment}/reverse', dict(version=doc['version'], reason='Incorrect entry')).status_code, 200)
         doc = self.get(doc['id'])
         self.assertEqual(doc['balance_cents'], 11000)
+        self.assertIsNone(doc['paid_date'])
         self.assertEqual(self.action(doc, 'void').status_code, 200)
         self.assertEqual(self.owner.get('/api/billing/report').json['received_cents'], 0)
 
