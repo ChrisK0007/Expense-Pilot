@@ -172,7 +172,7 @@ New database tables are created automatically on startup. Existing users, expens
 
 The billing workflows were informed by [Rounded's feature list](https://rounded.com.au/features) and [invoicing overview](https://rounded.com.au/features/invoicing), with an original interface and implementation. This version adds the core client, quote, invoice, payment and email workflows, not every Rounded feature.
 
-Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic reminder emails, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, client statements, a running time stopwatch, recurring expenses, vehicle tracking, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
+Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic reminder emails, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, client statements, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
 
 ## Verification
 
@@ -249,7 +249,7 @@ This is the container-list icon. Your invoice business logo is separately set in
 
 PDF inbox cards show the first page, with lazy loading and a small cached thumbnail. Open the full viewer for other pages. Previews remain subject to the receipt permissions.
 
-Receipt AI now asks for visible currency evidence. Printed currency markers take priority; Australian ABN or GST plus an Australian website can suggest AUD. A dollar sign alone does not establish USD, and ambiguous or conflicting currencies are left for review. Vision-model evidence is still an AI suggestion.
+Receipt AI now asks for visible currency evidence. Printed currency markers take priority; Australian ABN or GST plus an Australian website can suggest AUD. A dollar sign alone does not establish USD. From v0.6.0, receipts without another specified currency default to AUD; conflicting currency markers are left for review. Vision-model evidence is still an AI suggestion.
 
 For previously scanned receipts, open **Review & categorise → This receipt is AUD**, or enter a three-letter code in **Receipt currency → Confirm currency**. Corrections persist without re-uploading and survive a new AI scan. Correcting a currency label does not perform an exchange-rate conversion or alter an existing expense. For foreign receipts, enter the actual AUD amount paid. Use **Read with AI** to re-scan an older receipt using the new rules.
 

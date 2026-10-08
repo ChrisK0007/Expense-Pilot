@@ -50,7 +50,7 @@ class TrackingTest(unittest.TestCase):
         result=self.call(self.owner,'receipts/'+rid+'/expense',dict(merchant='Corrected',date='2026-10-08',amount='179.99',category='Equipment',scope='business',status='ready'))
         self.assertEqual(result.status_code,200,result.json);eid=result.json['id']
         self.assertEqual(self.owner.get('/api/receipts').json[0]['saved_expense']['amount_cents'],17999)
-        self.assertEqual(self.call(self.owner,'expenses/'+str(eid),dict(merchant='Corrected',date='2026-10-08',amount='189.99',category='Equipment',scope='business',status='ready'),'PUT').status_code,200)
+        self.assertEqual(self.call(self.owner,'expenses/'+str(eid),dict(merchant='Corrected',date='2026-10-08',amount='189.99',category='Equipment',scope='business',status='ready',receipt_id=rid),'PUT').status_code,200)
         row=self.owner.get('/api/receipts').json[0]
         self.assertEqual(row['saved_expense']['amount_cents'],18999);self.assertEqual(row['extraction']['amount'],100)
         self.assertEqual(self.call(self.owner,'receipts/'+rid+'/draft',{'amount':50},'PUT').status_code,409)
