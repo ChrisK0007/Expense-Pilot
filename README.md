@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and share selected records with your tax agent.
 
-**Version: 0.2.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.3.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.2.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.3.0**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -190,3 +190,17 @@ docker run --rm --entrypoint python -v "$PWD/tests:/app/tests:ro" expense-pilot:
 ```
 
 Expense Pilot is an original implementation, not affiliated with Rounded.
+
+
+## Receipt inbox and branding (v0.3.0)
+
+- New Expense Pilot logo, blue navigation, cleaner cards, expense activity chart and mobile layout.
+- Choose **Capture receipts** on Overview or Expenses, or open **Receipt inbox**. Upload several photos/PDFs or take a photo. Files are saved immediately without creating expenses or requiring a category.
+- With Ollama configured, **Read with AI after upload** reads each uploaded receipt. Keep the capture window open until the queue finishes. Results are saved; failed scans retain the original and can be retried or entered manually. If interrupted, use Read with AI on the saved receipt.
+- Review later: confirm merchant, date, AUD total, Employment/Business/Personal, category and use percentage. AI never chooses a use percentage or shares records with an accountant. Unfiled receipts stay out of expense totals and exports.
+- The review screen suggests a category/workspace from that person's latest reviewed expense at the same merchant. Matching date/amount transactions can be explicitly linked instead of creating another expense. Foreign/unknown currencies require an AUD amount entered by you.
+- Exact duplicate uploaded files for the same person are reused. Different photographs of the same receipt still need your review. Employees see only their own receipts; tax agents see only receipts attached to shared expenses.
+- Invoice/quote PDFs use a clean two-column layout inspired by the supplied example: business branding, client and invoice details, notes above the line items, totals and payment details. Invoice emails continue to carry a real PDF attachment. Your business logo in Settings stays separate from the application logo. Online card payments are not added by this update.
+- Set `OLLAMA_URL` and a vision-capable `OLLAMA_MODEL` in the container to enable photo/scanned-PDF extraction. No new external AI provider or subscription is required. Text PDFs also work.
+
+The app logo was generated with the built-in image generation tool using the direction: a cobalt blue paper aircraft integrated with a receipt/checkmark, a turquoise accent and a transparent background. It is included at `static/expense-pilot-logo.png`.
