@@ -29,7 +29,8 @@ jobs:
           node --check static/theme.js
           node --check static/tracking.js
           node --check static/security.js
-          python -m py_compile app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py security.py location_core.py date_core.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
+          node --check static/preferences.js
+          python -m py_compile app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py security.py location_core.py date_core.py expense_core.py features.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
           bash -n prepare.sh backup.sh
       - name: Build image
         run: docker build -t expense-pilot:test .
@@ -46,6 +47,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_smoke.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_tracking.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_security.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_splits.cjs
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |

@@ -1,3 +1,4 @@
+const {navigate}=require('./ui_navigation.cjs');
 // Real browser / API smoke test against an empty, disposable test container.
 // The disposable browser_server.py captures invitations; no network email is sent.
 const { chromium } = require('playwright');
@@ -37,13 +38,13 @@ async function main() {
     await page.getByRole('button',{name:'Done',exact:true}).click();
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().waitFor();
     await page.reload();
-    await page.locator('[data-page=receipts]').click();
+    await navigate(page,'receipts');
     await page.getByRole('button',{name:'Review & categorise',exact:false}).nth(1).waitFor();
     assert.equal(await page.getByRole('button',{name:'Review & categorise',exact:false}).count(),2);
     await page.waitForFunction(()=>document.querySelectorAll('.receipt-thumbnail').length===2&&[...document.querySelectorAll('.receipt-thumbnail')].every(i=>i.complete&&i.naturalWidth>0));
     await page.screenshot({path:output+'/receipts-desktop.png',fullPage:true});
     await page.evaluate(()=>{S.ai_configured=true;});
-    await page.locator('[data-page=receipts]').click();
+    await navigate(page,'receipts');
     let scanAttempts=0,reprocessedId='';
     await page.route('**/api/receipts/*/extract',async route=>{
       reprocessedId=route.request().url().split('/').at(-2);scanAttempts++;
@@ -63,18 +64,22 @@ async function main() {
     await page.screenshot({path:output+'/receipt-reprocessed.png',fullPage:true});
     await page.locator('#close-modal').click();
     await page.unroute('**/api/receipts/*/extract');await page.unroute('**/api/receipts');
-    await page.reload();await page.locator('[data-page=receipts]').click();
+    await page.reload();await navigate(page,'receipts');
 
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     await page.getByLabel('Receipt currency',{exact:true}).fill('USD');
-    await page.getByRole('button',{name:'Confirm currency',exact:true}).click();
-    await page.getByText('Receipt currency confirmed.',{exact:true}).waitFor();
-    await page.getByRole('button',{name:'This receipt is AUD',exact:true}).click();
-    await page.waitForFunction(()=>document.querySelector('#receipt_currency')?.value==='AUD');
-    await page.locator('#close-modal').click();
-    await page.reload();await page.locator('[data-page=receipts]').click();
+    await page.getByLabel('Receipt currency',{exact:true}).press('Tab');
+    await page.getByRole('button',{name:'Save draft',exact:true}).click();
+    await page.getByText('Receipt draft saved.',{exact:true}).waitFor();
+    await page.reload();await navigate(page,'receipts');
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
-    assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'AUD','Confirmed currency survives reload');
+    assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'USD');
+    await page.getByLabel('Receipt currency',{exact:true}).fill('AUD');
+    await page.getByRole('button',{name:'Save draft',exact:true}).click();
+    await page.getByText('Receipt draft saved.',{exact:true}).waitFor();
+    await page.reload();await navigate(page,'receipts');
+    await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
+    assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'AUD','Edited currency survives reload');
     await page.waitForFunction(()=>document.querySelector('.receipt-preview img')?.naturalWidth>0);
     await page.setViewportSize({width:390,height:844});
     await page.screenshot({path:output+'/receipt-review-mobile.png',fullPage:true});
@@ -94,7 +99,7 @@ async function main() {
     await page.getByLabel('Amount paid (AUD)').fill('25.50');
     await page.getByLabel('Workspace',{exact:true}).selectOption('work');
     await page.getByLabel('Category',{exact:true}).selectOption('Equipment');
-    await page.getByLabel('Work / business use (%)').fill('50');
+    await page.getByLabel('Employment (%)').fill('50');
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
     await page.getByText('Expense saved.',{exact:true}).waitFor();
     assert.equal(await page.getByRole('button',{name:'Review & categorise',exact:false}).count(),1);
@@ -102,10 +107,10 @@ async function main() {
     await page.screenshot({path:output+'/receipts-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Receipt inbox overflows');
     await page.setViewportSize({width:1440,height:1050});
-    await page.locator('[data-page=dashboard]').click();
+    await navigate(page,'dashboard');
     await page.locator('.comparison-chart').waitFor();
     await page.screenshot({path:output+'/overview-desktop.png',fullPage:true});
-    await page.locator('[data-page=settings]').click();
+    await navigate(page,'settings');
     await page.getByRole('button',{name:'Business profile & branding'}).click();
     await page.getByLabel('Business / trading name').fill('Example Flight Testing');
     await page.getByLabel('ABN',{exact:true}).fill('12 345 678 901');
@@ -124,13 +129,13 @@ async function main() {
     await page.screenshot({path:output+'/wording-defaults.png',fullPage:true});
     await page.getByRole('button',{name:'Save wording defaults'}).click();
     await page.getByText('Wording defaults saved.',{exact:true}).waitFor();
-    await page.locator('[data-page=clients]').click();
+    await navigate(page,'clients');
     await page.getByRole('button',{name:'Add client',exact:false}).click();
     await page.getByLabel('Client / business name').fill('Example Aviation');
     await page.getByLabel('Billing email').fill('client@example.test');
     await page.getByRole('button',{name:'Save client'}).click();
     await page.getByText('Example Aviation',{exact:true}).waitFor();
-    await page.locator('[data-page=invoices]').click();
+    await navigate(page,'invoices');
     await page.getByRole('button',{name:'New invoice',exact:false}).click();
     assert.equal(await page.getByLabel('Notes & terms',{exact:true}).inputValue(),'Please pay within your agreed payment terms.');
     assert.match(await page.getByLabel('Issue date').inputValue(),/^\d{2}\/\d{2}\/\d{4}$/);
@@ -160,10 +165,10 @@ async function main() {
     await (await downloadPromise).saveAs(output+'/invoice.pdf');
     assert.equal(await page.getByLabel('Share this document and payment history').count(),0);
     await page.locator('#close-modal').click();
-    await page.locator('[data-page=income]').click();
+    await navigate(page,'income');
     await page.getByText('Payments received',{exact:true}).waitFor();
     assert.match(await page.locator('#income-result').innerText(),/200\.00/);
-    await page.locator('[data-page=quotes]').click();
+    await navigate(page,'quotes');
     await page.getByRole('button',{name:'New quote',exact:false}).click();
     await page.getByLabel('Line description').fill('Training session');
     await page.getByLabel('Unit price',{exact:true}).fill('150');
@@ -178,13 +183,13 @@ async function main() {
     await page.getByRole('button',{name:'Make recurring'}).click();
     await page.getByRole('button',{name:'Create recurring schedule'}).click();
     await page.getByRole('button',{name:'Pause',exact:true}).waitFor();
-    await page.locator('[data-page=expenses]').click();
+    await navigate(page,'expenses');
     await page.getByRole('button',{name:'Add expense',exact:false}).click();
     assert.equal(await page.getByLabel('Meal type',{exact:true}).count(),0);
     assert.equal(await page.getByLabel('Overnight trip',{exact:true}).count(),0);
     assert.equal(await page.getByLabel('Category',{exact:true}).locator('option[value="Meals"]').count(),0);
     await page.locator('#close-modal').click();
-    await page.locator('[data-page=trips]').click();
+    await navigate(page,'trips');
     await page.getByRole('button',{name:'Add overnight trip',exact:false}).click();
     await page.getByLabel('Location',{exact:true}).fill('Cairns');
     await page.getByLabel('Departure date').fill('07/10/2026');
@@ -217,9 +222,9 @@ async function main() {
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Trip filters overflow');
     await page.setViewportSize({width:1440,height:1050});
 
-    await page.locator('[data-page=expenses]').click();
+    await navigate(page,'expenses');
     assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),0);
-    await page.locator('[data-page=employment]').click();
+    await navigate(page,'employment');
     await page.getByRole('button',{name:'Add employment income',exact:false}).click();
     await page.getByLabel('Employer',{exact:true}).fill('Example Employer');
     await page.getByLabel('Payment / statement date').fill('08/10/2026');
@@ -228,7 +233,7 @@ async function main() {
     await page.getByRole('button',{name:'Save income',exact:true}).click();
     await page.getByText('Example Employer',{exact:true}).waitFor();
     await page.screenshot({path:output+'/employment-income.png',fullPage:true});
-    await page.locator('[data-page=tax]').click();
+    await navigate(page,'tax');
     await page.getByRole('button',{name:'Edit forecast assumptions'}).click();
     await page.getByLabel('Annual employment income (AUD)',{exact:true}).fill('100000');
     await page.getByLabel('Annual PAYG withholding (AUD)',{exact:true}).fill('20000');
@@ -243,7 +248,7 @@ async function main() {
     await page.screenshot({path:output+'/tax-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Tax page overflows');
     await page.setViewportSize({width:1440,height:1050});
-    await page.locator('[data-page=team]').click();
+    await navigate(page,'team');
     await page.getByRole('button',{name:'Add person',exact:false}).click();
     await page.getByLabel('Name',{exact:true}).fill('Test Agent');
     await page.getByLabel('Email (login name)').fill('agent@example.test');
@@ -267,10 +272,10 @@ async function main() {
     await agent.getByLabel('Email address').fill('agent@example.test');
     await agent.getByLabel('Password',{exact:true}).fill('Agent-test-password-123');
     await agent.getByRole('button',{name:'Sign in',exact:false}).click();
-    await agent.locator('[data-page=receipts]').click();
+    await navigate(agent,'receipts');
     await agent.getByRole('button',{name:'View receipt',exact:false}).first().waitFor();
     assert.equal(await agent.getByRole('button',{name:'Capture receipts',exact:false}).count(),0);
-    await agent.locator('[data-page=invoices]').click();
+    await navigate(agent,'invoices');
     await agent.getByRole('button',{name:'Open ↗',exact:true}).first().click();
     assert.equal(await agent.getByRole('button',{name:'Record payment',exact:true}).count(),0);
     assert.equal(await agent.getByRole('button',{name:'Edit wording',exact:true}).count(),0);
@@ -278,16 +283,16 @@ async function main() {
     await page.getByLabel('Permission for Test Agent').selectOption('read_write');
     await page.getByText('Permission updated.',{exact:true}).waitFor();
     await agent.reload();
-    await agent.locator('[data-page=employment]').click();
+    await navigate(agent,'employment');
     await agent.getByRole('button',{name:'Add employment income',exact:false}).waitFor();
     await page.screenshot({path:output+'/agent-permissions.png',fullPage:true});
     await page.getByLabel('Permission for Test Agent').selectOption('read_only');
     await page.waitForFunction(()=>document.querySelector('.agent-permission')?.value==='read_only'&&!document.querySelector('.agent-permission')?.disabled);
-    await agent.reload();await agent.locator('[data-page=employment]').click();
+    await agent.reload();await navigate(agent,'employment');
     await agent.getByText('Example Employer',{exact:true}).waitFor();
     assert.equal(await agent.getByRole('button',{name:'Add employment income',exact:false}).count(),0);
     await agentContext.close();
-    await page.locator('[data-page=settings]').click();
+    await navigate(page,'settings');
     await page.getByRole('button',{name:'Email delivery & templates'}).click();
     await page.getByLabel('SMTP host').fill('smtp.example.test');
     await page.getByLabel('SMTP username').fill('owner@example.test');
@@ -298,7 +303,7 @@ async function main() {
     assert.equal(await page.getByLabel('Password saved — leave blank to keep').inputValue(),'');
     await page.screenshot({path:output+'/email-settings.png',fullPage:true});
     await page.locator('#close-modal').click();
-    await page.locator('[data-page=invoices]').click();
+    await navigate(page,'invoices');
     await page.locator('#billing-table table').waitFor();
     await page.screenshot({path:output+'/invoices-desktop.png',fullPage:true});
     // Filters, sorting, saved themes, real-data charts and responsive reports.
@@ -337,14 +342,14 @@ async function main() {
     await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');
     await page.emulateMedia({colorScheme:'light'});
     await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');
-    await page.locator('[data-page=services]').click();
+    await navigate(page,'services');
     await page.getByRole('button',{name:'Manage line items'}).click();
     await page.getByLabel('Service / item description').fill('Reusable flight test');
     await page.getByLabel('Unit price (AUD)',{exact:true}).fill('600');
     await page.getByRole('button',{name:'Add service',exact:true}).click();
     await page.locator('#modal').getByText('Reusable flight test',{exact:true}).waitFor();
     await page.locator('#close-modal').click();
-    await page.locator('[data-page=reports]').click();
+    await navigate(page,'reports');
     await page.locator('.report-donut').waitFor();
     await page.getByLabel('Group by',{exact:true}).selectOption('scope');
     await page.screenshot({path:output+'/expense-report-light.png',fullPage:true});
@@ -352,13 +357,13 @@ async function main() {
     await page.screenshot({path:output+'/expense-report-dark.png',fullPage:true});
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Report overflows on mobile');
-    await page.locator('[data-page=dashboard]').click();
+    await navigate(page,'dashboard');
     await page.locator('.comparison-chart').waitFor();
     await page.screenshot({path:output+'/dashboard-mobile-dark.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Dashboard overflows on mobile');
     await page.locator('#mobile-theme-choice').selectOption('light');
     await page.screenshot({path:output+'/dashboard-mobile-light.png',fullPage:true});
-    await page.locator('[data-page=invoices]').click();
+    await navigate(page,'invoices');
     await page.locator('#billing-table table').waitFor();
     await page.getByRole('button',{name:'New invoice',exact:false}).click();
     await page.getByLabel('Add a saved service').selectOption({label:'Reusable flight test'});
