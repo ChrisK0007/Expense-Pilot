@@ -25,3 +25,21 @@ button{transition:box-shadow .15s}
 .allowance-details summary{cursor:pointer;font-weight:600}
 .reprocess-receipt{margin-top:6px}
 #trip-results>.panel{margin-top:20px}
+
+/* Context menus use the top layer so tables never clip them. */
+.action-menu{display:inline-flex;vertical-align:middle}
+.menu-trigger{font-size:24px;line-height:1;padding:7px 10px}
+.action-popup{position:fixed;inset:auto;width:max-content;height:max-content;max-height:calc(100vh - 16px);overflow:auto;margin:0;min-width:190px;max-width:calc(100vw - 16px);padding:6px;border:1px solid var(--line,#dfe1eb);border-radius:12px;background:var(--surface);color:var(--ink);box-shadow:0 12px 35px #0003}
+.action-popup:popover-open{display:grid;gap:3px}
+.action-popup button,.action-popup a{display:block;background:transparent;color:inherit;border:0;border-radius:7px;text-align:left;text-decoration:none;padding:11px 14px;font:inherit;white-space:nowrap}
+.action-popup button:hover,.action-popup a:hover,.action-popup button:focus-visible,.action-popup a:focus-visible{background:var(--hover);color:var(--accent)}
+.category-list{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 24px}
+.tracking-settings{margin-bottom:22px}.vehicle-table{margin-top:22px}
+.brand small{text-transform:none;white-space:normal;line-height:1.5;font-size:10px;letter-spacing:0}
+.batch-progress{margin:14px 0}.trip-proposal-card{margin-bottom:16px}.trip-proposal-card p{margin:8px 0}
+.proposal-receipt{border:1px solid var(--line,#dfe1eb);border-radius:10px;padding:16px;margin:16px 0}
+.proposal-receipt h3{margin-top:0}
+
+.receipt-trip-groups{padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
+
+.inbox-tabs button:hover{background:var(--hover);color:var(--accent)}

@@ -24,4 +24,4 @@ def currency_fields(result,source_text=''):
         return dict(currency='',currency_status='unknown',currency_evidence='Multiple currencies found. Confirm the currency of the amount paid.')
     if australian_details(source):
         return dict(currency='AUD',currency_status='inferred',currency_evidence='Australian ABN or GST and Australian website found; confirm AUD against the receipt.')
-    return dict(currency='',currency_status='unknown',currency_evidence='No clear currency evidence. A dollar sign alone does not identify the currency.')
+    return dict(currency='AUD',currency_status='default',currency_evidence='AUD is the workspace default; no other currency was specified. You can change it.')
