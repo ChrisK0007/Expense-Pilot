@@ -25,7 +25,7 @@ async function main(){
   const records=await (await page.request.get(url+'/api/expenses')).json(),record=records.find(r=>r.merchant==='Split allocation browser test');assert.equal(record.work_percent,30);assert.equal(record.business_percent,20);assert.equal(record.scope,'split');
   await page.setViewportSize({width:1440,height:1050});await page.getByRole('button',{name:'Edit Split allocation browser test',exact:true}).click();
   assert.equal(await page.getByLabel('Employment (%)').inputValue(),'30');assert.equal(await page.getByLabel('Business (%)').inputValue(),'20');await page.locator('#close-modal').click();
-  await navigate(page,'reports');await page.getByLabel('Workspace',{exact:true}).selectOption('work');assert.match(await page.locator('#expense-report-body').innerText(),/Split allocation browser test/);await page.getByLabel('Workspace',{exact:true}).selectOption('business');assert.match(await page.locator('#expense-report-body').innerText(),/Split allocation browser test/);
+  await navigate(page,'reports');await page.locator('#content').getByLabel('Workspace',{exact:true}).selectOption('work');assert.match(await page.locator('#expense-report-body').innerText(),/Split allocation browser test/);await page.locator('#content').getByLabel('Workspace',{exact:true}).selectOption('business');assert.match(await page.locator('#expense-report-body').innerText(),/Split allocation browser test/);
   // Preview one captured draft: default currency stays compact and does not require confirmation.
   await navigate(page,'receipts');const drafts=page.getByRole('button',{name:'Review & categorise',exact:false});
   if(await drafts.count()){
