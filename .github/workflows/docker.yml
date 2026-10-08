@@ -1,0 +1,63 @@
+name: Test and publish Docker image
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Syntax checks
+        run: |
+          node --check static/app.js
+          python -m py_compile app.py reset_password.py tests/test_app.py
+          bash -n prepare.sh backup.sh
+      - name: Build image
+        run: docker build -t expense-pilot:test .
+      - name: Integration tests
+        run: docker run --rm --entrypoint python -v "$PWD/tests:/app/tests:ro" expense-pilot:test -m unittest discover -s tests -v
+      - name: Image name
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=sha
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested image
+        if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          SOURCE: https://github.com/${{ github.repository }}
+        run: |
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              docker tag expense-pilot:test "$tag"
+              docker push "$tag"
+            fi
+          done <<< "$TAGS"

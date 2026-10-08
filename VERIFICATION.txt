@@ -1,0 +1,7 @@
+Expense Pilot 0.1.0 — 8 October 2026
+
+PASSED: Python compilation, JavaScript syntax, Bash syntax, SQLite schema creation.
+NOT RUN: Flask integration suite (missing Flask; package installation blocked by network restrictions), Docker build, browser visual QA, real Ollama extraction and actual bank CSV samples.
+Included tests: 15 integration tests; run inside the built Docker image as described in README.html before entering live data.
+
+No deployment to Unraid has taken place.
