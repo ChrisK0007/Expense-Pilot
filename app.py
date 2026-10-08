@@ -96,7 +96,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.1.0')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.2.0')
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -339,5 +339,8 @@ def update_trip(tid):
         if not textval(d.get('location')) or not textval(d.get('purpose')): fail('Location and purpose are required.')
         db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=? WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
     db().commit();return jsonify(ok=True)
+
+from billing import register as register_billing
+register_billing(app, db, one, rows, fail, audit, DATA)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)

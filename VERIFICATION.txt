@@ -1,9 +1,5 @@
-Expense Pilot 0.1.0 — 8 October 2026
+Expense Pilot 0.2.0
 
-PASSED locally: Python compilation, JavaScript syntax, Bash syntax, SQLite schema, Unraid XML syntax.
-PASSED in GitHub Actions: Docker image build, 15 integration tests, publication to ghcr.io/chrisk0007/expense-pilot:latest.
-Application commit: 406df145794a993b1d27b6ddc3af173af566929f
-Build: https://github.com/ChrisK0007/Expense-Pilot/actions/runs/37716069074
-
-NOT VERIFIED: browser visual QA, real Ollama extraction and actual bank CSV samples.
-No deployment to the user's Unraid server has taken place.
+Local checks: Python/JavaScript syntax; pure decimal billing calculations; rendered invoice PDF layout.
+CI gate: Docker build, expense and billing integration tests, database upgrade preservation, and real-browser desktop/mobile workflows. See GitHub Actions for results for each commit.
+SMTP tests use mocks and test data. Real SMTP delivery must be checked with the owner-configured account.
