@@ -6,6 +6,9 @@ A self-hosted expense workspace with a clean, Rounded-inspired interface. Separa
 
 ## Features
 
+- Client records, branded PDF invoices and quotes, payments and income exports.
+- Your own SMTP email account, editable message templates and delivery history.
+- Saved services, billable time and recurring invoice drafts.
 - Separate Employment, Business and Personal expenses, percentage allocation and reimbursements.
 - CommBank, Macquarie and American Express account labels; mapped CSV imports and duplicate detection.
 - Receipt photos and PDFs; optional Ollama extraction into a draft you review before saving.
