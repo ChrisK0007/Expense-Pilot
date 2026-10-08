@@ -1,0 +1,193 @@
+"""Pure billing calculations and PDF rendering; all amounts are integer AUD cents."""
+import base64
+import calendar
+import io
+import re
+import threading
+from pathlib import Path
+from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from xml.sax.saxutils import escape
+
+_FONT_LOCK = threading.Lock()
+
+
+def decimal_value(value, label, minimum=0, maximum=10000000):
+    try:
+        number = Decimal(str(value))
+        if not number.is_finite() or not Decimal(str(minimum)) <= number <= Decimal(str(maximum)):
+            raise ValueError()
+        return number
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError(f'Enter a valid {label}.') from None
+
+
+def cents(value):
+    return int(value.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+
+
+def calculate_lines(items, tax_mode, gst_registered):
+    if tax_mode not in ('none', 'exclusive', 'inclusive'):
+        raise ValueError('Choose a valid GST mode.')
+    if tax_mode != 'none' and not gst_registered:
+        raise ValueError('Enable GST registration in Business settings before charging GST.')
+    if not isinstance(items, list) or not 1 <= len(items) <= 100:
+        raise ValueError('Add between 1 and 100 line items.')
+    result = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError('Invalid line item.')
+        description = str(item.get('description', '')).strip()
+        if not description or len(description) > 1000:
+            raise ValueError('Each line needs a description of up to 1,000 characters.')
+        quantity = decimal_value(item.get('quantity', 1), 'quantity', '0.0001', 100000)
+        if quantity.as_tuple().exponent < -4:
+            raise ValueError('Quantity supports up to four decimal places.')
+        unit = decimal_value(item.get('unit_price', 0), 'unit price')
+        if unit.as_tuple().exponent < -2:
+            raise ValueError('Unit prices support up to two decimal places.')
+        discount = decimal_value(item.get('discount', 0), 'discount percentage', 0, 100)
+        tax = str(item.get('tax', 'gst' if tax_mode != 'none' else 'none'))
+        if tax not in ('gst', 'gst_free', 'none'):
+            raise ValueError('Invalid line GST treatment.')
+        if tax_mode == 'none':
+            tax = 'none'
+        amount = cents(quantity * unit * 100 * (1 - discount / 100))
+        gst = cents(Decimal(amount) / 11) if tax_mode == 'inclusive' and tax == 'gst' else (
+            cents(Decimal(amount) / 10) if tax_mode == 'exclusive' and tax == 'gst' else 0)
+        net = amount - gst if tax_mode == 'inclusive' else amount
+        result.append(dict(description=description, quantity=str(quantity), unit_price=str(unit),
+                           discount=str(discount), tax=tax, net_cents=net, gst_cents=gst,
+                           total_cents=net + gst))
+    subtotal = sum(x['net_cents'] for x in result)
+    gst = sum(x['gst_cents'] for x in result)
+    if subtotal + gst > 1000000000:
+        raise ValueError('Document total cannot exceed AUD 10,000,000.')
+    return dict(lines=result, subtotal_cents=subtotal, gst_cents=gst, total_cents=subtotal + gst)
+
+
+def advance_date(value, interval, anchor_day):
+    current = date.fromisoformat(value)
+    if interval in ('weekly', 'fortnightly'):
+        return (current + timedelta(days=7 if interval == 'weekly' else 14)).isoformat()
+    months = {'monthly': 1, 'quarterly': 3, 'yearly': 12}[interval]
+    month = current.month - 1 + months
+    year, month = current.year + month // 12, month % 12 + 1
+    return date(year, month, min(anchor_day, calendar.monthrange(year, month)[1])).isoformat()
+
+
+def display_status(doc, today):
+    if doc['state'] != 'issued' or doc['kind'] == 'quote':
+        return doc['state']
+    if doc['balance_cents'] == 0:
+        return 'paid'
+    if doc['due_date'] < today:
+        return 'overdue'
+    return 'part_paid' if doc['paid_cents'] else 'unpaid'
+
+
+def aud(value):
+    return f'${value / 100:,.2f}'
+
+
+def pdf_document(doc):
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
+
+    out = io.BytesIO()
+    seller = doc['business']
+    client = doc['client']
+    colour = seller.get('accent', '#355c46')
+    if not re.fullmatch(r'#[0-9a-fA-F]{6}', colour):
+        colour = '#355c46'
+    ink, muted, accent = colors.HexColor('#25382d'), colors.HexColor('#647166'), colors.HexColor(colour)
+    font = 'Helvetica'
+    font_path = Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+    if font_path.exists():
+        with _FONT_LOCK:
+            if 'InvoiceSans' not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont('InvoiceSans', str(font_path)))
+        font = 'InvoiceSans'
+    normal = ParagraphStyle('body', fontName=font, fontSize=9, leading=13, textColor=ink, spaceAfter=5)
+    small = ParagraphStyle('small', parent=normal, fontSize=8, leading=11, textColor=muted)
+    title = ParagraphStyle('title', parent=normal, fontSize=25, leading=29, textColor=accent, spaceAfter=8)
+    right = ParagraphStyle('right', parent=normal, alignment=TA_RIGHT)
+    white = ParagraphStyle('white', parent=small, textColor=colors.white)
+    def p(value, style=normal):
+        # Escape user content before the ReportLab paragraph parser sees it.
+        return Paragraph(escape(str(value or '')).replace('\n', '<br/>'), style)
+    story = []
+    logo = seller.get('logo', '')
+    if logo:
+        raw = io.BytesIO(base64.b64decode(logo))
+        im = Image(raw)
+        factor = min(48 * mm / im.imageWidth, 22 * mm / im.imageHeight)
+        im.drawWidth, im.drawHeight = im.imageWidth * factor, im.imageHeight * factor
+        im.hAlign = 'LEFT'
+        story += [im, Spacer(1, 5 * mm)]
+    label = 'QUOTE' if doc['kind'] == 'quote' else ('TAX INVOICE' if seller.get('gst_registered') else 'INVOICE')
+    if doc['state'] == 'draft':
+        label = 'DRAFT ' + label
+    elif doc['state'] == 'void':
+        label = 'VOID ' + label
+    story += [p(label, title), p(seller.get('name', 'Your business'))]
+    contact = '\n'.join(str(seller.get(k, '')) for k in ('address', 'email', 'phone') if seller.get(k))
+    if seller.get('abn'):
+        contact += '\nABN ' + seller['abn']
+    story += [p(contact, small), Spacer(1, 7 * mm)]
+    buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k))
+    if client.get('abn'):
+        buyer += '\nABN ' + client['abn']
+    due_label = 'Valid until' if doc['kind'] == 'quote' else 'Due date'
+    details = f"{doc['number']}\nIssued: {doc['issue_date']}\n{due_label}: {doc['due_date']}\nCurrency: AUD"
+    if doc.get('reference'):
+        details += '\nReference: ' + doc['reference']
+    top = Table([[p('BILL TO' if doc['kind'] == 'invoice' else 'PREPARED FOR', small), p('DOCUMENT DETAILS', small)],
+                 [p(buyer), p(details)]], colWidths=[97 * mm, 77 * mm])
+    top.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 0)]))
+    story += [top, Spacer(1, 7 * mm)]
+    headings = ['Description', 'Qty', 'Unit AUD', 'GST', 'Total AUD']
+    table_data = [[p(x, white) for x in headings]]
+    for line in doc['lines']:
+        description = line['description']
+        if Decimal(line['discount']):
+            description += f"\nDiscount: {line['discount']}%"
+        tax = '10%' if line['tax'] == 'gst' else ('GST-free' if line['tax'] == 'gst_free' else 'No GST')
+        table_data.append([p(description), p(line['quantity'], right), p(aud(cents(Decimal(line['unit_price']) * 100)), right),
+                           p(tax, small), p(aud(line['total_cents']), right)])
+    line_table = Table(table_data, colWidths=[83 * mm, 15 * mm, 27 * mm, 20 * mm, 29 * mm], repeatRows=1, hAlign='LEFT')
+    line_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), accent), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 9), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LINEBELOW', (0, 1), (-1, -1), .35, colors.HexColor('#dce4dd')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7f9f5')])]))
+    story += [line_table, Spacer(1, 5 * mm)]
+    totals = [('Subtotal (ex GST)', doc['subtotal_cents']), ('GST', doc['gst_cents']), ('Total AUD', doc['total_cents'])]
+    if doc['kind'] == 'invoice':
+        totals += [('Payments recorded', doc.get('paid_cents', 0)), ('Balance due AUD', doc.get('balance_cents', doc['total_cents']))]
+    total_table = Table([[p(k, right), p(aud(v), right)] for k, v in totals], colWidths=[131 * mm, 43 * mm])
+    total_table.setStyle(TableStyle([('LINEABOVE', (0, -1), (-1, -1), 1, accent), ('TOPPADDING', (0, -1), (-1, -1), 9)]))
+    story += [KeepTogether([total_table]), p('Unit prices include GST where applicable.' if doc['tax_mode'] == 'inclusive' else
+                                         'Unit prices exclude GST.' if doc['tax_mode'] == 'exclusive' else 'No GST charged.', small)]
+    for heading, value in [('Payment details', doc.get('payment_details') if doc['kind'] == 'invoice' else ''), ('Notes & terms', doc.get('notes'))]:
+        if value:
+            story += [Spacer(1, 5 * mm), p(heading), p(value, small)]
+    def footer(canvas, layout):
+        canvas.saveState()
+        canvas.setStrokeColor(accent)
+        canvas.line(18 * mm, 17 * mm, 192 * mm, 17 * mm)
+        canvas.setFont(font, 8)
+        canvas.setFillColor(muted)
+        canvas.drawString(18 * mm, 12 * mm, doc['number'] + ' | AUD')
+        canvas.drawRightString(192 * mm, 12 * mm, f'Page {layout.page}')
+        canvas.restoreState()
+    SimpleDocTemplate(out, pagesize=A4, rightMargin=18 * mm, leftMargin=18 * mm,
+                      topMargin=18 * mm, bottomMargin=24 * mm, title=doc['number'],
+                      author=seller.get('name', '')).build(story, onFirstPage=footer, onLaterPages=footer)
+    return out.getvalue()

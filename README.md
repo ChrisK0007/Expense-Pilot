@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and share selected records with your tax agent.
 
-**Initial version: 0.1.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.2.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -15,11 +15,11 @@ A self-hosted expense workspace with a clean, Rounded-inspired interface. Separa
 - Financial-year CSV exports, activity history, password changes and account disabling.
 - Persistent SQLite database, Docker health check and backup helper.
 
-The app records actual expenses and allocations; it does not determine tax deductibility, automatically apply ATO meal rates, calculate BAS/GST, lodge returns or reconcile bank balances. Imported purchases and transfers start Personal / To review until you categorise them. Credits in bank CSVs are skipped; record expense refunds manually as negative amounts.
+The app records actual expenses, allocations and invoice payments. It calculates invoice GST when you enable GST registration; it does not determine tax deductibility, automatically apply ATO meal rates, calculate expense GST/BAS, lodge returns or reconcile bank balances. Imported purchases and transfers start Personal / To review until you categorise them. Credits in bank CSVs are skipped; record expense refunds manually as negative amounts.
 
 ## GitHub and Docker updates
 
-The workflow in `.github/workflows/docker.yml` builds the image and runs 15 integration tests before publishing. A passing push to `main` publishes:
+The workflow in `.github/workflows/docker.yml` builds the image and runs integration tests and real-browser workflow checks before publishing. A passing push to `main` publishes:
 
 ```text
 ghcr.io/chrisk0007/expense-pilot:latest
@@ -102,9 +102,9 @@ Nothing is sent to Ollama until you select **Read with AI**. Check all suggested
 
 | Role | Access |
 | --- | --- |
-| Owner | All records, imports, sharing, people and reports |
+| Owner | All records, invoicing, clients, SMTP settings, imports, sharing, people and reports |
 | Employee | Only their own business expenses, receipts and trips |
-| Tax agent | Read/export explicitly shared records and linked evidence/trip details |
+| Tax agent | Read/export explicitly shared expenses, invoices/quotes, payment records and linked evidence/trip details |
 
 All active tax-agent accounts see the same shared set. Disabling an account revokes active sessions. Personal expenses cannot be shared. Account creation does not send an invitation email; provide credentials through your normal secure channel. Employees can change passwords in Settings.
 
@@ -121,21 +121,69 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-The script pauses the app by stopping its container, backs up the database, receipts, signing key and `.env`, then restarts it. Data is not encrypted at rest; keep the appdata share and backups private. When using the Unraid template, its environment fields are stored in the Unraid template, so back up the boot-device configuration too. A generated `.env` does not automatically update those GUI fields.
+The script pauses the app by stopping its container, backs up the database, receipts, signing key and `.env`, then restarts it. SMTP passwords are encrypted using the backed-up session key; financial records and receipt files are not encrypted at rest; keep the appdata share and backups private. When using the Unraid template, its environment fields are stored in the Unraid template, so back up the boot-device configuration too. A generated `.env` does not automatically update those GUI fields.
+
+## Billing and your own email (v0.2.0)
+
+1. Open **Settings → Business profile & branding**. Enter your trading name, ABN, contact details, payment instructions and default terms. Enable GST only if your business is registered. A logo and brand colour are supported. Invoice and quote numbering have separate configurable prefixes.
+2. Open **Settings → Email delivery & templates**. Enter your provider's SMTP hostname, port, username, password/app password, sender name/address and optional reply-to address. Choose STARTTLS (usually port 587) or SSL/TLS (usually port 465). Save, then use **Send test email** to send one message to your saved sender address.
+3. Add billing contacts in **Clients**. Client payment terms are applied to new invoices.
+4. Choose **Invoices → New invoice** or **Quotes → New quote**. Add line items, quantities, rates, discounts and GST treatment. Save a draft, inspect it and download the PDF.
+5. **Issue & email** opens a recipient, subject and message preview. Nothing is sent until you click **Send email**. The PDF is attached. You can also **Issue without email** and send the downloaded file yourself.
+6. Record deposits or partial/full payments when received. Overdue balances are highlighted. **Send reminder** opens an editable reminder; it does not automatically contact your client.
+7. Mark an issued quote accepted, then **Convert to invoice**. Each quote can have one linked invoice; deleting the invoice draft releases the quote for another conversion.
+
+### Email details
+
+The app supports authenticated SMTP and TLS-enabled SMTP relays. It does not read your inbox and does not currently implement Gmail/Microsoft OAuth sign-in. An OAuth-only mailbox needs provider-supported SMTP access or a suitable relay. Use the sender address your provider permits. Provider-specific hostnames and app passwords come from your email provider; do not enter credentials into GitHub or chat.
+
+SMTP passwords are encrypted in the database and never returned to the browser. A blank password field keeps the saved password; **Remove the saved SMTP password** clears it. Back up the whole data folder including `session.key`: this key is needed to decrypt the password after a restore. This protects the database value, not against someone with access to both the database and its key.
+
+Email templates support `{kind}`, `{number}`, `{client}`, `{business}`, `{total}`, `{balance}` and `{due_date}`. Each outgoing document has a delivery history. **Sent / mail server accepted** means SMTP accepted the message, not proof that the recipient read or received it. A timeout during delivery is marked uncertain and blocks an accidental retry. Check your provider's logs, then use **Confirm delivery status** to reconcile it. A pending delivery can be reconciled after five minutes if a process restart interrupted it.
+
+### Billing records and access
+
+- Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued documents are immutable, so changing a client address or business name does not rewrite old invoices.
+- Employee accounts have no access to clients, invoices, time billing or email settings. Tax-agent accounts can read/download only explicitly shared invoices/quotes and their payment records. Internal client notes, SMTP settings and email delivery history remain owner-only.
+- Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
+- Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. Credit notes and actual refund processing are not yet implemented.
+- **Saved services & prices** keeps common line items ready to use.
+- **Billable time** records client, date, work, hours and rate. Select unbilled entries for one client to create an invoice. Linked entries cannot be billed twice. Deleting a draft or voiding its invoice releases linked time.
+- **Make recurring** creates weekly, fortnightly, monthly, quarterly or yearly schedules. The container checks once per minute and generates drafts only, never emails. Missed dates are caught up after a restart, at most 24 occurrences per schedule per pass. Month-end dates retain their original day where possible. Paused schedules require a current/future date when resumed. Changing the original invoice does not change the saved schedule; pause it and create a replacement to change its contents.
+- **Income report** exports recorded invoice receipts for a chosen period, including proportional GST on partial payments. Reversed payment records are excluded. It is not a complete BAS or profit-and-loss statement; unrelated income, GST on expenses, bank reconciliation and tax estimates are not included.
+
+### Update an existing Unraid installation
+
+Back up first:
+
+```bash
+cd /mnt/user/appdata/expense-pilot
+bash backup.sh /mnt/user/backups/expense-pilot
+```
+
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.2.0**.
+
+New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
+
+### Feature comparison and current boundaries
+
+The billing workflows were informed by [Rounded's feature list](https://rounded.com.au/features) and [invoicing overview](https://rounded.com.au/features/invoicing), with an original interface and implementation. This version adds the core client, quote, invoice, payment and email workflows, not every Rounded feature.
+
+Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic reminder emails, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, client statements, a running time stopwatch, recurring expenses, vehicle tracking, BAS preparation or income-tax estimates. Bank imports and AI receipt reading continue to work as in v0.1.0.
 
 ## Verification
 
-The first GitHub Actions build passed on 8 October 2026: Docker image build, all 15 integration tests and publication to GitHub Container Registry. [View the successful build](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/37716069074). Application commit: `406df145794a993b1d27b6ddc3af173af566929f`.
+The GitHub workflow builds the Docker image and gates publication on the original expense tests, billing/access/SMTP/upgrade regression tests, and real-browser desktop/mobile workflows. All SMTP calls in automated tests are mocked; browser tests never send mail. See the repository Actions tab for the build outcome for your installed image.
 
-Local syntax and SQLite-schema checks also passed. Actual bank-export samples, a live Ollama service and browser visual QA still require deployment checks. The app has not been installed on your Unraid server by this workflow.
+A clean test copy of the original database structure is upgraded in tests, checking that existing expenses, receipt bytes and session key survive. The browser workflow exercises setup, client and business forms, invoice GST, issue/partial payment, PDF download, sharing, income report, quote conversion, recurring draft setup, and SMTP password retention. Real delivery through your own provider still requires the in-app test after you enter your settings.
 
-The 15 tests cover authentication, CSRF, role isolation, sharing, session revocation, date/trip validation, receipt access, CSV duplicate/credit handling, amount rounding, formula escaping and export boundaries.
+Local PDF generation is checked with a single-page and multiple-page invoice. Actual bank-export samples and real Ollama extraction still require deployment checks.
 
-For manual test execution after a local image build:
+For manual integration testing after a local build:
 
 ```bash
 docker build -t expense-pilot:test .
 docker run --rm --entrypoint python -v "$PWD/tests:/app/tests:ro" expense-pilot:test -m unittest discover -s tests -v
 ```
 
-Download and open `README.html` for the extended user guide, import instructions and restore steps. The app is an original implementation, not affiliated with Rounded.
+Expense Pilot is an original implementation, not affiliated with Rounded.

@@ -22,12 +22,29 @@ jobs:
       - name: Syntax checks
         run: |
           node --check static/app.js
-          python -m py_compile app.py reset_password.py tests/test_app.py
+          node --check static/billing.js
+          python -m py_compile app.py billing.py billing_core.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
           bash -n prepare.sh backup.sh
       - name: Build image
         run: docker build -t expense-pilot:test .
       - name: Integration tests
         run: docker run --rm --entrypoint python -v "$PWD/tests:/app/tests:ro" expense-pilot:test -m unittest discover -s tests -v
+      - name: Browser workflow tests
+        env:
+          UI_OUTPUT: ${{ runner.temp }}/expense-pilot-ui
+        run: |
+          npm install --prefix "$RUNNER_TEMP/expense-pilot-browser" playwright@1.62.1
+          node "$RUNNER_TEMP/expense-pilot-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          docker run -d --name expense-pilot-ui -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_smoke.cjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-evidence
+          path: ${{ runner.temp }}/expense-pilot-ui
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Image name
         id: image
         env:
