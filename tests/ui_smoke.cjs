@@ -49,6 +49,7 @@ async function main() {
     await page.reload();await page.locator('[data-page=receipts]').click();
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'AUD','Confirmed currency survives reload');
+    await page.waitForFunction(()=>document.querySelector('.receipt-preview img')?.naturalWidth>0);
     await page.setViewportSize({width:390,height:844});
     await page.screenshot({path:output+'/receipt-review-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Currency review overflows');
