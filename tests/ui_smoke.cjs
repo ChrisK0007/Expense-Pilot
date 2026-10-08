@@ -194,7 +194,7 @@ async function main() {
     await page.getByRole('button',{name:'Add meal',exact:false}).click();
     await page.getByLabel('Merchant / payee').fill('Overnight dinner');
     await page.getByLabel('Amount paid (AUD)').fill('35');
-    await page.getByLabel('Meal type').selectOption('Dinner');
+    await page.getByLabel('Meal type',{exact:true}).selectOption('Dinner');
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
     await page.getByText('1 meal records',{exact:true}).waitFor();
     await page.screenshot({path:output+'/trips-meals.png',fullPage:true});
