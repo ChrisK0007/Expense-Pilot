@@ -71,9 +71,9 @@ function capture(){
 }
 async function reprocessAll(){
  if(batch.running||busy||scanning.size||!editor()||!S.ai_configured)return;
- try{await load();}catch(e){return toast(e.message);}
- const queue=pending().map(r=>({id:r.id,name:r.filename}));if(!queue.length)return;
- batch={running:true,done:0,total:queue.length,failed:[],cancel:false};draw();
+ batch={running:true,done:0,total:pending().length,failed:[],cancel:false};draw();
+ try{await load();}catch(e){batch.running=false;draw();return toast(e.message);}
+ const queue=pending().map(r=>({id:r.id,name:r.filename}));batch.total=queue.length;if(!queue.length){batch.running=false;draw();return;}draw();
  for(const r of queue){
   if(batch.cancel||!S.user)break;
   try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});}catch(e){batch.failed.push(r.name+' — '+e.message);}

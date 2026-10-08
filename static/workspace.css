@@ -41,3 +41,5 @@ button{transition:box-shadow .15s}
 .proposal-receipt h3{margin-top:0}
 
 .receipt-trip-groups{padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
+
+.inbox-tabs button:hover{background:var(--hover);color:var(--accent)}
