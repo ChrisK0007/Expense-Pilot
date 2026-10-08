@@ -20,6 +20,7 @@ button{transition:box-shadow .15s}
 .trip-filters .field:first-child{flex-basis:250px}
 .trip-filters input,.trip-filters select{width:100%;min-width:0}
 #trip-filter-error{flex-basis:100%;margin:0}
+#trip-filter-error:empty{display:none}
 .allowance-details{padding:12px 0}
 .allowance-details summary{cursor:pointer;font-weight:600}
 .reprocess-receipt{margin-top:6px}
