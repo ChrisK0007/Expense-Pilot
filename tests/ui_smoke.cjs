@@ -35,6 +35,7 @@ async function main() {
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().waitFor();
     await page.reload();
     await page.locator('[data-page=receipts]').click();
+    await page.getByRole('button',{name:'Review & categorise',exact:false}).nth(1).waitFor();
     assert.equal(await page.getByRole('button',{name:'Review & categorise',exact:false}).count(),2);
     await page.screenshot({path:output+'/receipts-desktop.png',fullPage:true});
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
