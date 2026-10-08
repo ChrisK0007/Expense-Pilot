@@ -87,6 +87,8 @@ async function main() {
     await page.getByLabel('Business email shown on invoices').fill('billing@example.test');
     await page.getByLabel('Default payment instructions').fill('Example bank details\nUse the invoice number as your reference.');
     await page.getByRole('button',{name:'Save business details'}).click();
+    await page.locator('#workspace-business').getByText('Example Flight Testing',{exact:true}).waitFor();
+    assert.ok(await page.locator('.sidebar nav button').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))>=14);
     await page.locator('[data-page=clients]').click();
     await page.getByRole('button',{name:'Add client',exact:false}).click();
     await page.getByLabel('Client / business name').fill('Example Aviation');
@@ -109,6 +111,12 @@ async function main() {
     await page.getByRole('button',{name:'Record payment',exact:true}).click();
     await page.locator('#modal').getByText('Part paid',{exact:true}).waitFor();
     assert.match(await page.locator('#modal').innerText(),/845\.00/);
+    await page.getByRole('button',{name:'Edit wording',exact:true}).click();
+    await page.getByLabel('Line 1 description',{exact:true}).fill('Flight examiner services — updated description');
+    await page.getByLabel('Notes & terms',{exact:true}).fill('Updated invoice wording');
+    await page.getByRole('button',{name:'Save wording',exact:true}).click();
+    await page.locator('#modal').getByText('Updated invoice wording',{exact:true}).waitFor();
+    assert.match(await page.locator('#modal').innerText(),/845\.00/);
     await page.screenshot({path:output+'/invoice-detail.png',fullPage:true});
     const downloadPromise=page.waitForEvent('download');
     await page.getByRole('link',{name:'Download PDF',exact:false}).click();
@@ -124,6 +132,10 @@ async function main() {
     await page.getByLabel('Unit price',{exact:true}).fill('150');
     await page.getByRole('button',{name:'Save draft'}).click();
     await page.locator('#issue-document').click();
+    await page.getByRole('button',{name:'Edit wording',exact:true}).click();
+    await page.getByLabel('Notes & terms',{exact:true}).fill('Updated quote wording');
+    await page.getByRole('button',{name:'Save wording',exact:true}).click();
+    await page.locator('#modal').getByText('Updated quote wording',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Mark accepted'}).click();
     await page.getByRole('button',{name:'Convert to invoice'}).click();
     await page.getByRole('button',{name:'Make recurring'}).click();
@@ -195,6 +207,7 @@ async function main() {
     await agent.locator('[data-page=invoices]').click();
     await agent.getByRole('button',{name:'Open ↗',exact:true}).first().click();
     assert.equal(await agent.getByRole('button',{name:'Record payment',exact:true}).count(),0);
+    assert.equal(await agent.getByRole('button',{name:'Edit wording',exact:true}).count(),0);
     await agent.locator('#close-modal').click();
     await page.getByLabel('Permission for Test Agent').selectOption('read_write');
     await page.getByText('Permission updated.',{exact:true}).waitFor();

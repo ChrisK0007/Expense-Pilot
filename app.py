@@ -114,7 +114,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),version='0.5.0')
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.5.1')
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -573,7 +573,7 @@ def tax_forecast(year):
     result=estimate(taxable,year,forecast['withheld_cents'],settings.get('instalments') or 0,settings.get('medicare_override'),settings.get('other_tax') or 0,settings.get('set_aside') or 0)
     return jsonify(year=year,start=start,end=end,settings=settings,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat())
 
-from billing import register as register_billing
+from billing import register as register_billing, business as billing_business
 register_billing(app, db, one, rows, fail, audit, DATA)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)

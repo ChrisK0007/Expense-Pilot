@@ -454,7 +454,7 @@ def document_detail(did):
     doc = document(did)
     revision(doc, payload)
     if doc['state'] != 'draft':
-        fail('Issued documents are locked. Duplicate or void the document to make a correction.', 409)
+        fail('Issued amounts and details are locked. Use Edit wording for text corrections, or duplicate or void the document for other changes.', 409)
     if request.method == 'DELETE':
         if doc['source_quote']:
             db().execute("UPDATE billing_documents SET state='accepted',version=version+1 WHERE id=?", (doc['source_quote'],))
@@ -472,6 +472,37 @@ def document_detail(did):
         data = [json.dumps(values[k]) if k in ('client', 'business', 'lines') else values[k] for k in columns]
         db().execute('UPDATE billing_documents SET ' + ','.join(k + '=?' for k in columns) + ',version=version+1 WHERE id=?', data + [did])
         audit('draft updated', did)
+    db().commit()
+    return jsonify(ok=True)
+
+
+@bp.put('/documents/<int:did>/wording')
+@reader
+def document_wording(did):
+    payload = body()
+    if set(payload) - {'version', 'descriptions', 'reference', 'notes', 'payment_details'}:
+        fail('Only document wording can be changed here.')
+    db().execute('BEGIN IMMEDIATE')
+    doc = document(did)
+    revision(doc, payload)
+    if doc['state'] in ('void', 'converted'):
+        fail('Void or converted documents cannot be amended.', 409)
+    descriptions = payload.get('descriptions')
+    if not isinstance(descriptions, list) or len(descriptions) != len(doc['lines']):
+        fail('Provide a description for each existing line.')
+    if any(not isinstance(v, str) or not v.strip() for v in descriptions):
+        fail('Every line needs a description.')
+    descriptions = [txt(v, 1000) for v in descriptions]
+    values = {key: txt(payload.get(key, doc[key]), limit) for key, limit in [('reference', 100), ('notes', 5000), ('payment_details', 2000)]}
+    # Preserve the previous wording and full line values before changing the displayed PDF.
+    previous = {key: doc[key] for key in ('lines', 'reference', 'notes', 'payment_details')}
+    db().execute('INSERT INTO billing_wording_history(document_id,version,user_id,previous,changed_at) VALUES (?,?,?,?,?)',
+                 (did, doc['version'], g.user['id'], json.dumps(previous), now()))
+    for line, description in zip(doc['lines'], descriptions):
+        line['description'] = description
+    db().execute('UPDATE billing_documents SET lines=?,reference=?,notes=?,payment_details=?,version=version+1 WHERE id=?',
+                 (json.dumps(doc['lines']), values['reference'], values['notes'], values['payment_details'], did))
+    audit('document wording updated', did)
     db().commit()
     return jsonify(ok=True)
 
@@ -870,6 +901,7 @@ def register(app, database, single, many, failure, activity, data_path):
         CREATE TABLE IF NOT EXISTS billing_services(id INTEGER PRIMARY KEY,description TEXT NOT NULL,unit_cents INTEGER NOT NULL,tax TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS billing_schedules(id INTEGER PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES billing_clients(id),template TEXT NOT NULL,interval TEXT NOT NULL,next_date TEXT NOT NULL,anchor_day INTEGER NOT NULL,end_date TEXT,terms INTEGER NOT NULL,active INTEGER NOT NULL DEFAULT 1,last_error TEXT NOT NULL DEFAULT '');
         CREATE TABLE IF NOT EXISTS billing_documents(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,number TEXT NOT NULL UNIQUE,state TEXT NOT NULL DEFAULT 'draft',version INTEGER NOT NULL DEFAULT 1,client_id INTEGER NOT NULL REFERENCES billing_clients(id),client TEXT NOT NULL,business TEXT NOT NULL,issue_date TEXT NOT NULL,due_date TEXT NOT NULL,tax_mode TEXT NOT NULL,lines TEXT NOT NULL,subtotal_cents INTEGER NOT NULL,gst_cents INTEGER NOT NULL,total_cents INTEGER NOT NULL,reference TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',payment_details TEXT NOT NULL DEFAULT '',shared INTEGER NOT NULL DEFAULT 0,source_quote INTEGER UNIQUE REFERENCES billing_documents(id),schedule_id INTEGER REFERENCES billing_schedules(id),occurrence TEXT,created_at TEXT NOT NULL,UNIQUE(schedule_id,occurrence));
+        CREATE TABLE IF NOT EXISTS billing_wording_history(id INTEGER PRIMARY KEY,document_id INTEGER NOT NULL REFERENCES billing_documents(id) ON DELETE CASCADE,version INTEGER NOT NULL,user_id INTEGER NOT NULL REFERENCES users(id),previous TEXT NOT NULL,changed_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS billing_payments(id INTEGER PRIMARY KEY,document_id INTEGER NOT NULL REFERENCES billing_documents(id),date TEXT NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents>0),reference TEXT NOT NULL,request_key TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL,reversed_at TEXT,reversal_reason TEXT);
         CREATE TABLE IF NOT EXISTS billing_outbox(id INTEGER PRIMARY KEY,document_id INTEGER NOT NULL REFERENCES billing_documents(id),recipient TEXT NOT NULL,subject TEXT NOT NULL,body TEXT NOT NULL,state TEXT NOT NULL,request_key TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL,error TEXT NOT NULL DEFAULT '');
         CREATE TABLE IF NOT EXISTS billing_time(id INTEGER PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES billing_clients(id),date TEXT NOT NULL,description TEXT NOT NULL,hours TEXT NOT NULL,rate_cents INTEGER NOT NULL,billable INTEGER NOT NULL DEFAULT 1,document_id INTEGER REFERENCES billing_documents(id));
