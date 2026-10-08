@@ -9,7 +9,7 @@ class AppTest(unittest.TestCase):
     def setUp(self):
         app.config['TESTING']=True
         with app.app_context():
-            for table in ['billing_outbox','billing_payments','billing_time','billing_documents','billing_schedules','billing_services','billing_clients','billing_settings','employment_income','tax_settings','expenses','trips','receipt_details','receipts','accounts','audit','users','attempts']: db().execute('DELETE FROM '+table)
+            for table in ['billing_outbox','billing_payments','billing_time','billing_documents','billing_schedules','billing_services','billing_clients','billing_settings','employment_income','tax_settings','vehicle_journeys','expenses','vehicles','trips','receipt_drafts','receipt_preferences','custom_categories','receipt_details','receipts','accounts','audit','users','attempts']: db().execute('DELETE FROM '+table)
             db().execute('UPDATE billing_counters SET next_number=1')
             db().commit()
         self.owner=app.test_client();self.call(self.owner,'setup',{'token':os.environ['SETUP_TOKEN'],'name':'Owner','email':'owner@example.test','password':'Owner-password-123'})

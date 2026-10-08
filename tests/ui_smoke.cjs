@@ -88,7 +88,7 @@ async function main() {
     assert.equal(await page.locator('#preview-page').innerText(),'Page 2 of 2');
     await page.screenshot({path:output+'/receipt-viewer.png',fullPage:true});
     await page.locator('#close-preview').click();
-    assert.equal(await page.getByLabel('Category',{exact:true}).locator('option[value="Meals"]').count(),0);
+    assert.equal(await page.getByLabel('Category',{exact:true}).locator('option[value="Meals"]').count(),1);
     await page.getByLabel('Merchant / payee').fill('Example receipt merchant');
     await page.getByLabel('Receipt date').fill('08/10/2026');
     await page.getByLabel('Amount paid (AUD)').fill('25.50');

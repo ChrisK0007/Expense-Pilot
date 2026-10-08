@@ -2,7 +2,7 @@
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.5.2.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Version: 0.6.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -164,7 +164,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.5.2**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.6.0**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -279,3 +279,17 @@ Open an issued invoice or quote and choose **Edit wording** to change line descr
 - **Settings → Invoice & quote defaults** stores separate invoice and quote notes/terms and email subject/message templates, payment instructions and quote validity. Existing shared text is used until you configure these defaults. New drafts inherit the defaults; existing documents and recurring schedules keep their saved wording. Invoice due dates continue to use each client's payment terms.
 - **Trips & meals** supports search by location, purpose, merchant and notes, plus workspace, meal type and date filters. Date ranges match overlapping trips; the matching-meals table shows only meals within the range. Trip cards retain the full trip totals.
 - **Employer allowance (optional)** records an allowance paid by an employer for reference. Leave it blank when none was paid. It does not reduce meal costs or feed into the tax forecast.
+
+## Draft receipt sorting and vehicles (v0.6.0)
+
+**Expense Pilot — A clearer view of every dollar.**
+
+- Create reusable expense categories in **Settings → Expense categories**, or while editing an expense. Owners and write-enabled tax agents can create workspace categories; employees can use them.
+- **Vehicles** stores vehicles, registrations, journeys and running costs. Log either start/end odometer readings or a distance in kilometres, with the purpose, workspace and use percentage. Link an expense to a vehicle from either screen. Costs remain ordinary expenses and are counted once. Journey kilometres are not automatically turned into a tax deduction. Export journeys as CSV; expense CSV includes the linked vehicle.
+- The receipt inbox now has **Draft receipts** and **All receipts**. **Save draft** persists partial details without creating an expense. **Save expense** files the reviewed values. All receipts displays the current linked expense’s AUD amount, date and merchant rather than the original AI reading.
+- New receipt currency defaults to **AUD** when no other currency is specified; explicit foreign-currency evidence and manual currency confirmations take precedence. Conflicting currency markers still require review. Work/business use defaults to **100%**, preserving manual overrides; personal expenses remain excluded from allocated totals.
+- **Reprocess all with AI** processes the current draft receipts sequentially, shows progress and errors, and can stop after the current receipt. Keep the tab open while the batch runs. Filed receipts are excluded. Saved manual drafts and confirmed currency survive rescanning.
+- Configure **Home base & receipt sorting** in Settings or the inbox. Enter the city/suburb plus local aliases (for example Sunshine Coast with Maroochydore, Mooloolaba and Caloundra). Each account has its own home area and default receipt workspace.
+- AI reads the seller’s city/address and meal type when printed. Consecutive meal receipt dates from the same place are grouped into **possible overnight trips**, separately for each person and workspace. Matching receipts can join an existing trip. Missing locations, local places and personal receipts are not suggested as new overnight trips. This uses locality-name matching, not geolocation or measured travel distance.
+- Review suggested dates, purpose, meal types, amounts in AUD and use percentages, then **Accept trip & meals**. A single receipt can suggest a one-night draft, but cannot prove an overnight: confirm the actual dates yourself. Nothing is added to financial totals before acceptance. **Not an overnight** dismisses the suggestion while keeping the receipts.
+- Three-dot action menus are available on expense rows, receipt cards, vehicles, trips and documents, with keyboard navigation and support for light/dark modes.
