@@ -92,7 +92,17 @@ const Billing = (() => {
     click('#duplicate-document',()=>action('duplicate'));click('#schedule-document',()=>schedule(d));
     click('#void-document',async()=>{if(confirm('Void this document? It will be retained in your history.'))await action('void');});
     click('#delete-document',async()=>{if(!confirm('Delete this draft? Its number will not be reused.'))return;await api(`billing/documents/${id}`,{version:d.version},'DELETE');$('#modal').close();go(d.kind==='invoice'?'invoices':'quotes');});
-    if($('#share-document'))$('#share-document').onchange=async e=>{try{await api(`billing/documents/${id}/sharing`,{shared:e.target.checked,version:d.version},'PUT');await view(id);}catch(err){toast(err.message);e.target.checked=!e.target.checked;}};
+    if($('#share-document'))$('#share-document').onchange=async e=>{
+      const control=e.target, shared=control.checked;control.disabled=true;
+      try{
+        await api(`billing/documents/${id}/sharing`,{shared,version:d.version},'PUT');
+        d.shared=shared;d.version+=1;
+        const cached=docs.find(item=>item.id===id);if(cached)cached.shared=shared;
+        if($('#billing-table'))refreshTable();
+        toast('Sharing updated.');
+      }catch(err){toast(err.message);control.checked=!shared;}
+      finally{control.disabled=false;}
+    };
     click('.reverse-payment',async b=>{const reason=prompt('Reason for correcting this payment record? This does not refund money.');if(!reason)return;await api(`billing/payments/${b.dataset.id}/reverse`,{reason,version:d.version});await view(id);});
     click('.resolve-email',async b=>{modal('Confirm email delivery',`<p>Check your email provider’s sent or delivery logs first. An uncertain message may already have reached the client.</p><form id="resolve-form">${select('What did your provider confirm?','state',[['sent','Message was sent'],['failed','Message was not sent — allow retry']])}<button type="submit">Save confirmed status</button></form>`);formHandler('#resolve-form',async data=>{await api(`billing/emails/${b.dataset.id}/resolve`,data);await view(id);});});
   }

@@ -88,11 +88,22 @@ async function main() {
     const downloadPromise=page.waitForEvent('download');
     await page.getByRole('link',{name:'Download PDF',exact:false}).click();
     await (await downloadPromise).saveAs(output+'/invoice.pdf');
+    // Hold the sharing response until after closing the dialog and navigating away.
+    // A completed background save must not reopen the invoice window.
+    let releaseSharing;
+    const sharingGate=new Promise(resolve=>{releaseSharing=resolve;});
+    await page.route('**/api/billing/documents/*/sharing',async route=>{
+      const response=await route.fetch();await sharingGate;await route.fulfill({response});
+    });
     await page.getByLabel('Share this document and payment history').check();
     await page.locator('#close-modal').click();
     await page.locator('[data-page=income]').click();
     await page.getByText('Payments received',{exact:true}).waitFor();
     assert.match(await page.locator('#income-result').innerText(),/200\.00/);
+    releaseSharing();
+    await page.getByText('Sharing updated.',{exact:true}).waitFor();
+    assert.equal(await page.locator('#modal').evaluate(dialog=>dialog.open),false,'A background sharing save reopened the closed dialog');
+    await page.unroute('**/api/billing/documents/*/sharing');
     await page.locator('[data-page=quotes]').click();
     await page.getByRole('button',{name:'New quote',exact:false}).click();
     await page.getByLabel('Line description').fill('Training session');
