@@ -250,7 +250,7 @@ async function main() {
     await page.locator('#chart-metric').selectOption('income');
     await page.locator('.comparison-chart[aria-label*="business income"]').waitFor();
     await page.getByRole('button',{name:'Line chart',exact:true}).click();
-    await page.locator('.comparison-chart polyline').first().waitFor();
+    await page.locator('.comparison-chart .series-0').waitFor();
     await page.locator('#theme-choice').selectOption('light');
     await page.screenshot({path:output+'/dashboard-light.png',fullPage:true});
     await page.locator('#theme-choice').selectOption('system');

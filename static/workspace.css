@@ -8,3 +8,5 @@ body{background:var(--sidebar);color:var(--ink);font-size:13px;line-height:1.5}h
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 
 .bank-badge.CommBank,.bank-badge.Macquarie,.bank-badge.American{color:#26334d}
+/* Switch palettes atomically, without pale intermediate button backgrounds. */
+button{transition:box-shadow .15s}
