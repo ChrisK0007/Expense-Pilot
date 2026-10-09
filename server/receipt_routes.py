@@ -72,7 +72,7 @@ def receipt_info(rid):
 @app.get('/api/receipts/<rid>/preview')
 @auth()
 def preview_receipt(rid):
-    from app import DATA, Path, fail, inspect_pdf, io, os, receipt, request, send_file, subprocess, tempfile
+    from app import DATA, Path, db, fail, inspect_pdf, io, os, receipt, request, send_file, subprocess, tempfile
     r=receipt(rid)
     if r['mime']!='application/pdf': return send_file(DATA/'receipts'/rid,mimetype=r['mime'],as_attachment=False)
     try: page=int(request.args.get('page','1'))
@@ -91,10 +91,13 @@ def preview_receipt(rid):
         except Exception: fail('Could not preview this PDF. The original can still be downloaded.',422)
         rendered=target.with_suffix('.png').read_bytes()
         if thumbnail:
+            # Serialise cache writes with deletion so a finished render cannot recreate a deleted preview.
+            db().execute('BEGIN IMMEDIATE');receipt(rid)
             cached.parent.mkdir(exist_ok=True)
             with tempfile.NamedTemporaryFile(dir=cached.parent,delete=False) as output:
                 output.write(rendered);tempname=output.name
             os.replace(tempname,cached)
+            db().commit()
         return send_file(io.BytesIO(rendered),mimetype='image/png')
 
 
@@ -138,7 +141,9 @@ def extract(rid):
     from receipt_core import currency_fields
     safe.update(currency_fields(result,body))
     db().execute('BEGIN IMMEDIATE')
-    previous=json.loads(one('SELECT extraction FROM receipt_details WHERE receipt_id=?',(rid,))['extraction'] or '{}')
+    stored=one('SELECT extraction FROM receipt_details WHERE receipt_id=?',(rid,))
+    if not stored: fail('Receipt was deleted while AI was reading it.',404)
+    previous=json.loads(stored['extraction'] or '{}')
     if previous.get('currency_status')=='confirmed':
         safe.update({k:previous[k] for k in ('currency','currency_status','currency_evidence')})
     try: safe['date']=date.fromisoformat(str(result.get('date'))).isoformat()
@@ -221,13 +226,28 @@ def categorise_receipt(rid):
     audit('receipt categorised',rid);db().commit();return jsonify(id=eid)
 
 
+def delete_receipt_record(rid):
+    """Delete receipt metadata and drafts inside the caller's write transaction."""
+    from app import audit, db, fail, one
+    if one('SELECT id FROM expenses WHERE receipt_id=?', (rid,)):
+        fail('This receipt is still attached to another expense.', 409)
+    db().execute('DELETE FROM receipts WHERE id=?', (rid,))
+    audit('receipt deleted', rid)
+
+
+def remove_receipt_files(rid):
+    """Remove the original and every cached preview after the database commit."""
+    from app import DATA
+    (DATA/'receipts'/rid).unlink(missing_ok=True)
+    for path in (DATA/'receipt_previews').glob(rid+'-*'):
+        path.unlink(missing_ok=True)
+
+
 @app.delete('/api/receipts/<rid>')
 @auth('owner','employee')
 def delete_receipt(rid):
-    from app import DATA, audit, db, fail, jsonify, one, receipt
+    from app import db, jsonify, receipt
     db().execute('BEGIN IMMEDIATE');receipt(rid)
-    if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Unlink the receipt from its expense before deleting it.',409)
-    db().execute('DELETE FROM receipts WHERE id=?',(rid,));audit('receipt deleted',rid);db().commit()
-    (DATA/'receipts'/rid).unlink(missing_ok=True)
-    (DATA/'receipt_previews'/(rid+'-thumb-v1.png')).unlink(missing_ok=True)
+    delete_receipt_record(rid);db().commit()
+    remove_receipt_files(rid)
     return jsonify(ok=True)

@@ -277,3 +277,13 @@ This is the container-list icon. Your invoice business logo is separately set in
 ## Development and backup options
 
 See [architecture and backups](architecture.md) for development commands, numbered migrations, custom backup mounts and restore guidance. Run installation commands from the repository root.
+
+## Beta: billing navigation, reminders and deleting expenses
+
+In beta v1.0.1-beta.3, Invoices, Quotes, Recurring invoices and Line item templates share a top navigation bar. Choose All invoices or All quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
+
+The owner can switch automatic reminders on or off while creating an invoice or directly in any invoice’s details. The preference is saved for drafts, issued invoices and recurring-generated invoices. Editing or duplicating a draft preserves it. When making a recurring schedule, select whether its generated invoices allow reminders; each generated invoice can then be changed individually.
+
+Settings → Automatic invoice reminders controls the shared sending switch and dates. Choose a reminder before the due date, on the due date, and up to six separate days after it. The summary shows the schedule. Switching global sending off keeps the schedule saved. An invoice must also allow reminders, be issued, and have an unpaid balance and client email address. Dates use Brisbane time. Changing the schedule can make an existing invoice eligible to send today; drafts, paid invoices and voided invoices are skipped.
+
+Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Receipt inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
