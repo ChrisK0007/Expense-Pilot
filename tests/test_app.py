@@ -15,12 +15,12 @@ class AppTest(unittest.TestCase):
             db().commit()
         self.owner=app.test_client();self.call(self.owner,'setup',{'token':os.environ['SETUP_TOKEN'],'name':'Owner','email':'owner@example.test','password':'Owner-password-123'})
         self.login(self.owner,'owner@example.test','Owner-password-123')
-        for email,role in [('staff@example.test','employee'),('staff2@example.test','employee'),('agent@example.test','tax_agent')]:
+        for email,role in [('staff@example.test','tax_agent'),('staff2@example.test','employee'),('agent@example.test','tax_agent')]:
             # Existing-account fixtures; invitation delivery and onboarding have dedicated tests.
             with app.app_context():
                 db().execute('INSERT INTO users(name,email,password,role) VALUES (?,?,?,?)',(role,email,generate_password_hash('Testing-password-123'),role));db().commit()
         self.staff=app.test_client();self.login(self.staff,'staff@example.test','Testing-password-123')
-        self.staff2=app.test_client();self.login(self.staff2,'staff2@example.test','Testing-password-123')
+        self.staff2=app.test_client()
         self.agent=app.test_client();self.login(self.agent,'agent@example.test','Testing-password-123')
     def call(self,c,path,data,method='POST'):
         token=c.get('/api/session').json['csrf']
@@ -34,15 +34,14 @@ class AppTest(unittest.TestCase):
         c=app.test_client();self.assertEqual(c.get('/api/expenses').status_code,401)
     def test_owner_setup_cannot_repeat(self):
         self.assertEqual(self.call(self.owner,'setup',{'token':os.environ['SETUP_TOKEN']}).status_code,409)
-    def test_employee_isolation(self):
-        eid=self.expense(self.staff).json['id'];self.expense(self.owner,scope='work')
-        self.assertEqual(len(self.staff.get('/api/expenses').json),1)
-        self.assertEqual(len(self.staff2.get('/api/expenses').json),0)
-        self.assertEqual(self.call(self.staff2,f'expenses/{eid}',{},'DELETE').status_code,404)
-        self.assertEqual(self.staff.get('/api/accounts').status_code,403)
-        self.assertEqual(self.staff.get('/api/users').status_code,403)
-        self.assertEqual(self.staff.get('/api/export').status_code,403)
-        self.assertEqual(self.expense(self.staff,scope='work').status_code,400)
+    def test_employee_accounts_are_removed(self):
+        self.assertEqual(self.call(self.staff2,'login',{'email':'staff2@example.test','password':'Testing-password-123'}).status_code,401)
+        self.assertFalse(any(u['role']=='employee' for u in self.owner.get('/api/users').json))
+        with app.app_context():
+            uid=db().execute("SELECT id FROM users WHERE role='employee'").fetchone()['id']
+        self.assertEqual(self.call(self.owner,f'users/{uid}/access',{'active':True}).status_code,400)
+        for path in ['expenses','receipts','trips','vehicles','accounts','billing/documents','export','users']:
+            self.assertEqual(self.staff2.get('/api/'+path).status_code,401)
     def test_agent_all_records_read_only(self):
         self.expense(self.owner,shared=False);eid=self.expense(self.owner,shared=True).json['id']
         self.assertEqual(len(self.agent.get('/api/expenses').json),2)
@@ -50,8 +49,14 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.call(self.agent,f'expenses/{eid}',{},'DELETE').status_code,403)
         self.assertEqual(self.agent.get('/api/accounts').status_code,200)
         self.assertEqual(len(list(csv.reader(io.StringIO(self.agent.get('/api/export').data.decode('utf-8-sig'))))),3)
-    def test_employee_records_visible_to_agent(self):
-        self.expense(self.staff,shared=True)
+    def test_historical_employee_records_survive_retirement(self):
+        import security
+        with app.app_context():
+            uid=db().execute("SELECT id FROM users WHERE role='employee'").fetchone()['id']
+            db().execute("INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category) VALUES (?,'2026-10-08','Historical receipt',1000,'business','Other')",(uid,));db().commit()
+            security.migrate();security.migrate()
+            self.assertEqual(db().execute('SELECT active FROM users WHERE id=?',(uid,)).fetchone()['active'],0)
+        self.assertEqual(len(self.owner.get('/api/expenses').json),1)
         self.assertEqual(len(self.agent.get('/api/expenses').json),1)
     def test_personal_visible_but_not_allocated(self):
         self.expense(self.owner,scope='personal',shared=True,percent=100)
@@ -66,16 +71,16 @@ class AppTest(unittest.TestCase):
         self.assertEqual(other.get('/api/expenses').status_code,401)
     def test_trip_validation_and_edit_guard(self):
         t={'location':'Cairns','start':'2026-10-07','end':'2026-10-09','purpose':'Flying duties','scope':'business','allowance':100}
-        tid=self.call(self.staff,'trips',t).json['id']
-        self.assertEqual(self.expense(self.staff,trip_id=tid,meal='Dinner').status_code,200)
-        self.assertEqual(self.expense(self.owner,trip_id=tid).status_code,400)
-        self.assertEqual(self.expense(self.staff,trip_id=tid,date='2026-10-10').status_code,400)
-        self.assertEqual(self.expense(self.staff,meal='Dinner').status_code,400)
-        self.assertEqual(self.call(self.staff,f'trips/{tid}',{},'DELETE').status_code,409)
+        tid=self.call(self.owner,'trips',t).json['id']
+        self.assertEqual(self.expense(self.owner,trip_id=tid,meal='Dinner').status_code,200)
+        self.assertEqual(self.expense(self.agent,trip_id=tid).status_code,403)
+        self.assertEqual(self.expense(self.owner,trip_id=tid,date='2026-10-10').status_code,400)
+        self.assertEqual(self.expense(self.owner,meal='Dinner').status_code,400)
+        self.assertEqual(self.call(self.owner,f'trips/{tid}',{},'DELETE').status_code,409)
         t['end']='2026-10-08';t['start']='2026-10-06'
-        self.assertEqual(self.call(self.staff,f'trips/{tid}',t,'PUT').status_code,200)
+        self.assertEqual(self.call(self.owner,f'trips/{tid}',t,'PUT').status_code,200)
         t['end']='2026-10-07'
-        self.assertEqual(self.call(self.staff,f'trips/{tid}',t,'PUT').status_code,409)
+        self.assertEqual(self.call(self.owner,f'trips/{tid}',t,'PUT').status_code,409)
     def test_currency_rounding_and_invalid_numbers(self):
         self.expense(self.owner,amount='12.345');self.assertEqual(self.owner.get('/api/expenses').json[0]['amount_cents'],1235)
         self.assertEqual(self.expense(self.owner,amount='NaN').status_code,400)
@@ -103,15 +108,12 @@ class AppTest(unittest.TestCase):
     def test_receipt_access_and_ai_not_configured(self):
         from PIL import Image
         buf=io.BytesIO();Image.new('RGB',(20,20),'white').save(buf,'PNG');buf.seek(0)
-        csrf=self.staff.get('/api/session').json['csrf']
-        r=self.staff.post('/api/receipts',data={'file':(buf,'receipt.png')},headers={'X-CSRF-Token':csrf});self.assertEqual(r.status_code,200);rid=r.json['id']
-        self.assertEqual(self.staff2.get('/api/receipts/'+rid).status_code,403)
+        csrf=self.owner.get('/api/session').json['csrf']
+        r=self.owner.post('/api/receipts',data={'file':(buf,'receipt.png')},headers={'X-CSRF-Token':csrf});self.assertEqual(r.status_code,200);rid=r.json['id']
+        self.assertEqual(self.staff2.get('/api/receipts/'+rid).status_code,401)
         self.assertEqual(self.agent.get('/api/receipts/'+rid).status_code,200)
-        self.assertEqual(self.expense(self.owner,receipt_id=rid).status_code,400)
-        self.assertEqual(self.staff.get('/api/receipts/'+rid).status_code,200)
-        eid=self.expense(self.staff,receipt_id=rid).json['id'];e=self.owner.get('/api/expenses').json[0];e['amount']=e['amount_cents']/100;e['shared']=True
-        self.call(self.owner,'expenses/'+str(eid),e,'PUT')
-        self.assertEqual(self.agent.get('/api/receipts/'+rid).status_code,200)
+        self.assertEqual(self.expense(self.agent,receipt_id=rid).status_code,403)
+        self.assertEqual(self.expense(self.owner,receipt_id=rid).status_code,200)
     def test_export_date_filter(self):
         self.expense(self.owner,date='2026-06-30');self.expense(self.owner,date='2026-07-01')
         data=list(csv.reader(io.StringIO(self.owner.get('/api/export?start=2026-07-01&end=2027-06-30').data.decode('utf-8-sig'))))

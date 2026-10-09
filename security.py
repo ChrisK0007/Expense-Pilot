@@ -12,7 +12,7 @@ import time
 from functools import wraps
 from urllib.parse import quote, urlsplit
 from cryptography.fernet import Fernet, InvalidToken
-from flask import Blueprint, g, request, jsonify, session
+from flask import Blueprint, g, request, jsonify, session, current_app
 from PIL import Image, ImageDraw
 from reportlab.graphics.barcode.qr import QrCodeWidget
 from werkzeug.security import check_password_hash
@@ -43,6 +43,8 @@ def migrate():
     for name, definition in columns.items():
         if name not in existing:
             db().execute(f'ALTER TABLE users ADD COLUMN {name} {definition}')
+    db().execute("CREATE TABLE IF NOT EXISTS login_sessions(token_hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,expires REAL NOT NULL)")
+    db().execute("UPDATE users SET active=0,version=version+1 WHERE role='employee' AND active=1")
     db().commit()
 
 
@@ -92,29 +94,69 @@ def clear_rate(key):
     db().execute('DELETE FROM attempts WHERE key=?', (key,))
 
 
-def start_session(user):
+def revoke_session():
+    token = session.get('sid')
+    if isinstance(token, str):
+        db().execute('DELETE FROM login_sessions WHERE token_hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
     session.clear()
-    session.update(uid=user['id'], version=user['version'], csrf=secrets.token_hex(24))
-    session.permanent = True
+
+
+def session_valid(kind='auth'):
+    token = session.get('sid')
+    uid = session.get('uid' if kind == 'auth' else 'mfa_uid')
+    if not isinstance(token, str) or not uid:
+        return False
+    return bool(one('SELECT 1 FROM login_sessions WHERE token_hash=? AND user_id=? AND kind=? AND expires>?',
+                    (hashlib.sha256(token.encode()).hexdigest(), uid, kind, clock())))
+
+
+def start_session(user, pending=False):
+    revoke_session()
+    token = secrets.token_urlsafe(32)
+    expiry = clock() + (CHALLENGE_SECONDS if pending else 12 * 3600)
+    db().execute('DELETE FROM login_sessions WHERE expires<=?', (clock(),))
+    db().execute('INSERT INTO login_sessions VALUES (?,?,?,?)',
+                 (hashlib.sha256(token.encode()).hexdigest(), user['id'], 'mfa' if pending else 'auth', expiry))
+    db().commit()
+    session.update(sid=token, csrf=secrets.token_hex(24))
+    if pending:
+        session.update(mfa_uid=user['id'], mfa_version=user['version'], mfa_until=expiry)
+    else:
+        session.update(uid=user['id'], version=user['version'])
+        session.permanent = True
+
+
+def reserve_password_attempt(email):
+    # Reserve before the expensive hash check, atomically across concurrent requests.
+    # Never trust a client-supplied forwarding header as a source address.
+    keys = [(rate_key('password-account', email), 8),
+            (rate_key('password-source', str(request.remote_addr)), 40)]
+    db().execute('BEGIN IMMEDIATE')
+    db().execute('DELETE FROM attempts WHERE until<=?', (clock(),))
+    for key, limit in keys:
+        row = one('SELECT * FROM attempts WHERE key=?', (key,))
+        if row and row['count'] >= limit:
+            db().rollback()
+            fail('Too many attempts. Try again in 15 minutes.', 429)
+    for key, _ in keys:
+        db().execute("INSERT INTO attempts VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1", (key, clock()+900))
+    db().commit()
+    return keys[0][0]
 
 
 def login_response():
     data = request.get_json() or {}
     email = str(data.get('email') or '').strip().lower()[:200]
-    key = rate_key('password', str(request.remote_addr) + '|' + email)
-    rate_check(key)
+    account_key = reserve_password_attempt(email)
     user = one('SELECT * FROM users WHERE email=?', (email,))
-    if not user or not user['active'] or not check_password_hash(user['password'], str(data.get('password', ''))[:256]):
-        rate_failure(key)
+    if not user or not user['active'] or user['role'] not in ('owner', 'tax_agent') or not check_password_hash(user['password'], str(data.get('password', ''))[:256]):
         fail('Incorrect email or password.', 401)
     if user['must_change_password'] and user['invite_expires'] <= clock():
         fail('This temporary password has expired. Ask the owner to resend your invitation.', 401)
-    clear_rate(key); db().commit()
+    clear_rate(account_key); db().commit()
+    start_session(user, pending=bool(user['totp_enabled']))
     if user['totp_enabled']:
-        session.clear()
-        session.update(mfa_uid=user['id'], mfa_version=user['version'], mfa_until=clock() + CHALLENGE_SECONDS, csrf=secrets.token_hex(24))
         return jsonify(mfa_required=True)
-    start_session(user)
     return jsonify(ok=True, password_change_required=bool(user['must_change_password']))
 
 
@@ -155,11 +197,11 @@ def factor(user, code):
 
 @bp.post('/login/2fa')
 def verify_login():
-    if not session.get('mfa_uid') or session.get('mfa_until', 0) <= clock():
+    if not session_valid('mfa') or session.get('mfa_until', 0) <= clock():
         session.clear(); fail('Sign-in expired. Enter your email and password again.', 401)
     db().execute('BEGIN IMMEDIATE')
     user = one('SELECT * FROM users WHERE id=?', (session['mfa_uid'],))
-    if not user or not user['active'] or user['version'] != session.get('mfa_version') or not user['totp_enabled']:
+    if not user or not user['active'] or user['version'] != session.get('mfa_version') or not user['totp_enabled'] or user['role'] not in ('owner', 'tax_agent'):
         session.clear(); fail('Sign-in changed. Enter your email and password again.', 401)
     factor(user, (request.get_json() or {}).get('code'))
     db().commit(); start_session(user)
@@ -193,7 +235,7 @@ def signed_in(fn):
 @signed_in
 def security_status():
     user = current_user()
-    return jsonify(enabled=bool(user['totp_enabled']), recovery_remaining=len(json.loads(user['recovery_hashes'])))
+    return jsonify(enabled=bool(user['totp_enabled']), recovery_remaining=len(json.loads(user['recovery_hashes'])), secure_cookies=bool(current_app.config['SESSION_COOKIE_SECURE']))
 
 
 @bp.post('/security/2fa/setup')
@@ -296,7 +338,7 @@ def send_invitation(uid, password, config, version):
 
 def create_user_response():
     config = invite_ready(); d = request.get_json() or {}; role = d.get('role')
-    if role not in ('employee','tax_agent'):
+    if role != 'tax_agent':
         fail('Invalid role.')
     name = textval(d.get('name'), 100)
     try:
@@ -324,7 +366,7 @@ def resend_invitation(uid):
         fail('Only the owner can invite people.',403)
     config = invite_ready(); db().execute('BEGIN IMMEDIATE')
     user = one('SELECT * FROM users WHERE id=?',(uid,))
-    if not user or user['role']=='owner' or not user['active'] or not user['must_change_password']:
+    if not user or user['role']!='tax_agent' or not user['active'] or not user['must_change_password']:
         fail('Only an active account with a pending invitation can be re-invited.',409)
     password = secrets.token_urlsafe(18)
     db().execute("UPDATE users SET password=?,version=version+1,invite_expires=?,invite_status='sending' WHERE id=?", (newpass(password),clock()+INVITE_HOURS*3600,uid))

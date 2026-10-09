@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import wraps
 from flask import Flask, request, session, jsonify, g, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
+from pdf_safety import inspect_pdf
 from werkzeug.exceptions import HTTPException
 from expense_core import split_values, percentages, allocations, migrate as migrate_allocations
 import features
@@ -67,13 +68,15 @@ def errors(e): return jsonify(error=e.description),e.code
 def headers(r):
     r.headers['X-Content-Type-Options']='nosniff';r.headers['X-Frame-Options']='DENY';r.headers['Referrer-Policy']='same-origin'
     r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-    r.headers['Cache-Control']='no-store'; return r
+    r.headers['Cache-Control']='no-store'
+    if app.config['SESSION_COOKIE_SECURE']: r.headers['Strict-Transport-Security']='max-age=31536000'
+    return r
 @app.before_request
 def guard():
     g.user=None
     if session.get('uid'):
         g.user=one('SELECT id,name,email,role,active,version,permission,must_change_password,invite_expires,totp_enabled FROM users WHERE id=?',(session['uid'],))
-        if not g.user or not g.user['active'] or g.user['version']!=session.get('version'): session.clear(); g.user=None
+        if not g.user or not g.user['active'] or g.user['role'] not in ('owner','tax_agent') or g.user['version']!=session.get('version') or not security.session_valid(): session.clear(); g.user=None
     if g.user and g.user['must_change_password'] and g.user['invite_expires']<=datetime.now().timestamp():
         session.clear(); g.user=None
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
@@ -122,7 +125,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.8.0',features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version='0.8.1',features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -136,14 +139,14 @@ def setup():
 @app.post('/api/login')
 def login(): return security.login_response()
 @app.post('/api/logout')
-def logout(): session.clear();return jsonify(ok=True)
+def logout(): security.revoke_session();db().commit();return jsonify(ok=True)
 @app.post('/api/password')
 @auth()
 def password(): return security.password_response()
 @app.route('/api/users',methods=['GET','POST'])
 @auth('owner')
 def users():
-    if request.method=='GET': return jsonify(rows('SELECT id,name,email,role,active,permission,must_change_password,invite_status,invite_expires,totp_enabled FROM users'))
+    if request.method=='GET': return jsonify(rows("SELECT id,name,email,role,active,permission,must_change_password,invite_status,invite_expires,totp_enabled FROM users WHERE role IN ('owner','tax_agent')"))
     return security.create_user_response()
 @app.put('/api/users/<int:uid>/permission')
 @auth('owner')
@@ -156,7 +159,7 @@ def user_permission(uid):
 @auth('owner')
 def access(uid):
     u=one('SELECT * FROM users WHERE id=?',(uid,))
-    if not u or u['role']=='owner': fail('Cannot change this account.')
+    if not u or u['role']!='tax_agent': fail('Cannot change this account.')
     db().execute('UPDATE users SET active=?,version=version+1 WHERE id=?',(int(bool(request.get_json().get('active'))),uid));audit('user access changed',uid);db().commit();return jsonify(ok=True)
 @app.route('/api/accounts',methods=['GET','POST'])
 @auth('owner','tax_agent')
@@ -238,13 +241,13 @@ def upload():
     if ext in ('.jpg','.jpeg','.png','.webp'):
         from PIL import Image, ImageOps
         try:
-            im=Image.open(io.BytesIO(b)); im.verify();im=ImageOps.exif_transpose(Image.open(io.BytesIO(b)));im.thumbnail((2400,2400));out=io.BytesIO();im.convert('RGB').save(out,format='JPEG',quality=90);b=out.getvalue();mime='image/jpeg'
+            im=Image.open(io.BytesIO(b), formats=['JPEG','PNG','WEBP'])
+            if im.width * im.height > 25000000: fail('Image is too large. Use a photo under 25 megapixels.')
+            im.verify();im=ImageOps.exif_transpose(Image.open(io.BytesIO(b), formats=['JPEG','PNG','WEBP']));im.thumbnail((2400,2400));out=io.BytesIO();im.convert('RGB').save(out,format='JPEG',quality=90);b=out.getvalue();mime='image/jpeg'
         except Exception: fail('Cannot read this image. Use JPEG, PNG or WebP.')
     elif ext=='.pdf':
-        from pypdf import PdfReader
         try:
-            pdf=PdfReader(io.BytesIO(b))
-            if pdf.is_encrypted or not 1<=len(pdf.pages)<=8: fail('Use an unencrypted PDF of 1–8 pages.')
+            inspect_pdf(b)
         except HTTPException: raise
         except Exception: fail('Invalid PDF.')
         mime='application/pdf'
@@ -280,8 +283,8 @@ def download(rid):
 def receipt_info(rid):
     r=receipt(rid);pages=1
     if r['mime']=='application/pdf':
-        from pypdf import PdfReader
-        pages=len(PdfReader(DATA/'receipts'/rid).pages)
+        try: pages=inspect_pdf((DATA/'receipts'/rid).read_bytes())['pages']
+        except ValueError as exc: fail(str(exc),422)
     return jsonify(id=rid,filename=r['filename'],mime=r['mime'],pages=pages)
 
 @app.get('/api/receipts/<rid>/preview')
@@ -295,8 +298,9 @@ def preview_receipt(rid):
     if thumbnail and page!=1: fail('Thumbnails show the first page only.')
     cached=DATA/'receipt_previews'/(rid+'-thumb-v1.png')
     if thumbnail and cached.is_file(): return send_file(cached,mimetype='image/png')
-    from pypdf import PdfReader
-    if not 1<=page<=len(PdfReader(DATA/'receipts'/rid).pages): fail('Page not found.',404)
+    try: pages=inspect_pdf((DATA/'receipts'/rid).read_bytes())['pages']
+    except ValueError as exc: fail(str(exc),422)
+    if not 1<=page<=pages: fail('Page not found.',404)
     # Rasterise a single page. No active PDF content is embedded in the application.
     with tempfile.TemporaryDirectory() as tmp:
         target=Path(tmp)/'preview'
@@ -320,8 +324,10 @@ def extract(rid):
     db().execute("UPDATE receipt_details SET scan_status='reading',scan_error='' WHERE receipt_id=?",(rid,));db().commit()
     raw=(DATA/'receipts'/rid).read_bytes();images=[];body=''
     if r['mime']=='application/pdf':
-        from pypdf import PdfReader
-        pdf=PdfReader(io.BytesIO(raw));body='\n'.join(p.extract_text() or '' for p in pdf.pages)[:24000]
+        try: body=inspect_pdf(raw, extract=True)['text']
+        except ValueError as exc:
+            db().execute("UPDATE receipt_details SET scan_status='failed',scan_error=? WHERE receipt_id=?",(str(exc),rid));db().commit()
+            fail(str(exc),422)
         if len(body.strip())<40:
             with tempfile.TemporaryDirectory() as tmp:
                 src=Path(tmp)/'receipt.pdf';src.write_bytes(raw)

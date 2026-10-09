@@ -49,10 +49,7 @@ class SplitsFeaturesTest(unittest.TestCase):
     def test_invalid_and_employee_splits_are_rejected(self):
         for values in ({'work_percent':80,'business_percent':30},{'work_percent':-1,'business_percent':20},{'work_percent':30.5,'business_percent':20},{'work_percent':'NaN','business_percent':20},{'work_percent':30}):
             self.assertEqual(self.expense(self.owner,**values).status_code,400,values)
-        self.assertEqual(self.expense(self.staff,work_percent=30,business_percent=20).status_code,400)
-        self.assertEqual(self.expense(self.staff,work_percent=0,business_percent=20).status_code,200)
-        eid=self.staff.get('/api/expenses').json[0]['id']
-        self.assertEqual(self.call(self.owner,'expenses/'+str(eid),dict(date='2026-10-08',merchant='Employee record',scope='business',category='Other',amount=100,work_percent=30,business_percent=20),'PUT').status_code,400)
+        self.assertEqual(self.expense(self.agent,work_percent=30,business_percent=20).status_code,403)
 
     def test_receipt_draft_split_and_edit_survive(self):
         from PIL import Image
@@ -80,4 +77,4 @@ class SplitsFeaturesTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,'features',{'employment':False},'PUT').status_code,400)
         self.assertEqual(self.call(self.owner,'features',{'business':'false'},'PUT').status_code,400)
         self.assertEqual(self.call(self.agent,'features',{'vehicles':False},'PUT').status_code,200)
-        self.assertEqual(self.call(self.staff,'features',{'employment':True},'PUT').status_code,403)
+        self.assertEqual(self.call(self.staff,'features',{'employment':True},'PUT').status_code,200)

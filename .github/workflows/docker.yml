@@ -30,8 +30,12 @@ jobs:
           node --check static/tracking.js
           node --check static/security.js
           node --check static/preferences.js
-          python -m py_compile app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py security.py location_core.py date_core.py expense_core.py features.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
+          python -m py_compile pdf_safety.py app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py security.py location_core.py date_core.py expense_core.py features.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
           bash -n prepare.sh backup.sh
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r requirements.txt --progress-spinner off
       - name: Build image
         run: docker build -t expense-pilot:test .
       - name: Integration tests
@@ -73,6 +77,7 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
+            type=raw,value=0.8.1,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=sha

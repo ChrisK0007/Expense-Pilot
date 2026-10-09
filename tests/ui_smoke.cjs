@@ -249,10 +249,10 @@ async function main() {
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Tax page overflows');
     await page.setViewportSize({width:1440,height:1050});
     await navigate(page,'team');
-    await page.getByRole('button',{name:'Add person',exact:false}).click();
+    await page.getByRole('button',{name:'Invite tax agent',exact:false}).click();
     await page.getByLabel('Name',{exact:true}).fill('Test Agent');
     await page.getByLabel('Email (login name)').fill('agent@example.test');
-    await page.getByLabel('Access role').selectOption('tax_agent');
+    assert.equal(await page.getByLabel('Access role').count(),0);
     await page.getByRole('button',{name:'Create account & send invitation'}).click();
     await page.getByLabel('Permission for Test Agent').waitFor();
     const agentContext=await browser.newContext();const agent=await agentContext.newPage();
