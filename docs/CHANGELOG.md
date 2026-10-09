@@ -21,3 +21,5 @@
 
 - Initial SwiftUI app with a server-connected web workspace and native receipt scanning.
 - Support installation through Xcode using a free Personal Team.
+
+See [earlier release notes](legacy-release-notes.md) for the original 0.3–0.6 feature history.
