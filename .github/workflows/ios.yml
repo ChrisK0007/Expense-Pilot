@@ -18,9 +18,11 @@ jobs:
         run: |
           swiftc ios/ExpensePilot/ServerAddress.swift ios/Tests/main.swift -o "$RUNNER_TEMP/address-tests"
           "$RUNNER_TEMP/address-tests"
+      # Xcode 16.4 / iOS 18.5 simulator WebKit overlay bug: Apple forums thread/785964.
+      # Override only this CI build; physical-device deployment remains iOS 17.
       - name: Build iPhone simulator app
         run: |
-          xcodebuild -project ios/ExpensePilot.xcodeproj -scheme ExpensePilot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/ExpensePilotBuild" CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY='-' DEVELOPMENT_TEAM='' build > "$RUNNER_TEMP/ios-build.log" 2>&1 || { tail -100 "$RUNNER_TEMP/ios-build.log"; exit 1; }
+          xcodebuild -project ios/ExpensePilot.xcodeproj -scheme ExpensePilot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/ExpensePilotBuild" CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY='-' DEVELOPMENT_TEAM='' IPHONEOS_DEPLOYMENT_TARGET=18.4 build > "$RUNNER_TEMP/ios-build.log" 2>&1 || { tail -100 "$RUNNER_TEMP/ios-build.log"; exit 1; }
       - name: Launch in an iPhone simulator
         run: |
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
@@ -38,6 +40,7 @@ jobs:
           find "$HOME/Library/Logs/DiagnosticReports" -name 'ExpensePilot*' -exec cp {} "$RUNNER_TEMP/crashes/" \; || true
           xcrun simctl spawn "$DEVICE" launchctl list > "$RUNNER_TEMP/ios-processes.log"
           xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/iphone-startup.png"
+          grep -E '^[0-9]+[[:space:]].*com\.chrisk0007\.ExpensePilot\.dev' "$RUNNER_TEMP/ios-processes.log"
       - name: Upload build evidence
         if: always()
         uses: actions/upload-artifact@v4

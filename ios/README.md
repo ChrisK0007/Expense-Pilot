@@ -61,3 +61,7 @@ Apple references:
 - https://developer.apple.com/support/compare-memberships/
 - https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices
 - https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device
+
+### Xcode 16.4 simulator troubleshooting
+
+Apple documented a missing WebKit library in the iOS 18.5 simulator when targeting older iOS versions. If that simulator closes the app immediately with `libswiftWebKit.dylib` missing, use a newer Xcode/runtime or Apple’s workaround: https://developer.apple.com/forums/thread/785964. CI uses a simulator-only iOS 18.4 deployment override to avoid that runtime bug. The project’s physical-iPhone deployment target remains iOS 17.
