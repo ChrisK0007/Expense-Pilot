@@ -7,11 +7,15 @@ final class WorkspaceModel: NSObject, ObservableObject, WKNavigationDelegate, WK
     @Published var loading = false
     @Published var loadError: String?
     @Published var message: String?
-    @Published var pendingScan: Data?
+    @Published private(set) var pendingScan: Data?
+    @Published var checkingScan = false
     @Published var uploading = false
     @Published var sharedFile: SharedFile?
     let webView: WKWebView
     private var scanUserID: Int?
+    private var scanServer: URL?
+    private var scanID: UUID?
+    private var workspaceID = UUID()
     private var downloads: [ObjectIdentifier: URL] = [:]
     private let shareDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("ExpensePilotExports", isDirectory: true)
 
@@ -33,7 +37,8 @@ final class WorkspaceModel: NSObject, ObservableObject, WKNavigationDelegate, WK
         server = url; UserDefaults.standard.set(url.absoluteString, forKey: "server"); reload()
     }
     func disconnect() async {
-        webView.stopLoading(); server = nil; pendingScan = nil; scanUserID = nil; loadError = nil; loading = false
+        workspaceID = UUID()
+        webView.stopLoading(); server = nil; discardScan(); uploading = false; loadError = nil; loading = false
         UserDefaults.standard.removeObject(forKey: "server")
         webView.loadHTMLString("", baseURL: nil)
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -50,45 +55,60 @@ final class WorkspaceModel: NSObject, ObservableObject, WKNavigationDelegate, WK
         guard let server, let current = webView.url, ServerAddress.sameOrigin(server, current) else { throw AppError.message("Open your Expense Pilot workspace before scanning or uploading.") }
     }
     func canScan() async -> Bool {
+        guard !checkingScan, !uploading, pendingScan == nil else { return false }
+        checkingScan = true; defer { checkingScan = false }
+        let workspace = workspaceID
         do {
             try checkOrigin()
-            let raw = try await webView.callAsyncJavaScript("const r=await fetch('/api/session'); if(!r.ok) return null; return await r.json();", arguments: [:], in: nil, contentWorld: .page)
-            guard let session = raw as? [String: Any], let user = session["user"] as? [String: Any], let id = user["id"] as? Int,
-                  !(user["must_change_password"] as? Bool ?? false), (user["must_change_password"] as? Int ?? 0) == 0,
-                  user["role"] as? String != "tax_agent" || user["permission"] as? String == "read_write" else {
-                throw AppError.message("Sign in, complete any password change and use an account with permission to add receipts.")
+            // The camera itself does not need the network. This snapshot only binds
+            // the local scan; uploadScan checks the live account and permissions.
+            let raw = try await webView.callAsyncJavaScript(ReceiptBridge.scanContext, arguments: [:], in: nil, contentWorld: .page)
+            guard workspace == workspaceID else { return false }
+            guard let result = raw as? [String: Any], result["ok"] as? Bool == true,
+                  let id = result["userID"] as? Int else {
+                message = (raw as? [String: Any])?["error"] as? String ?? "Reconnect and load your signed-in workspace before scanning."
+                return false
             }
-            scanUserID = id; return true
-        } catch { message = error.localizedDescription; return false }
+            try checkOrigin()
+            scanUserID = id; scanServer = server; scanID = UUID()
+            return true
+        } catch {
+            if workspace == workspaceID {
+                message = "Load your Expense Pilot workspace and sign in while connected before scanning. If the connection drops afterwards, you can still scan and retry the upload when reconnected."
+            }
+            return false
+        }
+    }
+    func keepScan(_ data: Data) {
+        guard scanID != nil, scanUserID != nil, scanServer == server else {
+            message = "The server changed while scanning. Open your workspace and scan again."
+            return
+        }
+        pendingScan = data
+    }
+    func discardScan() {
+        pendingScan = nil; scanUserID = nil; scanServer = nil; scanID = nil
     }
     func uploadScan() async {
-        guard !uploading, let data = pendingScan, let userID = scanUserID else { return }
-        uploading = true; defer { uploading = false }
+        guard !uploading, let data = pendingScan, let userID = scanUserID, let attempt = scanID else { return }
+        uploading = true
+        defer { if scanID == attempt { uploading = false } }
         do {
+            guard server == scanServer else { throw AppError.message("Reconnect to the server where this receipt was scanned, then retry.") }
             try checkOrigin()
-            let script = """
-            try {
-                const sessionResponse=await fetch('/api/session');
-                if(!sessionResponse.ok) return {ok:false,error:'Cannot check your session. Sign in and retry.'};
-                const session=await sessionResponse.json();
-                if(!session.user || session.user.id!==expectedUser) return {ok:false,error:'Your signed-in account changed. Sign in to the account that scanned this receipt, then retry.'};
-                if(session.user.must_change_password) return {ok:false,error:'Change your temporary password first.'};
-                const bytes=Uint8Array.from(atob(encoded), c=>c.charCodeAt(0));
-                const form=new FormData();form.append('file',new Blob([bytes],{type:'application/pdf'}),filename);
-                const response=await fetch('/api/receipts',{method:'POST',headers:{'X-CSRF-Token':session.csrf},body:form});
-                const result=await response.json();
-                if(!response.ok) return {ok:false,error:result.error||'Upload failed. Retry when connected.'};
-                if(typeof render==='function' && typeof page!=='undefined'){page='receipts';render();}
-                return {ok:true,duplicate:!!result.duplicate};
-            } catch (_) { return {ok:false,error:'Could not upload. Keep the app open and retry when connected.'}; }
-            """
-            let result = try await webView.callAsyncJavaScript(script, arguments: ["encoded": data.base64EncodedString(), "expectedUser": userID, "filename": "iPhone-receipt-\(UUID().uuidString).pdf"], in: nil, contentWorld: .page)
+            let result = try await webView.callAsyncJavaScript(ReceiptBridge.uploadScan, arguments: ["encoded": data.base64EncodedString(), "expectedUser": userID, "filename": "iPhone-receipt-\(attempt.uuidString).pdf"], in: nil, contentWorld: .page)
+            guard scanID == attempt else { return }
             guard let value = result as? [String: Any], value["ok"] as? Bool == true else {
-                throw AppError.message((result as? [String: Any])?["error"] as? String ?? "Upload failed. Your scan is available to retry while this app remains open.")
+                message = (result as? [String: Any])?["error"] as? String ?? "Upload could not finish. Keep the app open, reconnect and retry. Your scan is still available."
+                return
             }
-            pendingScan = nil; scanUserID = nil
+            discardScan(); uploading = false
             message = value["duplicate"] as? Bool == true ? "This receipt is already in your inbox." : "Receipt saved to your inbox. Open it to review the details or read it with AI."
-        } catch { message = error.localizedDescription }
+        } catch {
+            if scanID == attempt {
+                message = "Upload could not finish. Keep the app open, reconnect and reload your workspace if needed, then tap Retry upload. Your scan is still available."
+            }
+        }
     }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { loading = true; loadError = nil }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { loading = false }

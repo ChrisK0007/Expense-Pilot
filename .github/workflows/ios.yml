@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+      - name: Check receipt capture and upload bridge
+        run: node ios/Tests/receipt_bridge.cjs
       - name: Check server address safety
         run: |
           swiftc ios/ExpensePilot/ServerAddress.swift ios/Tests/main.swift -o "$RUNNER_TEMP/address-tests"

@@ -31,10 +31,10 @@ struct RootView: View {
                         } else { WorkspaceWebView(model: model) }
                         if model.pendingScan != nil {
                             HStack {
-                                Text(model.uploading ? "Uploading receipt…" : "Scanned receipt ready to upload").font(.caption)
+                                Text(model.uploading ? "Uploading receipt…" : "Scan waiting to upload — keep app open").font(.caption)
                                 Spacer()
                                 Button("Retry upload") { Task { await model.uploadScan() } }.disabled(model.uploading)
-                                Button("Discard", role: .destructive) { model.pendingScan = nil }.disabled(model.uploading)
+                                Button("Discard", role: .destructive) { model.discardScan() }.disabled(model.uploading)
                             }.padding(10).background(.thinMaterial)
                         }
                     }
@@ -58,7 +58,7 @@ struct RootView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { Task { if await model.canScan() { scan = true } } } label: { Label("Scan receipt", systemImage: "doc.viewfinder") }
-                        .disabled(model.server == nil || model.loading || model.uploading || model.pendingScan != nil || !VNDocumentCameraViewController.isSupported)
+                        .disabled(model.server == nil || model.loading || model.checkingScan || model.uploading || model.pendingScan != nil || !VNDocumentCameraViewController.isSupported)
                 }
             }
             .sheet(isPresented: $configure) { ServerSettings().environmentObject(model) }
@@ -66,10 +66,10 @@ struct RootView: View {
                 ReceiptScanner { result in
                     scan = false
                     switch result {
-                    case .success(let data): model.pendingScan = data; Task { await model.uploadScan() }
-                    case .failure(let error): model.message = error.localizedDescription
+                    case .success(let data): model.keepScan(data); Task { await model.uploadScan() }
+                    case .failure(let error): model.discardScan(); model.message = error.localizedDescription
                     }
-                } onCancel: { scan = false }
+                } onCancel: { scan = false; model.discardScan() }
                 .ignoresSafeArea()
             }
             .alert("Expense Pilot", isPresented: Binding(get: { model.message != nil }, set: { if !$0 { model.message = nil } })) {
@@ -107,9 +107,9 @@ struct ServerSettings: View {
                         } catch { self.error = error.localizedDescription }
                     }.disabled(connecting || model.uploading)
                     if let error { Text(error).foregroundStyle(.red) }
-                } footer: { Text("Changing servers clears this app’s saved sign-in. Use your existing Expense Pilot login and authenticator code. This build requires a network connection; GPS tracking and offline sync are not included yet.") }
+                } footer: { Text("Changing servers clears this app’s saved sign-in. Use your existing Expense Pilot login and authenticator code. Sign in online first. You can then scan while disconnected and retry uploading when reconnected. Keep the app open: pending scans are held in memory. GPS tracking and background sync are not included.") }
                 Section("Development build") {
-                    Text("iPhone app 0.1.0 · Expense Pilot server 0.8.0 or later")
+                    Text("iPhone app \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") · Expense Pilot server 0.8.1 or later")
                     Text("Free Xcode signing expires after about seven days. Re-run from Xcode using the same bundle identifier to renew without deleting the app.").font(.footnote)
                 }
             }.navigationTitle("Server settings").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
