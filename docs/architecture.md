@@ -1,6 +1,6 @@
 # Development and deployment structure
 
-The backend, web client and iPhone app share one repository. Changes to API behaviour can be reviewed alongside both clients. The Docker workflow ignores iOS-only and documentation-only changes; the iOS workflow is scoped to iOS files and its own workflow.
+This repository contains the backend and web client. The iPhone app, Xcode project, native tests and simulator workflow are maintained in [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios). Coordinate API changes across the two repositories. Documentation-only changes do not rebuild the Docker image.
 
 ## Backend
 
@@ -38,7 +38,9 @@ Add a new numbered file for future schema changes. Never edit a released migrati
 
 ## Versions and image context
 
-`server/VERSION` is the source for the API version and Docker release tag. Bump it for a server release. CI validates it and requires any `v` Git tag to match. iOS keeps its independent marketing/build versions in the Xcode project. Docker's allowlist includes only the Dockerfile and `server/`, excluding tests, iOS, local data and secrets.
+`server/VERSION` is the source for the API version and numbered Docker image tag. `main` requires `X.Y.Z` and publishes `latest`; `beta` requires `X.Y.Z-beta.N` and publishes `beta`. CI rejects versions assigned to the wrong branch, verifies any `v` Git tag matches, and never publishes pull requests or topic branches. Matching Git tags publish their numbered image without moving either channel. See [release channels](releases.md) for development and promotion steps.
+
+iOS keeps independent marketing/build versions in its separate Xcode repository. Docker's allowlist includes only the Dockerfile and `server/`, excluding tests, local data and secrets. `python -m unittest discover -s tests/release -v` checks the publishing rules before the Docker build; the existing backend, startup and browser checks still gate every published image.
 
 ## Backups
 
