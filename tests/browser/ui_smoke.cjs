@@ -225,7 +225,7 @@ async function main() {
     await page.setViewportSize({width:1440,height:1050});
 
     await navigate(page,'expenses');
-    assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),0);
+    assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),1,'Accepted meals are available in Expenses');
     await navigate(page,'employment');
     await page.getByRole('button',{name:'Add employment income',exact:false}).click();
     await page.getByLabel('Employer',{exact:true}).fill('Example Employer');
@@ -375,7 +375,7 @@ async function main() {
     await page.screenshot({path:output+'/invoice-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Mobile page overflows horizontally');
     assert.deepEqual(errors,[],'Browser JavaScript errors');
-    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, separated meals, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
+    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, trip meals in Expenses, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
   } catch(error) {
     await page.screenshot({path:output+'/failure.png',fullPage:true});
     throw error;
