@@ -15,9 +15,6 @@ def preferences():
 
 def register(app, **deps):
     globals().update(deps)
-    with app.app_context():
-        db().execute('CREATE TABLE IF NOT EXISTS feature_preferences(user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,data TEXT NOT NULL)')
-        db().commit()
 
     @app.route('/api/features', methods=['GET', 'PUT'])
     def feature_preferences():

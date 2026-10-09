@@ -2,9 +2,11 @@ name: Test and publish Docker image
 on:
   push:
     branches: [main]
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
     tags: ['v*']
   pull_request:
     branches: [main]
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,25 +23,53 @@ jobs:
       - uses: actions/checkout@v6
       - name: Syntax checks
         run: |
-          node --check static/app.js
-          node --check static/billing.js
-          node --check static/receipts.js
-          node --check static/finance.js
-          node --check static/workspace.js
-          node --check static/theme.js
-          node --check static/tracking.js
-          node --check static/security.js
-          node --check static/preferences.js
-          python -m py_compile pdf_safety.py app.py billing.py billing_core.py tax_core.py tracking.py receipt_core.py security.py location_core.py date_core.py expense_core.py features.py gunicorn.conf.py reset_password.py tests/test_app.py tests/test_billing.py
-          bash -n prepare.sh backup.sh
+          node --check server/static/app.js
+          node --check server/static/billing.js
+          node --check server/static/receipts.js
+          node --check server/static/finance.js
+          node --check server/static/workspace.js
+          node --check server/static/theme.js
+          node --check server/static/tracking.js
+          node --check server/static/security.js
+          node --check server/static/preferences.js
+          python -m compileall -q server tests
+          bash -n prepare.sh backup.sh scripts/prepare.sh scripts/backup.sh
+      - name: Release version
+        id: release
+        run: |
+          version=$(cat server/VERSION)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            [[ "$GITHUB_REF_NAME" == "v$version" ]]
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Audit Python dependencies
         run: |
           python -m pip install pip-audit
-          pip-audit -r requirements.txt --progress-spinner off
+          pip-audit -r server/requirements.txt --progress-spinner off
       - name: Build image
         run: docker build -t expense-pilot:test .
       - name: Integration tests
-        run: docker run --rm --entrypoint python -v "$PWD/tests:/app/tests:ro" expense-pilot:test -m unittest discover -s tests -v
+        run: docker run --rm --entrypoint python -v "$PWD/tests/server:/app/tests/server:ro" -v "$PWD/scripts:/app/scripts:ro" expense-pilot:test -m unittest discover -s tests/server -v
+      - name: Production startup smoke test
+        env:
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          docker run -d --name expense-pilot-production -p 127.0.0.1:8789:8788 expense-pilot:test
+          trap 'docker logs expense-pilot-production; docker rm -f expense-pilot-production' EXIT
+          python - <<'PYTHON'
+          import json, os, time, urllib.request
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8789/api/session', timeout=2) as response:
+                      result = json.load(response)
+                  assert result['version'] == os.environ['EXPECTED_VERSION'], result
+                  break
+              except (OSError, TimeoutError):
+                  time.sleep(1)
+          else:
+              raise SystemExit('Production server did not start')
+          PYTHON
       - name: Browser workflow tests
         id: browser
         env:
@@ -47,11 +77,11 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/expense-pilot-browser" playwright@1.62.1
           node "$RUNNER_TEMP/expense-pilot-browser/node_modules/playwright/cli.js" install --with-deps chromium
-          docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui --entrypoint python -v "$PWD/tests:/app/tests:ro" -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_smoke.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_tracking.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_security.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/ui_splits.cjs
+          docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_smoke.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_tracking.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_security.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_splits.cjs
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |
@@ -78,7 +108,7 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=raw,value=0.8.1,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.release.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=sha

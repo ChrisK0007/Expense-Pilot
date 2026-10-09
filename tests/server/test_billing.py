@@ -399,6 +399,7 @@ class BillingTest(unittest.TestCase):
                 target = sqlite3.connect(path/'rounded.sqlite')
                 db().backup(target)
                 target.execute('PRAGMA foreign_keys=OFF')
+                target.execute('DROP TABLE schema_migrations')
                 for row in target.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'billing_%'").fetchall():
                     target.execute('DROP TABLE '+row[0])
                 target.execute('ALTER TABLE users DROP COLUMN permission')

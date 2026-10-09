@@ -1,0 +1,55 @@
+# Development and deployment structure
+
+The backend, web client and iPhone app share one repository. Changes to API behaviour can be reviewed alongside both clients. The Docker workflow ignores iOS-only and documentation-only changes; the iOS workflow is scoped to iOS files and its own workflow.
+
+## Backend
+
+Run commands below from the repository root. Python imports resolve from `server/`. Docker copies that directory to `/app`, preserving the production entry point `app:app` and recovery utility `/app/reset_password.py`.
+
+- `app.py`: application setup, shared request helpers, core accounts, trips and expenses.
+- `receipt_routes.py`: receipt upload, inspection, extraction and inbox endpoints.
+- `finance_routes.py`: bank imports, exports, employment income and forecast endpoints.
+- `billing.py`: billing setup, shared services, clients, schedules and payments.
+- `billing_documents.py`: document endpoints.
+- `security.py`, `tracking.py`, `features.py`: feature registration and services.
+- `*_core.py`: calculations and parsing independent of HTTP routes.
+- `static/` and `datasets/`: browser assets and bundled suburb lookup data.
+
+Route modules are loaded after their shared decorators are defined. Function-local imports resolve shared services at request time, including service replacements used by tests. Import `app` as the application entry point, rather than importing a route module directly.
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+pip install -r server/requirements.txt
+PYTHONPATH=server python -m unittest discover -s tests/server -v
+# Use a disposable DATA_DIR for local development; configure SETUP_TOKEN first.
+DATA_DIR=/tmp/expense-pilot-dev python server/app.py
+```
+
+Production uses Gunicorn, not Flask's development server. Browser suites live in `tests/browser/`; see the Docker workflow for their Playwright setup. The disposable browser server is excluded from the production image. CI also boots the real Gunicorn entry point and checks its reported version.
+
+## Database migrations
+
+Startup applies `server/migrations/mNNN_description.py` in filename order. Each module exposes `upgrade(connection)`. A `schema_migrations` ledger records the name, checksum and application time. `BEGIN IMMEDIATE` serialises concurrent startup; a failed migration rolls back its schema/data changes and its ledger entry together. Successful earlier migrations remain committed.
+
+The first six migrations adopt existing installations using idempotent table/column creation. Existing receipts, accounts, allocations and historical employee records remain present; legacy employee accounts remain disabled. The SQLite filename and receipt storage paths do not change.
+
+Add a new numbered file for future schema changes. Never edit a released migration: checksums detect accidental drift. Use `migrations.execute_script` for transactional SQL, not `connection.executescript`, and never commit inside `upgrade`. Migrations must not change filesystem data. Take a backup before upgrading; rollback to an older release requires restoring the matching backup, because startup rejects unknown newer migrations.
+
+## Versions and image context
+
+`server/VERSION` is the source for the API version and Docker release tag. Bump it for a server release. CI validates it and requires any `v` Git tag to match. iOS keeps its independent marketing/build versions in the Xcode project. Docker's allowlist includes only the Dockerfile and `server/`, excluding tests, iOS, local data and secrets.
+
+## Backups
+
+```sh
+bash backup.sh /path/to/private/backups
+# A different container name:
+CONTAINER_NAME=my-expense-pilot bash backup.sh /path/to/private/backups
+```
+
+The backup utility inspects the selected container's actual `/data` mount instead of assuming the checkout's `data/` directory. It stops a running container, creates the archive and restarts it even when archiving fails. A container that was already stopped stays stopped. It refuses to place backups inside the data directory. Run with access to Docker and the host mount (usually as root on Unraid).
+
+Archives contain `data/` including `rounded.sqlite`, receipts and `session.key`; the checkout's `.env` is included when present. For a different `.env` location, set `EXPENSE_PILOT_ENV_FILE` to that file. Unraid template environment settings live outside the data mount; preserve those settings separately using your normal Unraid configuration backup.
+
+For offline data without a Docker container, first stop every process using the database, then set `EXPENSE_PILOT_DATA_DIR` to the data directory. This explicit mode does not stop or restart any container. Protect archives as sensitive financial data. Restore `data/` to the configured host mount while the app is stopped and retain the existing ownership (normally UID 99/GID 100).
