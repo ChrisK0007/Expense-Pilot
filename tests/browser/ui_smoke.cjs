@@ -50,7 +50,8 @@ async function main() {
       reprocessedId=route.request().url().split('/').at(-2);scanAttempts++;
       await route.fulfill({status:scanAttempts===1?503:200,json:scanAttempts===1?{error:'Test AI temporarily unavailable'}:{ok:true}});
     });
-    await page.route('**/api/receipts',async route=>{
+    const inboxRoute=/\/api\/receipts(?:\?.*)?$/;
+    await page.route(inboxRoute,async route=>{
       const response=await route.fetch(),records=await response.json();
       await route.fulfill({response,json:records.map(r=>r.id===reprocessedId&&scanAttempts>1?{...r,scan_status:'scanned',extraction:{merchant:'Reprocessed test merchant',date:'2026-10-08',amount:25.5,currency:'AUD',category:'Equipment'}}:r)});
     });
@@ -63,7 +64,7 @@ async function main() {
     assert.equal(scanAttempts,2);
     await page.screenshot({path:output+'/receipt-reprocessed.png',fullPage:true});
     await page.locator('#close-modal').click();
-    await page.unroute('**/api/receipts/*/extract');await page.unroute('**/api/receipts');
+    await page.unroute('**/api/receipts/*/extract');await page.unroute(inboxRoute);
     await page.reload();await navigate(page,'receipts');
 
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
