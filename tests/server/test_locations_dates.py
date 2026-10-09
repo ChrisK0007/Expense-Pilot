@@ -27,6 +27,7 @@ class DatesLocationsTest(unittest.TestCase):
         self.assertEqual(loc.local_assessment(prefs,'Sunshine Coast','1 Test St Maroochydore QLD 4558')['status'],'local')
         self.assertEqual(loc.local_assessment(prefs,'New York',currency='USD')['status'],'unknown')
         self.assertTrue(any(x['name']=='Maroochydore' for x in loc.search('4558')))
+        self.assertEqual(loc.receipt_location({'merchant_city':'Cairns','currency':'USD'}),'Cairns')
 
     def test_selected_base_and_radius(self):
         base=loc.resolve('Maroochydore');prefs=dict(home_base=base['name'],home_place_id=base['id'],local_radius_km=5)

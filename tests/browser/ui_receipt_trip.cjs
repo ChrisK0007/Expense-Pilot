@@ -36,6 +36,8 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await navigate(page,'receipts');
   const open=async name=>page.locator('.receipt-card').filter({has:page.getByRole('heading',{name,exact:true})}).getByRole('button',{name:'Review & categorise',exact:false}).click();
   await open('Receipt trip cyan');
+  assert.equal(await page.getByLabel('Location',{exact:true}).inputValue(),'Cawdor');
+  assert.equal(await page.locator('#receipt_merchant_city,#receipt_merchant_address').count(),0);
   await page.getByLabel('Amount paid (AUD)',{exact:true}).fill('30.08');
   await page.getByLabel('What was it for?').fill('Includes payment service fee');
   // Saving a meal with no trip opens the review instead of the previous error.
@@ -116,12 +118,17 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   assert.equal(await page.locator('.receipt-card').filter({hasText:'Receipt trip orange'}).count(),0);
   // Percentages alone determine the workspace of a newly filed receipt.
   const splitReceipt=await upload('teal','2026-10-08',20);
-  await api('receipts/'+splitReceipt+'/draft',{category:'Equipment',meal:''},'put');
+  await api('receipts/'+splitReceipt+'/draft',{category:'Equipment',meal:'',merchant_address:'290 Remembrance Driveway, Cawdor NSW 2570'},'put');
   await navigate(page,'receipts');await open('Receipt trip teal');
+  assert.equal(await page.getByLabel('Location',{exact:true}).inputValue(),'Cawdor, NSW 2570');
+  await page.getByLabel('Location',{exact:true}).fill('Cawdor, QLD 4352');
   await page.getByLabel('Employment (%)').fill('40');await page.getByLabel('Business (%)').fill('50');
   await page.getByRole('button',{name:'Save expense',exact:true}).click();await page.getByText('Expense saved.',{exact:true}).waitFor();
   const split=(await api('expenses')).find(e=>e.receipt_id===splitReceipt);
   assert.equal(split.scope,'split');assert.equal(split.work_percent,40);assert.equal(split.business_percent,50);
+  const filedLocation=(await api('receipts')).find(r=>r.id===splitReceipt);
+  assert.equal(filedLocation.location,'Cawdor, QLD 4352');
+  assert.equal(filedLocation.draft.merchant_address,'290 Remembrance Driveway, Cawdor NSW 2570');
   assert.deepEqual(errors,[]);
   console.log('PASS: receipt-to-trip review, ambiguous suburb/missing home base, grouped meals, edited amounts/notes, cancelled draft, existing-trip reuse, draft-only inbox, matching expense links, percentage allocation and mobile layout.');
  }catch(error){await page.screenshot({path:output+'/receipt-trip-failure.png',fullPage:true});throw error;}

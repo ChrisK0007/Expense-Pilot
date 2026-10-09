@@ -95,6 +95,15 @@ class ReceiptTest(unittest.TestCase):
         self.assertEqual(expense['receipt_id'],rid)
         self.assertEqual(self.owner.get('/api/receipts/'+rid+'/info').status_code,200)
 
+    def test_filing_preserves_reviewed_location_and_original_address(self):
+        rid=self.upload().json['id'];address='Example Street, Cawdor NSW 2570'
+        self.scan(rid,dict(merchant='Shop',date='2026-10-08',amount=20,currency='AUD',category='Equipment',merchant_city='Cawdor',merchant_address=address))
+        response=self.call(self.owner,'receipts/'+rid+'/expense',dict(merchant='Shop',date='2026-10-08',amount=20,scope='work',category='Equipment',merchant_location='Cawdor, QLD 4352'))
+        self.assertEqual(response.status_code,200,response.json)
+        row=self.owner.get('/api/receipts').json[0]
+        self.assertEqual(row['location'],'Cawdor, QLD 4352')
+        self.assertEqual(row['extraction']['merchant_address'],address)
+
     def test_match_uses_corrected_draft_amount_and_retains_already_attached_candidate(self):
         rid=self.upload().json['id'];attached=self.upload(color='red').json['id']
         first=self.expense(self.owner,category='Equipment',date='2026-10-08',amount=30.08,receipt_id=attached).json['id']

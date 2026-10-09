@@ -1,5 +1,6 @@
 """Receipt routes endpoints and services."""
 from app import app, auth
+import location_core
 
 @app.post('/api/receipts')
 @auth('owner','employee')
@@ -190,6 +191,7 @@ def receipt_inbox():
             # Only learn from this person's explicitly reviewed records; never infer deductibility.
             r['suggestion']=one("SELECT category,scope FROM expenses WHERE user_id=? AND lower(trim(merchant))=lower(trim(?)) AND status='ready' AND category!='Uncategorised' ORDER BY id DESC LIMIT 1",(r['user_id'],merchant))
         extracted={**r['extraction'],**r['draft']}
+        r['location']=location_core.receipt_location(extracted)
         amount_is_aud=extracted.get('currency')=='AUD' or r['draft'].get('amount') is not None
         if extracted.get('amount') is not None and amount_is_aud and extracted.get('date'):
             r['matches']=rows('SELECT id,date,merchant,amount_cents,receipt_id FROM expenses WHERE user_id=? AND date=? AND amount_cents=? ORDER BY id DESC LIMIT 8',(r['user_id'],extracted['date'],money(extracted['amount'])))
@@ -199,7 +201,7 @@ def receipt_inbox():
 @app.post('/api/receipts/<rid>/expense')
 @auth('owner','employee')
 def categorise_receipt(rid):
-    from app import audit, db, expense, fail, jsonify, link_vehicle, one, payload, receipt, request
+    from app import audit, db, draft_for, expense, fail, json, jsonify, link_vehicle, one, payload, receipt, request, textval
     db().execute('BEGIN IMMEDIATE')
     r=receipt(rid)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already linked to an expense.',409)
@@ -213,6 +215,9 @@ def categorise_receipt(rid):
         p=payload(d,{'user_id':r['user_id'],'shared':0,'account_id':None})
         if one('SELECT role FROM users WHERE id=?',(r['user_id'],))['role']=='employee' and p[3]!='business': fail('Employee receipts must remain business expenses.')
         cur=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(r['user_id'],)+p);eid=cur.lastrowid;link_vehicle(eid,r['user_id'],d)
+    if 'merchant_location' in d:
+        draft={**draft_for(rid),'merchant_location':textval(d['merchant_location'],200)}
+        db().execute('INSERT INTO receipt_drafts(receipt_id,data) VALUES (?,?) ON CONFLICT(receipt_id) DO UPDATE SET data=excluded.data,saved_at=CURRENT_TIMESTAMP',(rid,json.dumps(draft)))
     audit('receipt categorised',rid);db().commit();return jsonify(id=eid)
 
 

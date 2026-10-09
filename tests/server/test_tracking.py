@@ -157,6 +157,26 @@ class TrackingTest(unittest.TestCase):
         group=self.owner.get('/api/receipts/'+first+'/trip-proposal').json
         self.assertEqual([r['id'] for r in group['receipts']],[first])
 
+    def test_single_location_keeps_address_and_overrides_it_for_trip_matching(self):
+        rid=self.upload().json['id']
+        address='290 Remembrance Driveway, Cawdor NSW 2570'
+        data=dict(merchant='Cafe',date='2025-10-09',amount=30.08,currency='AUD',category='Meals',meal='Dinner',merchant_city='Cawdor',merchant_address=address)
+        self.scan(rid,data)
+        row=self.owner.get('/api/receipts').json[0]
+        self.assertEqual(row['location'],'Cawdor, NSW 2570')
+        self.assertEqual(row['extraction']['merchant_address'],address)
+        trip=dict(location='Cawdor QLD 4352',start='2025-10-08',end='2025-10-10',scope='work',purpose='Flying duties')
+        tid=self.call(self.owner,'trips',trip).json['id']
+        self.assertEqual(self.call(self.owner,'receipts/'+rid+'/draft',{'merchant_location':'Cawdor, QLD 4352'},'PUT').status_code,200)
+        self.scan(rid,data)
+        row=self.owner.get('/api/receipts').json[0]
+        self.assertEqual(row['location'],'Cawdor, QLD 4352')
+        self.assertEqual(row['extraction']['merchant_address'],address)
+        group=self.owner.get('/api/receipts/'+rid+'/trip-proposal').json
+        self.assertEqual(group['existing_trip_id'],tid)
+        self.call(self.owner,'receipts/'+rid+'/draft',{'merchant_location':''},'PUT')
+        self.assertEqual(self.owner.get('/api/receipts').json[0]['location'],'')
+
     def test_foreign_meal_amount_needs_manual_aud_and_dismissal_survives_scan(self):
         self.prefs();rid=self.upload().json['id']
         self.scan(rid,dict(merchant='Foreign cafe',date='2026-10-08',amount=100,currency_evidence='USD',category='Meals',merchant_city='Cairns QLD',meal='Dinner'))

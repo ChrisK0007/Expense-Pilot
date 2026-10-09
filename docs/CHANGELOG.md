@@ -1,5 +1,10 @@
 # Release history
 
+## 0.8.5
+
+- Combine receipt city/suburb and address/state inputs into one Location field. Use detected suburb, state and postcode where available, preserve the full extracted address, and let reviewed locations override AI evidence when matching trips.
+- Move Tax agent access from the side menu into Settings, retaining owner-only invitation and permission controls.
+
 ## 0.8.4
 
 - Remove the redundant Workspace selector from adding and editing expenses and meals; employment and business percentages determine the allocation.

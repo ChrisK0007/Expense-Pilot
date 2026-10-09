@@ -97,7 +97,7 @@ def receipt_values(rid):
     return {**extracted, **draft_for(rid)}
 
 def clean_draft(d):
-    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','trip_id','vehicle_id','exclude_trip'}
+    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip'}
     if set(d)-allowed: fail('Unknown receipt draft field.')
     result = {}
     for key, value in d.items():
@@ -163,16 +163,16 @@ def proposals(focus=None):
     receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id)',args)
     groups=[]
     for r in receipts:
-        d=receipt_values(r['id']); prefs=profile(r['user_id']); city=d.get('merchant_city','')
+        d=receipt_values(r['id']); prefs=profile(r['user_id']); city=location_core.receipt_location(d)
         if not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
-        assessment=location_core.local_assessment(prefs,city,d.get('merchant_address',''),d.get('currency','AUD'))
+        assessment=location_core.local_assessment(prefs,city if 'merchant_location' in d else d.get('merchant_city',''),'' if 'merchant_location' in d else d.get('merchant_address',''),d.get('currency','AUD'))
         scope=d.get('scope') or prefs['scope']; when=d['date']
-        explicit=focus and r['user_id']==focus['user_id'] and scope==focus_scope and (r['id']==focus['id'] or same_trip_location(focus_values.get('merchant_city',''),city,d.get('merchant_address','')))
+        explicit=focus and r['user_id']==focus['user_id'] and scope==focus_scope and (r['id']==focus['id'] or same_trip_location(location_core.receipt_location(focus_values),city))
         if assessment['status']!='away' and not explicit: continue
         city=city or assessment.get('location','')
         if scope=='split': continue  # Mixed-purpose meals need an explicitly chosen trip.
-        existing=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=? ORDER BY start DESC',(r['user_id'],scope,when,when)) if same_trip_location(t['location'],city,d.get('merchant_address',''))),None)
-        place=location_core.resolve(city,d.get('merchant_address',''))
+        existing=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=? ORDER BY start DESC',(r['user_id'],scope,when,when)) if same_trip_location(t['location'],city)),None)
+        place=location_core.resolve(city)
         location_key=place['id'] if place else norm(city)
         entry=dict(id=r['id'],filename=r['filename'],values=d,aud_amount=draft_for(r['id']).get('amount',d.get('amount') if d.get('currency')=='AUD' else None))
         groups.append(dict(user_id=r['user_id'],owner=r['owner'],location=city,location_key=location_key,scope=scope,first=when,last=when,existing_trip_id=existing['id'] if existing else None,receipts=[entry],home_base=prefs['home_base'],location_reason=assessment['reason'],location_status=assessment['status'],existing=existing))

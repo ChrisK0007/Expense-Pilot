@@ -251,7 +251,12 @@ async function main() {
     await page.screenshot({path:output+'/tax-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Tax page overflows');
     await page.setViewportSize({width:1440,height:1050});
-    await navigate(page,'team');
+    assert.equal(await page.locator('nav [data-page=team]').count(),0);
+    await navigate(page,'settings');await page.getByRole('button',{name:'Manage tax agent access',exact:false}).click();
+    await page.getByRole('heading',{name:'Tax agent access',exact:true}).waitFor();
+    assert.equal(await page.locator('nav [data-page=settings]').getAttribute('class'),'active');
+    await page.getByRole('button',{name:'Back to Settings',exact:true}).click();
+    await page.getByRole('button',{name:'Manage tax agent access',exact:false}).click();
     await page.getByRole('button',{name:'Invite tax agent',exact:false}).click();
     await page.getByLabel('Name',{exact:true}).fill('Test Agent');
     await page.getByLabel('Email (login name)').fill('agent@example.test');
@@ -275,6 +280,7 @@ async function main() {
     await agent.getByLabel('Email address').fill('agent@example.test');
     await agent.getByLabel('Password',{exact:true}).fill('Agent-test-password-123');
     await agent.getByRole('button',{name:'Sign in',exact:false}).click();
+    await navigate(agent,'settings');assert.equal(await agent.locator('#manage-tax-agents').count(),0);
     await navigate(agent,'receipts');
     await agent.getByRole('button',{name:'View receipt',exact:false}).first().waitFor();
     assert.equal(await agent.getByRole('button',{name:'Capture receipts',exact:false}).count(),0);

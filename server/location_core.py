@@ -81,6 +81,23 @@ def resolve(name, address=''):
     return unique(exact)
 
 
+def receipt_location(values):
+    """A reviewed location overrides raw AI evidence without discarding it."""
+    if 'merchant_location' in values:
+        return str(values['merchant_location'] or '').strip()
+    city = str(values.get('merchant_city') or '').strip()
+    address = values.get('merchant_address') or ''
+    if values.get('currency') not in (None, '', 'AUD') and not hints(city+' '+address)[0]:
+        return city
+    place = resolve(city, address)
+    if place:
+        return f"{place['name']}, {place['state']}" + (f" {place['postcode']}" if place['postcode'] else '')
+    states, _ = hints(address)
+    if city and len(states) == 1 and not hints(city)[0]:
+        return f"{city}, {next(iter(states))}"
+    return city
+
+
 def search(query):
     q=norm(query)
     if len(q)<2: return []
