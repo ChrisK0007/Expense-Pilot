@@ -1,5 +1,9 @@
 # Release history
 
+## 1.0.1-beta.1
+
+- Start the beta development channel from the v1.0.0 feature set, with a prerelease version and isolated `beta` Docker tag.
+
 ## 1.0.0
 
 - Establish the stable release channel on `main`, publishing `latest` and `1.0.0`, with ongoing development on `beta` and separate prerelease image tags.
