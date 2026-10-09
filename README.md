@@ -8,12 +8,12 @@ Self-hosted expense tracking for sole traders and people tracking employment exp
 
 - [Installation, Unraid, HTTPS, backups and account recovery](docs/guide.md)
 - [iPhone app and free Xcode installation](https://github.com/ChrisK0007/expense-pilot-ios)
-- [PocketSmith bank feeds (beta)](docs/pocketsmith.md)
+- [PocketSmith bank feeds](docs/pocketsmith.md)
 - [Stable and beta release channels](docs/releases.md)
 - [Development and repository structure](docs/architecture.md)
 - [Release history](docs/CHANGELOG.md)
 
-Stable Docker image: `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.0`). Beta development image: `ghcr.io/chrisk0007/expense-pilot:beta`.
+Stable Docker image: `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.1`). Beta development image: `ghcr.io/chrisk0007/expense-pilot:beta`.
 
 `main` is the stable release branch; `beta` is for ongoing development. Beta builds publish only the beta channel and their numbered prerelease tag. Run beta in a separate container with its own data directory; see the release-channel guide.
 

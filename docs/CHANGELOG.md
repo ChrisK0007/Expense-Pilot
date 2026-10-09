@@ -1,5 +1,14 @@
 # Release history
 
+## 1.0.1
+
+- Promote all changes tested through v1.0.1-beta.4 to the stable channel. Publish `1.0.1` and update `latest`.
+- Add PocketSmith bank feeds with encrypted credentials, manual/hourly sync, transaction review, expense matching and duplicate protection, including the nullable transfer flag fix.
+- Keep shared navigation across Invoices, Quotes, Clients, Recurring invoices and Line item templates; provide Email settings and clearer automatic reminder controls, including a switch on each invoice.
+- Permanently remove accepted expenses and their attached receipts together so deleted records cannot return to the draft inbox.
+- Upgrade existing v1.0.0 databases with migration m008 while preserving existing records and settings. PocketSmith stays disconnected until configured. Back up the existing `/data` directory before upgrading; returning to v1.0.0 requires its matching backup.
+
+
 ## 1.0.1-beta.4
 
 - Add Clients to the shared business page navigation and retain that menu on the Clients page. Shorten All invoices and All quotes to Invoices and Quotes.
