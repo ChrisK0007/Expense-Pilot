@@ -6,7 +6,8 @@ so browser tests exercise invitations without sending any messages.
 import os
 import sys
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+source = Path(__file__).resolve().parents[2] / 'server'
+sys.path.insert(0, str(source if source.is_dir() else Path(__file__).resolve().parents[1]))
 from flask import jsonify
 from app import app, db
 import billing

@@ -1,7 +1,7 @@
 services:
   expense-pilot:
     build: .
-    image: expense-pilot:0.1.0
+    image: expense-pilot:local
     container_name: expense-pilot
     restart: unless-stopped
     ports:

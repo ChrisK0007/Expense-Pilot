@@ -1,4 +1,4 @@
-"""Integration tests. Run: python -m unittest discover -s tests -v"""
+"""Integration tests. Run: PYTHONPATH=server python -m unittest discover -s tests/server -v"""
 import os, tempfile, unittest, io, csv
 _test_data=tempfile.TemporaryDirectory()
 os.environ['DATA_DIR']=_test_data.name

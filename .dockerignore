@@ -1,6 +1,6 @@
-data
-.env
-__pycache__
-tests
-*.zip
-.git
+**
+!Dockerfile
+!server/
+!server/**
+**/__pycache__/
+**/*.pyc

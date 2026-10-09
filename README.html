@@ -1,18 +1,2 @@
 <!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Expense Pilot 0.8.1 — setup and security</title>
-<style>body{font:16px/1.6 system-ui;max-width:850px;margin:40px auto;padding:0 24px;color:#253329}h1{line-height:1.15}a{color:#5544ce}code{background:#f1f1f7;padding:2px 5px}li{margin:10px 0}</style>
-<h1>Expense Pilot 0.8.1</h1><p>a clearer view of every dollar</p>
-<p>Self-hosted expense tracking for sole traders and people tracking employment expenses.</p>
-<h2>What changed</h2><ul>
-<li>Logout revokes the session on the server. Copied cookies cannot restore a logged-out session. Existing logins must sign in again after upgrading.</li>
-<li>Password attempts are limited by account and source address. PDF parsing has separate memory and time limits, and image uploads have stricter limits.</li>
-<li>Owner and tax-agent accounts only. Employee sign-in, invitations and reactivation are removed. Historical employee records are preserved.</li>
-<li>Updated dependencies and an automated dependency vulnerability check.</li>
-</ul><h2>Install or update</h2>
-<p>Use the <a href="https://github.com/ChrisK0007/Expense-Pilot/blob/main/README.md">current installation and update guide</a> for Unraid settings, data paths, backup instructions and feature documentation. The image is <code>ghcr.io/chrisk0007/expense-pilot:latest</code>; version <code>0.8.1</code> is also published after checks pass.</p>
-<p>Back up your appdata, then use the Unraid Docker page to update Expense Pilot. Retain the existing <code>/data</code> mapping and <code>session.key</code>. Financial records and receipt files are not encrypted by the application; protect your server and backups.</p>
-<h2>Secure access</h2><p>Use HTTPS and <code>COOKIE_SECURE=true</code>. Enable authenticator 2FA in Settings. Local HTTP is unencrypted and remains available for trusted LAN setup, with a warning on sign-in. Do not expose port 8788 directly to the internet; use a VPN or HTTPS reverse proxy.</p>
-<p>Tax agents can see all financial records, including personal expenses and unfiled receipts. They are read-only by default. The owner can grant financial read/write access, but account administration and outgoing email remain owner-only.</p>
-<h2>iPhone app</h2><p>The existing iPhone development app works with this server update. See the <a href="https://github.com/ChrisK0007/Expense-Pilot/blob/main/ios/README.md">free Xcode installation guide</a>. No Xcode reinstall is needed for these server fixes.</p>
-</html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expense Pilot documentation</title><body><h1>Expense Pilot</h1><p>a clearer view of every dollar</p><p>The maintained documentation is in the <a href="https://github.com/ChrisK0007/Expense-Pilot#readme">repository README</a> and <a href="https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md">installation guide</a>.</p></body></html>

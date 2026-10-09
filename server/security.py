@@ -28,22 +28,7 @@ def clock():
 
 
 def migrate():
-    columns = {
-        'must_change_password': 'INTEGER NOT NULL DEFAULT 0',
-        'invite_expires': 'REAL NOT NULL DEFAULT 0',
-        'invite_status': "TEXT NOT NULL DEFAULT ''",
-        'totp_enabled': 'INTEGER NOT NULL DEFAULT 0',
-        'totp_secret': "TEXT NOT NULL DEFAULT ''",
-        'totp_pending': "TEXT NOT NULL DEFAULT ''",
-        'totp_pending_until': 'REAL NOT NULL DEFAULT 0',
-        'totp_last_step': 'INTEGER NOT NULL DEFAULT -1',
-        'recovery_hashes': "TEXT NOT NULL DEFAULT '[]'",
-    }
-    existing = {r['name'] for r in db().execute('PRAGMA table_info(users)')}
-    for name, definition in columns.items():
-        if name not in existing:
-            db().execute(f'ALTER TABLE users ADD COLUMN {name} {definition}')
-    db().execute("CREATE TABLE IF NOT EXISTS login_sessions(token_hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,kind TEXT NOT NULL,expires REAL NOT NULL)")
+    """Explicit legacy-account retirement helper; schema is managed by migrations."""
     db().execute("UPDATE users SET active=0,version=version+1 WHERE role='employee' AND active=1")
     db().commit()
 
@@ -376,6 +361,4 @@ def resend_invitation(uid):
 
 def register(app, **deps):
     globals().update(deps)
-    with app.app_context():
-        migrate()
     app.register_blueprint(bp)
