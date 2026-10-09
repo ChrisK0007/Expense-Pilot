@@ -179,6 +179,9 @@ class FeedTest(unittest.TestCase):
         r=self.call(self.owner,'pocketsmith',{'version':c['version'],'start_date':TODAY,'accounts':[{'id':self.fid},{'id':self.fid}]},'PUT')
         self.assertEqual(r.status_code,400)
         self.assertEqual(self.owner.get('/api/pocketsmith').json['accounts'],before['accounts'])
+        FakeClient.transactions=[{**purchase(), 'transaction_account':{'id':21,'currency_code':'USD'}}]
+        self.assertEqual(self.sync().status_code,400)
+        self.assertEqual(self.ledger(),[])
 
 
 class ClientTest(unittest.TestCase):

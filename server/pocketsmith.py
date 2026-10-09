@@ -85,8 +85,11 @@ def public_connection():
 
 def normalise(raw, account):
     rid = identifier(raw.get('id'))
-    if str((raw.get('transaction_account') or {}).get('id', account['remote_id'])) != account['remote_id']:
+    source_account = raw.get('transaction_account') or {}
+    if not isinstance(source_account, dict) or str(source_account.get('id', account['remote_id'])) != account['remote_id']:
         raise FeedError('PocketSmith returned a transaction from a different account.')
+    if source_account.get('currency_code') and currency(source_account['currency_code']) != account['currency']:
+        raise FeedError('An account currency changed in PocketSmith. Refresh accounts in connection settings before syncing.')
     try:
         amount = Decimal(str(raw.get('amount')))
         if not amount.is_finite() or abs(amount) > 10000000:
