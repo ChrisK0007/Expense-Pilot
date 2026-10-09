@@ -99,7 +99,7 @@ function review(r){
  Splits.bindFields('receipt_','receipt_amount');
  if(!Features.enabled('vehicles')&&!d.vehicle_id)$('#receipt_vehicle_id').closest('.field').hidden=true;
  if(!Features.enabled('trips')){$('#receipt-to-trip').hidden=true;$('#review-receipt-trip').hidden=true;}
- $('#receipt_currency').addEventListener('change',()=>{const code=value('currency').toUpperCase();$('#receipt_currency').value=code;$('#foreign-currency-note').hidden=code==='AUD';$('#currency-status').textContent=code==='AUD'?'AUD · saves with receipt':'Foreign currency · saves with receipt';if(code==='AUD'&&value('amount')===''&&d.amount!=null)$('#receipt_amount').value=d.amount;if(code!=='AUD'&&d.currency==='AUD'&&Number(value('amount'))===Number(d.amount))$('#receipt_amount').value='';$('#receipt_amount').dispatchEvent(new Event('input'));});
+ $('#receipt_currency').addEventListener('input',()=>{const code=value('currency').toUpperCase();$('#receipt_currency').value=code;if(!/^[A-Z]{3}$/.test(code))return;$('#foreign-currency-note').hidden=code==='AUD';$('#currency-status').textContent=code==='AUD'?'AUD · saves with receipt':'Foreign currency · saves with receipt';if(code==='AUD'&&value('amount')===''&&d.amount!=null)$('#receipt_amount').value=d.amount;if(code!=='AUD'&&d.currency==='AUD'&&Number(value('amount'))===Number(d.amount))$('#receipt_amount').value='';$('#receipt_amount').dispatchEvent(new Event('input'));});
  bind('#preview-original',()=>preview(r.id));bind('#receipt-new-category',()=>createInlineCategory('#receipt_category'));
  let receiptGroup=groups.find(group=>group.receipts.some(entry=>entry.id===r.id));
  const tripStatus=()=>{

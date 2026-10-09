@@ -75,6 +75,7 @@ async function main() {
     await page.reload();await navigate(page,'receipts');
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'USD');
+    // Currency hints must settle while typing, before a direct Save draft click.
     await page.getByLabel('Receipt currency',{exact:true}).fill('AUD');
     await page.getByRole('button',{name:'Save draft',exact:true}).click();
     await page.getByText('Receipt draft saved.',{exact:true}).waitFor();
