@@ -1,11 +1,11 @@
 name: Test and publish Docker image
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
     paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
     tags: ['v*']
   pull_request:
-    branches: [main]
+    branches: [main, beta]
     paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
   workflow_dispatch:
 permissions:
@@ -38,12 +38,8 @@ jobs:
       - name: Release version
         id: release
         run: |
-          version=$(cat server/VERSION)
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            [[ "$GITHUB_REF_NAME" == "v$version" ]]
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          python -m unittest discover -s tests/release -v
+          python scripts/release_metadata.py
       - name: Audit Python dependencies
         run: |
           python -m pip install pip-audit
@@ -109,20 +105,21 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ steps.image.outputs.name }}
+          flavor: latest=false
           tags: |
-            type=raw,value=${{ steps.release.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
+            type=raw,value=${{ steps.release.outputs.version }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.moving_tag == 'latest' }}
+            type=raw,value=beta,enable=${{ steps.release.outputs.moving_tag == 'beta' }}
             type=sha
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+        if: steps.release.outputs.publish == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish tested image
-        if: github.event_name != 'pull_request'
+        if: steps.release.outputs.publish == 'true'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
           SOURCE: https://github.com/${{ github.repository }}

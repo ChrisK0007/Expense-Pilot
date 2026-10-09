@@ -16,7 +16,7 @@ Back up your appdata before updating the container. Existing expenses, receipts,
 
 ## iPhone development app
 
-An optional free-account Xcode starter app is in [`ios/`](../ios/README.md). Open `ios/ExpensePilot.xcodeproj` on a Mac and select your Personal Team to install it on your iPhone. It connects to this server and adds native receipt scanning. See the iPhone instructions for requirements and current limitations.
+The optional free-account Xcode starter app is maintained in [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios). Download that repository, open `ExpensePilot.xcodeproj` at its root on a Mac and select your existing Personal Team to install it on your iPhone. It connects to this server and adds native receipt scanning. See the iPhone instructions for requirements and current limitations.
 
 ## Expense allocations and feature preferences
 
@@ -45,7 +45,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Version: 0.7.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Stable version: 1.0.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -71,7 +71,7 @@ The workflow in `.github/workflows/docker.yml` builds the image and runs integra
 ghcr.io/chrisk0007/expense-pilot:latest
 ```
 
-The numbered image tag comes from `server/VERSION`; a Git release tag must match it (for example `v0.8.2`). Every build has a commit-derived image tag for rollback. Pull requests run checks without publishing. The workflow must succeed before the image exists. See the repository's **Actions** tab for its status.
+The numbered image tag comes from `server/VERSION`; a Git release tag must match it (for example `v1.0.0`). A passing push to `beta` publishes `ghcr.io/chrisk0007/expense-pilot:beta` plus a prerelease tag such as `1.0.1-beta.1`, and never changes `latest`. Both channels have commit-derived image tags. Pull requests run checks without publishing. See [release channels](releases.md) for separate beta-container setup and the repository’s **Actions** tab for build status.
 
 The private repository does not make the application publicly accessible. GitHub Container Registry packages are private by default. To pull a private image, authenticate on Unraid with a GitHub personal access token (classic) that has `read:packages` access to this package:
 
@@ -216,7 +216,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 0.7.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 1.0.0**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 

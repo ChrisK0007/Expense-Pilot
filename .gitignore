@@ -10,7 +10,3 @@ __pycache__/
 *.tar.gz
 *.zip
 .venv/
-# Local Xcode state and build products
-ios/**/xcuserdata/
-ios/**/DerivedData/
-*.xcuserstate

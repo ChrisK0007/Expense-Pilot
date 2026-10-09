@@ -1,5 +1,12 @@
 # Release history
 
+## 1.0.0
+
+- Establish the stable release channel on `main`, publishing `latest` and `1.0.0`, with ongoing development on `beta` and separate prerelease image tags.
+- Gate both channels with the same backend and browser checks. Reject versions assigned to the wrong channel and prevent beta, pull-request and topic-branch builds from replacing `latest`.
+- Move the iPhone app 0.1.1, Xcode project, icon, tests and simulator workflow into [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios). Preserve its bundle identifier and independent app version; earlier history remains in this repository.
+- Carry forward all v0.8.6 features with the same server paths and data format.
+
 ## 0.8.6
 
 - Add the supplied invoice, quote, due/overdue/manual reminder, partial/full payment receipt and statement email defaults. Provide separate template tabs, insertable fields, sample previews and a formatted signature with links and embedded images. Preserve custom wording and offer a reset to the reference defaults.
