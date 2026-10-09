@@ -280,7 +280,7 @@ See [architecture and backups](architecture.md) for development commands, number
 
 ## Beta: billing navigation, reminders and deleting expenses
 
-In beta v1.0.1-beta.3, Invoices, Quotes, Recurring invoices and Line item templates share a top navigation bar. Choose All invoices or All quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
+In beta v1.0.1-beta.4, Invoices, Quotes, Clients, Recurring invoices and Line item templates share a top navigation bar. Choose Invoices or Quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
 
 The owner can switch automatic reminders on or off while creating an invoice or directly in any invoice’s details. The preference is saved for drafts, issued invoices and recurring-generated invoices. Editing or duplicating a draft preserves it. When making a recurring schedule, select whether its generated invoices allow reminders; each generated invoice can then be changed individually.
 

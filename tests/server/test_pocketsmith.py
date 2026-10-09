@@ -103,6 +103,50 @@ class FeedTest(unittest.TestCase):
         self.assertEqual(sum(t['missing'] for t in records),2)
         self.assertEqual(len(self.owner.get('/api/bank-transactions').json['items']),1)
         self.assertEqual(len(self.owner.get('/api/expenses').json),0)
+    def test_unset_transfer_flags_sync_without_losing_transfer_or_pending_guards(self):
+        self.connect();self.sync();original=self.ledger()[0]
+        self.assertEqual(self.add(original).status_code,200)
+        omitted=purchase(902);omitted.pop('is_transfer')
+        FakeClient.transactions=[
+            {**purchase(), 'is_transfer':None}, omitted,
+            {**purchase(903), 'is_transfer':None, 'category':{'is_transfer':True}},
+            {**purchase(904), 'is_transfer':None, 'status':'pending'},
+            {**purchase(905), 'is_transfer':None, 'category':{'is_transfer':None}},
+            {**purchase(906), 'is_transfer':False, 'category':{'is_transfer':True}},
+            {**purchase(907), 'is_transfer':True, 'category':{'is_transfer':False}},
+            {**omitted, 'id':908, 'category':{'is_transfer':True}},
+        ]
+        with app.app_context():
+            db().execute("UPDATE pocketsmith_connection SET last_error='PocketSmith returned an unsupported transaction status.'");db().commit()
+        response=self.sync();self.assertEqual(response.status_code,200,response.json)
+        self.assertEqual(response.json,{'added':7,'received':8})
+        records={t['remote_id']:t for t in self.ledger()}
+        self.assertEqual(records['901']['changed'],0)
+        self.assertEqual(records['901']['source_status'],'posted')
+        for rid in ('902','905','906'):
+            self.assertEqual(records[rid]['is_transfer'],0)
+            self.assertEqual(self.add(records[rid]).status_code,200)
+        for rid in ('903','904','907','908'):
+            self.assertEqual(self.add(records[rid]).status_code,409)
+        self.assertEqual(self.owner.get('/api/pocketsmith').json['last_error'],'')
+        self.assertEqual(self.sync().json['added'],0)
+    def test_invalid_status_and_transfer_flags_have_distinct_errors_and_commit_nothing(self):
+        self.connect();self.sync();before=self.ledger()
+        omitted=purchase(902);omitted.pop('status')
+        cases=[(omitted,'transaction status')]
+        cases += [({**purchase(902),'status':value},'transaction status')
+                  for value in (None,'unknown','',True,0,{},[])]
+        cases += [({**purchase(902),'is_transfer':value},'transfer flag')
+                  for value in ('false','true',0,1,{},[])]
+        cases.append(({**purchase(902),'is_transfer':None,'category':{'is_transfer':'false'}},'transfer flag'))
+        for raw, message in cases:
+            with self.subTest(raw=raw):
+                FakeClient.transactions=[purchase(903),raw]
+                response=self.sync()
+                self.assertEqual(response.status_code,400,response.json)
+                self.assertIn(message,response.json['error'])
+                self.assertEqual(self.ledger(),before)
+        self.assertEqual(self.owner.get('/api/expenses').json,[])
     def test_match_receipt_or_csv_and_prevent_duplicate(self):
         self.connect();self.sync();t=self.ledger()[0]
         eid=self.expense(self.owner,date=TODAY,amount='12.50',account_id=self.aid,merchant='Receipt purchase').json['id']

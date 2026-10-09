@@ -98,16 +98,26 @@ def normalise(raw, account):
     except (InvalidOperation, ValueError, TypeError):
         raise FeedError('PocketSmith returned an invalid transaction amount.') from None
     status = raw.get('status')
-    if status not in ('pending', 'posted') or not isinstance(raw.get('is_transfer', False), bool):
-        raise FeedError('PocketSmith returned an unsupported transaction status.')
+    if status not in ('pending', 'posted'):
+        raise FeedError('PocketSmith returned an unsupported transaction status (expected pending or posted). Nothing was synced.')
     category = raw.get('category') or {}
     if not isinstance(category, dict):
         raise FeedError('PocketSmith returned an invalid category.')
+    # An unset transfer marker is not an invalid transaction status. Retain a
+    # category's transfer protection when the transaction marker is absent/null;
+    # an explicit transaction boolean takes precedence over the category.
+    transfer = raw.get('is_transfer')
+    if transfer is None:
+        transfer = category.get('is_transfer')
+    if transfer is None:
+        transfer = False
+    if not isinstance(transfer, bool):
+        raise FeedError('PocketSmith returned an invalid transfer flag (expected true, false or null). Nothing was synced.')
     result = dict(remote_id=rid, feed_account_id=account['id'], date=iso_date(raw.get('date')),
                   payee=str(raw.get('payee') or raw.get('original_payee') or 'Bank transaction')[:200],
                   amount_cents=cents, currency=account['currency'], memo=str(raw.get('memo') or raw.get('note') or '')[:3000],
                   source_category=str(category.get('title') or '')[:200], source_status=status,
-                  is_transfer=int(raw.get('is_transfer', False)), source_updated_at=str(raw.get('updated_at') or '')[:60])
+                  is_transfer=int(transfer), source_updated_at=str(raw.get('updated_at') or '')[:60])
     # Source timestamps and annotations can change without altering the financial record.
     material = {k: v for k, v in result.items() if k not in ('source_updated_at', 'memo', 'source_category')}
     result['fingerprint'] = hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
