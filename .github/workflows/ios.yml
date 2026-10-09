@@ -1,0 +1,40 @@
+name: Build iPhone development app
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulator:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check server address safety
+        run: |
+          swiftc ios/ExpensePilot/ServerAddress.swift ios/Tests/main.swift -o "$RUNNER_TEMP/address-tests"
+          "$RUNNER_TEMP/address-tests"
+      - name: Build iPhone simulator app
+        run: |
+          xcodebuild -project ios/ExpensePilot.xcodeproj -scheme ExpensePilot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/ExpensePilotBuild" CODE_SIGNING_ALLOWED=NO build > "$RUNNER_TEMP/ios-build.log" 2>&1 || { tail -100 "$RUNNER_TEMP/ios-build.log"; exit 1; }
+      - name: Launch in an iPhone simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" "$RUNNER_TEMP/ExpensePilotBuild/Build/Products/Debug-iphonesimulator/ExpensePilot.app"
+          xcrun simctl launch "$DEVICE" com.chrisk0007.ExpensePilot.dev
+          sleep 4
+          xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/iphone-startup.png"
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-build-evidence
+          path: |
+            ${{ runner.temp }}/ios-build.log
+            ${{ runner.temp }}/iphone-startup.png
+          retention-days: 14

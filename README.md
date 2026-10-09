@@ -2,6 +2,10 @@
 
 a clearer view of every dollar
 
+## iPhone development app
+
+An optional free-account Xcode starter app is in [`ios/`](ios/README.md). Open `ios/ExpensePilot.xcodeproj` on a Mac and select your Personal Team to install it on your iPhone. It connects to this server and adds native receipt scanning. See the iPhone instructions for requirements and current limitations.
+
 ## What changed in v0.8.0
 
 - Split one expense between employment and business, with personal use calculated as the remainder. For example, a $100 receipt at 30% employment and 20% business records $30 and $20, with 50% personal. Percentages must be whole numbers and cannot total more than 100%. Reviewed allocations feed each corresponding tax forecast total. Refunds and reimbursements keep the same treatment; rounding reconciles to the combined allocated amount.
