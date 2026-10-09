@@ -52,7 +52,7 @@ async function billingMailChecks(page,output){
   await page.getByRole('button',{name:'Statement ↗',exact:true}).first().click();
   assert.match(await page.locator('.statement-summary').innerText(),/845\.00/);
   await page.getByLabel('Statement type',{exact:true}).selectOption('outstanding');
-  await page.getByText('Total outstanding',{exact:true}).waitFor();
+  await page.locator('.statement-summary').filter({hasText:/Total outstanding\s+\$845\.00/}).waitFor();
   await page.screenshot({path:output+'/client-statement.png',fullPage:true});
   await page.getByRole('button',{name:'Email statement',exact:true}).click();
   assert.equal(await page.getByLabel('Subject',{exact:true}).inputValue(),'Statement of Accounts');
