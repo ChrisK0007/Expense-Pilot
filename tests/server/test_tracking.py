@@ -102,6 +102,61 @@ class TrackingTest(unittest.TestCase):
         self.assertEqual(len(self.owner.get('/api/trips').json),1)
         self.assertEqual(len(self.owner.get('/api/expenses').json),3)
 
+    def test_receipt_review_creates_group_without_home_base_or_unique_suburb(self):
+        first=self.meal('red','2025-10-08',city='Cawdor',amount=29.50)
+        second=self.meal('blue','2025-10-09',city='Cawdor',amount=36.69)
+        self.meal('green','2025-10-15',city='Cawdor')  # Separate journey.
+        personal=self.meal('yellow','2025-10-08',city='Cawdor')
+        self.call(self.owner,'receipts/'+personal+'/draft',{'scope':'personal'},'PUT')
+        self.call(self.owner,'receipts/'+first+'/draft',{'amount':30.08,'notes':'Includes payment fee','percent':80},'PUT')
+        self.assertEqual(self.owner.get('/api/receipt-trip-proposals').json,[])
+        response=self.owner.get('/api/receipts/'+first+'/trip-proposal')
+        self.assertEqual(response.status_code,200,response.json)
+        group=response.json
+        self.assertEqual({r['id'] for r in group['receipts']},{first,second})
+        self.assertEqual((group['start'],group['end']),('2025-10-08','2025-10-09'))
+        self.assertIsNone(group['existing_trip_id'])
+        self.assertEqual(group['location_status'],'unknown')
+        self.assertEqual(group['receipts'][0]['aud_amount'],30.08)
+        self.assertEqual(group['receipts'][0]['values']['notes'],'Includes payment fee')
+        self.assertEqual(self.owner.get('/api/trips').json,[])
+        self.assertEqual(self.owner.get('/api/expenses').json,[])
+        data=self.accept_data(group)
+        data['purpose']=''
+        self.assertEqual(self.call(self.owner,'receipt-trip-proposals/accept',data).status_code,400)
+        self.assertEqual(self.owner.get('/api/trips').json,[])
+        data['purpose']='Overnight flying duties'
+        accepted=self.call(self.owner,'receipt-trip-proposals/accept',data)
+        self.assertEqual(accepted.status_code,200,accepted.json)
+        self.assertEqual(sum(e['amount_cents'] for e in self.owner.get('/api/expenses').json),6677)
+        self.assertEqual(self.owner.get('/api/receipts/'+first+'/trip-proposal').status_code,409)
+
+    def test_receipt_review_matches_existing_trip_with_state_and_keeps_workspaces(self):
+        self.prefs()
+        trip=dict(location='Cawdor NSW 2570',start='2025-10-08',end='2025-10-10',scope='business',purpose='Flying duties')
+        tid=self.call(self.owner,'trips',trip).json['id']
+        rid=self.meal('red','2025-10-09',city='Cawdor')
+        self.call(self.owner,'receipts/'+rid+'/draft',{'merchant_address':'290 Remembrance Driveway, Cawdor New South Wales 2570'},'PUT')
+        group=self.owner.get('/api/receipts/'+rid+'/trip-proposal').json
+        self.assertEqual(group['existing_trip_id'],tid)
+        self.assertEqual(group['location'],trip['location'])
+        result=self.call(self.owner,'receipt-trip-proposals/accept',self.accept_data(group))
+        self.assertEqual(result.status_code,200,result.json)
+        self.assertEqual(len(self.owner.get('/api/trips').json),1)
+        other=self.meal('blue','2025-10-09',city='Cawdor')
+        self.call(self.owner,'receipts/'+other+'/draft',{'scope':'work'},'PUT')
+        self.assertIsNone(self.owner.get('/api/receipts/'+other+'/trip-proposal').json['existing_trip_id'])
+        self.assertEqual(self.staff2.get('/api/receipts/'+other+'/trip-proposal').status_code,401)
+        self.assertEqual(self.owner.get('/api/receipts/not-a-receipt/trip-proposal').status_code,404)
+
+    def test_receipt_review_does_not_group_same_suburb_in_different_states(self):
+        first=self.meal('red','2025-10-08',city='Cawdor')
+        second=self.meal('blue','2025-10-09',city='Cawdor')
+        self.call(self.owner,'receipts/'+first+'/draft',{'merchant_address':'Cawdor NSW 2570'},'PUT')
+        self.call(self.owner,'receipts/'+second+'/draft',{'merchant_address':'Cawdor QLD 4352'},'PUT')
+        group=self.owner.get('/api/receipts/'+first+'/trip-proposal').json
+        self.assertEqual([r['id'] for r in group['receipts']],[first])
+
     def test_foreign_meal_amount_needs_manual_aud_and_dismissal_survives_scan(self):
         self.prefs();rid=self.upload().json['id']
         self.scan(rid,dict(merchant='Foreign cafe',date='2026-10-08',amount=100,currency_evidence='USD',category='Meals',merchant_city='Cairns QLD',meal='Dinner'))

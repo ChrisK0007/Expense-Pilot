@@ -147,31 +147,47 @@ def save_receipt_draft(rid):
     db().execute('INSERT INTO receipt_drafts(receipt_id,data) VALUES (?,?) ON CONFLICT(receipt_id) DO UPDATE SET data=excluded.data,saved_at=CURRENT_TIMESTAMP',(rid,json.dumps(values)))
     audit('receipt draft saved',rid); db().commit(); return jsonify(draft=values)
 
-def proposals():
+def same_trip_location(location, city, address=''):
+    """Use printed state/postcode when available; retain manually named trips."""
+    left=location_core.resolve(location); right=location_core.resolve(city,address)
+    if left and right: return left['id']==right['id']
+    return bool(norm(city)) and norm(location)==norm(city)
+
+def proposals(focus=None):
+    # Automatic inbox suggestions require evidence of being away. An explicit
+    # receipt review can prepare a draft even with no home base / ambiguous city;
+    # accepting its dates, location and purpose is still a separate write.
+    focus_values=receipt_values(focus['id']) if focus else {}
+    focus_scope=(focus_values.get('scope') or profile(focus['user_id'])['scope']) if focus else None
     where, args = ('r.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
     receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id)',args)
     groups=[]
     for r in receipts:
         d=receipt_values(r['id']); prefs=profile(r['user_id']); city=d.get('merchant_city','')
-        if not prefs['home_base'] or not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
+        if not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
         assessment=location_core.local_assessment(prefs,city,d.get('merchant_address',''),d.get('currency','AUD'))
-        if assessment['status']!='away': continue
-        city=city or assessment.get('location','')
         scope=d.get('scope') or prefs['scope']; when=d['date']
+        explicit=focus and r['user_id']==focus['user_id'] and scope==focus_scope and (r['id']==focus['id'] or same_trip_location(focus_values.get('merchant_city',''),city,d.get('merchant_address','')))
+        if assessment['status']!='away' and not explicit: continue
+        city=city or assessment.get('location','')
         if scope=='split': continue  # Mixed-purpose meals need an explicitly chosen trip.
-        existing=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=? ORDER BY start DESC',(r['user_id'],scope,when,when)) if norm(t['location'])==norm(city)),None)
+        existing=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=? ORDER BY start DESC',(r['user_id'],scope,when,when)) if same_trip_location(t['location'],city,d.get('merchant_address',''))),None)
+        place=location_core.resolve(city,d.get('merchant_address',''))
+        location_key=place['id'] if place else norm(city)
         entry=dict(id=r['id'],filename=r['filename'],values=d,aud_amount=draft_for(r['id']).get('amount',d.get('amount') if d.get('currency')=='AUD' else None))
-        groups.append(dict(user_id=r['user_id'],owner=r['owner'],location=city,scope=scope,first=when,last=when,existing_trip_id=existing['id'] if existing else None,receipts=[entry],home_base=prefs['home_base'],location_reason=assessment['reason'],existing=existing))
+        groups.append(dict(user_id=r['user_id'],owner=r['owner'],location=city,location_key=location_key,scope=scope,first=when,last=when,existing_trip_id=existing['id'] if existing else None,receipts=[entry],home_base=prefs['home_base'],location_reason=assessment['reason'],location_status=assessment['status'],existing=existing))
     # Chronological grouping is independent of upload order and never crosses people/workspaces.
-    groups.sort(key=lambda x:(x['user_id'],x['scope'],norm(x['location']),x['existing_trip_id'] or 0,x['first']))
+    groups.sort(key=lambda x:(x['user_id'],x['scope'],x['location_key'],x['existing_trip_id'] or 0,x['first']))
     merged=[]
     for item in groups:
         last=merged[-1] if merged else None
-        if last and (last['user_id'],last['scope'],norm(last['location']),last['existing_trip_id'])==(item['user_id'],item['scope'],norm(item['location']),item['existing_trip_id']) and (item['existing_trip_id'] or date.fromisoformat(item['first'])<=date.fromisoformat(last['last'])+timedelta(days=1)):
+        if last and (last['user_id'],last['scope'],last['location_key'],last['existing_trip_id'])==(item['user_id'],item['scope'],item['location_key'],item['existing_trip_id']) and (item['existing_trip_id'] or date.fromisoformat(item['first'])<=date.fromisoformat(last['last'])+timedelta(days=1)):
             last['last']=max(last['last'],item['last']);last['receipts']+=item['receipts']
         else: merged.append(item)
     for group in merged:
         existing=group.pop('existing')
+        group.pop('location_key')
+        if existing: group['location']=existing['location']
         group['start']=existing['start'] if existing else group['first']
         group['end']=existing['end'] if existing else max(group['last'],(date.fromisoformat(group['first'])+timedelta(days=1)).isoformat())
         group['purpose']=existing['purpose'] if existing else ''
@@ -180,6 +196,18 @@ def proposals():
 @bp.get('/receipt-trip-proposals')
 @access
 def proposal_api(): return jsonify(proposals())
+
+@bp.get('/receipts/<rid>/trip-proposal')
+@access
+def receipt_trip_proposal(rid):
+    r=receipt(rid)
+    if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already filed.',409)
+    values=receipt_values(rid)
+    if values.get('category')!='Meals' or not values.get('date'): fail('Enter the receipt date and select Meals before reviewing a trip.')
+    if values.get('scope') in ('personal','split'): fail('Choose Employment or Business before reviewing an overnight trip.')
+    group=next((group for group in proposals(r) if any(entry['id']==rid for entry in group['receipts'])),None)
+    if not group: fail('Save the receipt as a meal draft before reviewing a trip.')
+    return jsonify(group)
 
 @bp.post('/receipt-trip-proposals/accept')
 @access
@@ -201,7 +229,7 @@ def accept_proposal():
         if not t or t['user_id']!=uid or t['scope']!=scope: fail('Choose an existing trip for the same person and workspace.')
         start,end=t['start'],t['end']
     else:
-        t=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=?',(uid,scope,start,end)) if norm(t['location'])==norm(location)),None)
+        t=next((t for t in rows('SELECT * FROM trips WHERE user_id=? AND scope=? AND start<=? AND end>=?',(uid,scope,start,end)) if same_trip_location(t['location'],location)),None)
         tid=t['id'] if t else db().execute('INSERT INTO trips(user_id,scope,location,start,end,purpose) VALUES (?,?,?,?,?,?)',(uid,scope,location,start,end,purpose)).lastrowid
     saved=[]
     for entry in entries:

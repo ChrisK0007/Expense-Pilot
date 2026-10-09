@@ -50,7 +50,8 @@ async function main() {
       reprocessedId=route.request().url().split('/').at(-2);scanAttempts++;
       await route.fulfill({status:scanAttempts===1?503:200,json:scanAttempts===1?{error:'Test AI temporarily unavailable'}:{ok:true}});
     });
-    await page.route('**/api/receipts',async route=>{
+    const inboxRoute=/\/api\/receipts(?:\?.*)?$/;
+    await page.route(inboxRoute,async route=>{
       const response=await route.fetch(),records=await response.json();
       await route.fulfill({response,json:records.map(r=>r.id===reprocessedId&&scanAttempts>1?{...r,scan_status:'scanned',extraction:{merchant:'Reprocessed test merchant',date:'2026-10-08',amount:25.5,currency:'AUD',category:'Equipment'}}:r)});
     });
@@ -63,7 +64,7 @@ async function main() {
     assert.equal(scanAttempts,2);
     await page.screenshot({path:output+'/receipt-reprocessed.png',fullPage:true});
     await page.locator('#close-modal').click();
-    await page.unroute('**/api/receipts/*/extract');await page.unroute('**/api/receipts');
+    await page.unroute('**/api/receipts/*/extract');await page.unroute(inboxRoute);
     await page.reload();await navigate(page,'receipts');
 
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
@@ -97,7 +98,8 @@ async function main() {
     await page.getByLabel('Merchant / payee').fill('Example receipt merchant');
     await page.getByLabel('Receipt date').fill('08/10/2026');
     await page.getByLabel('Amount paid (AUD)').fill('25.50');
-    await page.getByLabel('Workspace',{exact:true}).selectOption('work');
+    assert.equal(await page.locator('#receipt-review').getByLabel('Workspace',{exact:true}).count(),0);
+    await page.getByLabel('Business (%)').fill('0');
     await page.getByLabel('Category',{exact:true}).selectOption('Equipment');
     await page.getByLabel('Employment (%)').fill('50');
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
@@ -223,7 +225,7 @@ async function main() {
     await page.setViewportSize({width:1440,height:1050});
 
     await navigate(page,'expenses');
-    assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),0);
+    assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),1,'Accepted meals are available in Expenses');
     await navigate(page,'employment');
     await page.getByRole('button',{name:'Add employment income',exact:false}).click();
     await page.getByLabel('Employer',{exact:true}).fill('Example Employer');
@@ -373,7 +375,7 @@ async function main() {
     await page.screenshot({path:output+'/invoice-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Mobile page overflows horizontally');
     assert.deepEqual(errors,[],'Browser JavaScript errors');
-    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, separated meals, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
+    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, trip meals in Expenses, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
   } catch(error) {
     await page.screenshot({path:output+'/failure.png',fullPage:true});
     throw error;
