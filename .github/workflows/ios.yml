@@ -32,7 +32,11 @@ jobs:
             tail -100 "$RUNNER_TEMP/ios-launch.log"
             exit 1
           fi
-          sleep 4
+          sleep 15
+          xcrun simctl spawn "$DEVICE" log show --last 3m --style compact --predicate 'process == "ExpensePilot" OR eventMessage CONTAINS "com.chrisk0007.ExpensePilot"' > "$RUNNER_TEMP/ios-launch.log" 2>&1 || true
+          mkdir -p "$RUNNER_TEMP/crashes"
+          find "$HOME/Library/Logs/DiagnosticReports" -name 'ExpensePilot*' -exec cp {} "$RUNNER_TEMP/crashes/" \; || true
+          xcrun simctl spawn "$DEVICE" launchctl list > "$RUNNER_TEMP/ios-processes.log"
           xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/iphone-startup.png"
       - name: Upload build evidence
         if: always()
@@ -43,4 +47,6 @@ jobs:
             ${{ runner.temp }}/ios-build.log
             ${{ runner.temp }}/iphone-startup.png
             ${{ runner.temp }}/ios-launch.log
+            ${{ runner.temp }}/ios-processes.log
+            ${{ runner.temp }}/crashes
           retention-days: 14
