@@ -219,10 +219,15 @@ def expenses():
 def update_expense(eid):
     db().execute('BEGIN IMMEDIATE')
     e=expense(eid,True)
-    if request.method=='DELETE': db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
+    if request.method=='DELETE':
+        from receipt_routes import delete_receipt_record, remove_receipt_files
+        db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
+        if e['receipt_id']: delete_receipt_record(e['receipt_id'])
     else:
         d=request.get_json();p=payload(d,e);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
-    db().commit();return jsonify(ok=True)
+    db().commit()
+    if request.method=='DELETE' and e['receipt_id']: remove_receipt_files(e['receipt_id'])
+    return jsonify(ok=True)
 
 
 @app.get('/api/audit')

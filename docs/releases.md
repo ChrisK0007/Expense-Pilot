@@ -3,9 +3,9 @@
 | Channel | Git branch | Docker image | Version format |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.0` |
-| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.1-beta.2` |
+| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.1-beta.3` |
 
-Beta v1.0.1-beta.2 adds [PocketSmith bank feeds](pocketsmith.md).
+Beta v1.0.1-beta.3 includes [PocketSmith bank feeds](pocketsmith.md), shared billing navigation, invoice reminder controls and permanent expense/receipt deletion.
 
 The first stable release is v1.0.0, carrying forward v0.8.6. The initial beta starts from the same application features, identified as v1.0.1-beta.1 so future development is clearly separate. Each published build also has its exact version tag and a `sha-` tag.
 

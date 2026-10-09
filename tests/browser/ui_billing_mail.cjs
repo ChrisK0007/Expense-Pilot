@@ -27,9 +27,9 @@ async function billingMailChecks(page,output){
   assert.match(templates.signature_html,/<(?:b|strong)>Browser Test Owner<\/(?:b|strong)>/);
   await page.screenshot({path:output+'/email-signature.png',fullPage:true});
   await page.locator('#close-modal').click();
-  await page.getByRole('button',{name:'Automatic reminders',exact:false}).click();
+  await page.getByRole('button',{name:'Automatic invoice reminders',exact:false}).click();
   assert.equal(await page.getByLabel('Enable automatic reminder emails').isChecked(),false);
-  await page.getByLabel('Days before due (0 to skip)').fill('5');
+  await page.getByLabel('Days before the due date',{exact:true}).fill('5');
   await page.getByRole('button',{name:'Save reminder schedule',exact:true}).click();
   await page.getByText('Reminder schedule saved.',{exact:true}).waitFor();
   assert.equal((await page.evaluate(()=>api('billing/reminder-settings'))).before_days,5);
