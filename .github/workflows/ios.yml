@@ -11,6 +11,7 @@ permissions:
 jobs:
   simulator:
     runs-on: macos-15
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - name: Check server address safety
@@ -19,14 +20,18 @@ jobs:
           "$RUNNER_TEMP/address-tests"
       - name: Build iPhone simulator app
         run: |
-          xcodebuild -project ios/ExpensePilot.xcodeproj -scheme ExpensePilot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/ExpensePilotBuild" CODE_SIGNING_ALLOWED=NO build > "$RUNNER_TEMP/ios-build.log" 2>&1 || { tail -100 "$RUNNER_TEMP/ios-build.log"; exit 1; }
+          xcodebuild -project ios/ExpensePilot.xcodeproj -scheme ExpensePilot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/ExpensePilotBuild" CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY='-' DEVELOPMENT_TEAM='' build > "$RUNNER_TEMP/ios-build.log" 2>&1 || { tail -100 "$RUNNER_TEMP/ios-build.log"; exit 1; }
       - name: Launch in an iPhone simulator
         run: |
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" "$RUNNER_TEMP/ExpensePilotBuild/Build/Products/Debug-iphonesimulator/ExpensePilot.app"
-          xcrun simctl launch "$DEVICE" com.chrisk0007.ExpensePilot.dev
+          if ! xcrun simctl launch "$DEVICE" com.chrisk0007.ExpensePilot.dev; then
+            xcrun simctl spawn "$DEVICE" log show --last 3m --style compact --predicate 'process == "ExpensePilot" OR eventMessage CONTAINS "com.chrisk0007.ExpensePilot"' > "$RUNNER_TEMP/ios-launch.log" 2>&1 || true
+            tail -100 "$RUNNER_TEMP/ios-launch.log"
+            exit 1
+          fi
           sleep 4
           xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/iphone-startup.png"
       - name: Upload build evidence
@@ -37,4 +42,5 @@ jobs:
           path: |
             ${{ runner.temp }}/ios-build.log
             ${{ runner.temp }}/iphone-startup.png
+            ${{ runner.temp }}/ios-launch.log
           retention-days: 14
