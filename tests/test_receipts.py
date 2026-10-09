@@ -35,12 +35,12 @@ class ReceiptTest(unittest.TestCase):
     def test_duplicate_upload_same_user_only(self):
         first=self.upload().json;second=self.upload().json
         self.assertEqual(first['id'],second['id']);self.assertTrue(second['duplicate'])
-        self.assertNotEqual(self.upload(self.staff).json['id'],first['id'])
+        self.assertEqual(self.upload(self.staff).status_code,403)
 
     def test_receipts_are_isolated_and_owner_can_file_staff_receipt(self):
-        rid=self.upload(self.staff).json['id']
-        self.assertEqual(self.staff2.get('/api/receipts').json,[])
-        self.assertEqual(self.call(self.staff2,'receipts/'+rid+'/expense',{}).status_code,403)
+        rid=self.upload(self.owner).json['id']
+        self.assertEqual(self.staff2.get('/api/receipts').status_code,401)
+        self.assertEqual(self.call(self.staff2,'receipts/'+rid+'/expense',{}).status_code,401)
         payload=dict(date='2026-10-08',merchant='Cafe',amount=25,scope='business',category='Meals',percent=100)
         result=self.call(self.owner,'receipts/'+rid+'/expense',payload)
         self.assertEqual(result.status_code,200,result.json)
@@ -70,7 +70,7 @@ class ReceiptTest(unittest.TestCase):
     def test_suggestions_use_reviewed_history_for_same_person(self):
         self.expense(self.owner,merchant='Cafe',status='ready',category='Meals',scope='work')
         self.expense(self.owner,merchant='Cafe',category='Other',status='review')
-        self.expense(self.staff,merchant='Cafe',category='Subscriptions',status='ready')
+        self.assertEqual(self.expense(self.staff,merchant='Cafe',category='Subscriptions',status='ready').status_code,403)
         rid=self.upload().json['id'];self.scan(rid,dict(merchant='Cafe',date='2026-10-08',amount=23.45,currency='AUD',currency_evidence='AUD',category='Other'))
         row=next(r for r in self.owner.get('/api/receipts').json if r['id']==rid)
         self.assertEqual(row['suggestion'],{'category':'Meals','scope':'work'})
@@ -85,9 +85,8 @@ class ReceiptTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,'receipts/'+rid+'/expense',{'existing_expense_id':eid}).status_code,409)
         self.assertEqual(self.call(self.owner,'receipts/'+rid,{},'DELETE').status_code,409)
 
-    def test_delete_unfiled_and_no_cross_user_match(self):
-        eid=self.expense(self.staff).json['id'];rid=self.upload().json['id']
-        self.assertEqual(self.call(self.owner,'receipts/'+rid+'/expense',{'existing_expense_id':eid}).status_code,409)
+    def test_delete_unfiled_and_readonly_cannot_delete(self):
+        rid=self.upload().json['id']
         self.assertEqual(self.call(self.staff,'receipts/'+rid,{},'DELETE').status_code,403)
         self.assertEqual(self.call(self.owner,'receipts/'+rid,{},'DELETE').status_code,200)
         self.assertEqual(self.owner.get('/api/receipts/'+rid).status_code,404)
@@ -114,13 +113,13 @@ class ReceiptTest(unittest.TestCase):
         from pypdf import PdfWriter
         from app import DATA
         pdf=PdfWriter();pdf.add_blank_page(width=200,height=300);buf=io.BytesIO();pdf.write(buf);buf.seek(0)
-        rid=self.staff.post('/api/receipts',data={'file':(buf,'receipt.pdf')},headers={'X-CSRF-Token':self.staff.get('/api/session').json['csrf']}).json['id']
+        rid=self.owner.post('/api/receipts',data={'file':(buf,'receipt.pdf')},headers={'X-CSRF-Token':self.owner.get('/api/session').json['csrf']}).json['id']
         route='/api/receipts/'+rid+'/preview?page=1&thumbnail=1'
         response=self.owner.get(route);self.assertEqual(response.status_code,200)
         im=Image.open(io.BytesIO(response.data));self.assertLessEqual(max(im.size),420)
         with patch('app.subprocess.run',side_effect=AssertionError('Cached thumbnail must not re-render')):
             self.assertEqual(self.agent.get(route).data,response.data)
-            self.assertEqual(self.staff2.get(route).status_code,403)
+            self.assertEqual(self.staff2.get(route).status_code,401)
             self.assertEqual(app.test_client().get(route).status_code,401)
         self.assertTrue((DATA/'receipt_previews'/(rid+'-thumb-v1.png')).exists())
         self.call(self.owner,'receipts/'+rid,{},'DELETE')

@@ -1,4 +1,16 @@
-# Expense Pilot v0.8.0
+# Version 0.8.1 — security and sole-trader focus
+
+Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner and tax agent. Legacy role checks elsewhere in this repository support those historical records only.
+
+This update requires everyone to sign in again. Sessions now have server-side revocation on logout and an absolute 12-hour expiry. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
+
+Use HTTPS and set `COOKIE_SECURE=true` for secure-only cookies and HSTS. The existing local HTTP mode remains compatible with LAN setup, but it is unencrypted; the sign-in screen now warns about it. Do not port-forward 8788 directly to the internet. A VPN or HTTPS reverse proxy is required for remote use. Source address limits deliberately ignore untrusted forwarding headers; users behind the same proxy may share its limit.
+
+Back up your appdata before updating the container. Existing expenses, receipts, trips and invoices are preserved. An already installed iPhone app works with this server update; no Xcode reinstall is required for server security fixes.
+
+---
+
+# Expense Pilot v0.8.1
 
 a clearer view of every dollar
 
@@ -6,7 +18,7 @@ a clearer view of every dollar
 
 An optional free-account Xcode starter app is in [`ios/`](ios/README.md). Open `ios/ExpensePilot.xcodeproj` on a Mac and select your Personal Team to install it on your iPhone. It connects to this server and adds native receipt scanning. See the iPhone instructions for requirements and current limitations.
 
-## What changed in v0.8.0
+## What changed in v0.8.1
 
 - Split one expense between employment and business, with personal use calculated as the remainder. For example, a $100 receipt at 30% employment and 20% business records $30 and $20, with 50% personal. Percentages must be whole numbers and cannot total more than 100%. Reviewed allocations feed each corresponding tax forecast total. Refunds and reimbursements keep the same treatment; rounding reconciles to the combined allocated amount.
 - Existing expenses retain their previous allocations. CSV exports append separate employment/business/personal percentages and employment/business AUD allocations. Split records appear in both relevant report filters without duplicating the receipt.
@@ -25,8 +37,8 @@ Update the existing Unraid container using `ghcr.io/chrisk0007/expense-pilot:lat
 
 - Typed dates automatically become **DD/MM/YYYY** when you leave the field. Accepted examples: `8/10/2026`, `8-10-26`, `08.10.2026`, `081026`, `08102026` and `2026-10-08`. Two-digit years mean 2000–2099. Impossible dates and missing years are rejected; month/day order is never guessed.
 - **Settings → Home base & receipt sorting:** search a suburb, city, area or postcode and select a suggestion. Nearby suburbs are recognised from the bundled Australian location list using an adjustable **50 km default local radius**. A preview shows the number of included suburbs and examples. Keep extra local names only for exceptions. Existing recognised bases such as Sunshine Coast work without re-entering every suburb. Coordinates are approximate suburb or area centres; choose a suburb for a more precise base. Unknown, ambiguous or unrecognised overseas locations stay in the inbox for manual review. Foreign currency alone does not prove a foreign location. All suggested overnight trips still require review and acceptance.
-- **Settings → Account invitations:** save the URL people use to access Expense Pilot. Configure **Email delivery & templates** with SMTP. Then **People & access → Add person** sends an invitation with a generated temporary password, valid for **48 hours**. No manually entered initial password is required. The new person must replace it before accessing records. Failed or uncertain email delivery is shown against the person; **Resend invitation** generates a replacement and invalidates the old password. Existing accounts keep their passwords.
-- **Settings → Two-factor authentication:** enter your current password, scan the QR code with a TOTP authenticator (for example Microsoft Authenticator, Google Authenticator or 1Password), then enter its six-digit code. Save the ten recovery codes shown once after setup. Every code works once. Future sign-ins require the password and an authenticator or recovery code. Each account enables 2FA individually, including read-only tax agents; the owner can see 2FA status under People & access.
+- **Settings → Account invitations:** save the URL people use to access Expense Pilot. Configure **Email delivery & templates** with SMTP. Then **Tax agent access → Invite tax agent** sends an invitation with a generated temporary password, valid for **48 hours**. No manually entered initial password is required. The new person must replace it before accessing records. Failed or uncertain email delivery is shown against the person; **Resend invitation** generates a replacement and invalidates the old password. Existing accounts keep their passwords.
+- **Settings → Two-factor authentication:** enter your current password, scan the QR code with a TOTP authenticator (for example Microsoft Authenticator, Google Authenticator or 1Password), then enter its six-digit code. Save the ten recovery codes shown once after setup. Every code works once. Future sign-ins require the password and an authenticator or recovery code. Each account enables 2FA individually, including read-only tax agents; the owner can see 2FA status under Tax agent access.
 - QR codes are generated locally. Authenticator secrets are encrypted using the persisted `session.key`; recovery codes are stored only as hashes. Enabling/disabling 2FA and changing passwords revoke other sessions. Reused authenticator codes are rejected and failed attempts are limited. Keep the server clock accurate and retain `session.key` in backups.
 - Lost phone: use an unused recovery code to sign in. To replace your authenticator, disable 2FA with your password and a fresh recovery/authenticator code, then set it up again. If all recovery methods are lost, use the existing terminal recovery command (`python reset_password.py` inside the container); it now offers an explicit 2FA reset. It also clears a pending temporary-password requirement. Disabled accounts stay disabled.
 
@@ -46,7 +58,7 @@ A self-hosted expense workspace with a clean, Rounded-inspired interface. Separa
 - CommBank, Macquarie and American Express account labels; mapped CSV imports and duplicate detection.
 - Receipt photos and PDFs; optional Ollama extraction into a draft you review before saving.
 - Overnight trips, linked breakfast/lunch/dinner/incidentals and a separate allowance record.
-- Owner, employee and tax-agent logins, with per-agent Read only / Read & write permissions.
+- Owner and tax-agent logins, with per-agent Read only / Read & write permissions.
 - Automatic tax-agent access to all financial records, including personal expenses and unfiled receipts.
 - Financial-year CSV exports, activity history, password changes and account disabling.
 - Persistent SQLite database, Docker health check and backup helper.
@@ -139,10 +151,9 @@ Nothing is sent to Ollama until you select **Read with AI** or enable **Read wit
 | Role | Access |
 | --- | --- |
 | Owner | All records, invoicing, clients, SMTP settings, imports, people and reports |
-| Employee | Only their own business expenses, receipts and trips |
 | Tax agent | Read all financial records; optionally create/edit financial records with Read & write permission |
 
-All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in People & access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation sends an invitation through the configured SMTP account. The generated password expires after 48 hours and must be replaced on first sign-in. All people can manage their own password and authenticator 2FA in Settings.
+All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in Tax agent access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation sends an invitation through the configured SMTP account. The generated password expires after 48 hours and must be replaced on first sign-in. All people can manage their own password and authenticator 2FA in Settings.
 
 For terminal-only recovery:
 
@@ -180,7 +191,7 @@ Email templates support `{kind}`, `{number}`, `{client}`, `{business}`, `{total}
 ### Billing records and access
 
 - Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued documents are immutable, so changing a client address or business name does not rewrite old invoices.
-- Employee accounts have no access to clients, invoices, time billing or email settings. Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
+- Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
 - Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
 - Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. Credit notes and actual refund processing are not yet implemented.
 - **Saved services & prices** keeps common line items ready to use.
@@ -232,7 +243,7 @@ Expense Pilot is an original implementation, not affiliated with Rounded.
 - With Ollama configured, **Read with AI after upload** reads each uploaded receipt. Keep the capture window open until the queue finishes. Results are saved; failed scans retain the original and can be retried or entered manually. If interrupted, use Read with AI on the saved receipt.
 - Review later: confirm merchant, date, AUD total, Employment/Business/Personal, category and use percentage. AI never chooses a use percentage. Tax agents automatically have access to all saved receipts. Unfiled receipts stay out of expense totals and exports.
 - The review screen suggests a category/workspace from that person's latest reviewed expense at the same merchant. Matching date/amount transactions can be explicitly linked instead of creating another expense. Foreign/unknown currencies require an AUD amount entered by you.
-- Exact duplicate uploaded files for the same person are reused. Different photographs of the same receipt still need your review. Employees see only their own receipts; tax agents see all receipts, including unfiled ones.
+- Exact duplicate uploaded files for the same person are reused. Different photographs of the same receipt still need your review. Tax agents see all receipts, including unfiled ones.
 - Invoice/quote PDFs use a clean two-column layout inspired by the supplied example: business branding, client and invoice details, notes above the line items, totals and payment details. Invoice emails continue to carry a real PDF attachment. Your business logo in Settings stays separate from the application logo. Online card payments are not added by this update.
 - Set `OLLAMA_URL` and a vision-capable `OLLAMA_MODEL` in the container to enable photo/scanned-PDF extraction. No new external AI provider or subscription is required. Text PDFs also work.
 
@@ -241,7 +252,7 @@ The app logo was generated with the built-in image generation tool using the dir
 
 ## Financial workspace (v0.4.0)
 
-- **People & access:** choose Read only or Read & write for each tax agent. All financial records are visible automatically. Read & write includes expenses, receipt filing, trips, clients, invoices, payments, employment income and forecast assumptions; it does not grant user administration or SMTP/email sending.
+- **Tax agent access:** choose Read only or Read & write for each tax agent. All financial records are visible automatically. Read & write includes expenses, receipt filing, trips, clients, invoices, payments, employment income and forecast assumptions; it does not grant user administration or SMTP/email sending.
 - **Trips & meals:** add a trip, then choose **Add meal** on its card. Ordinary expense forms and category lists no longer offer meals. Earlier unlinked meal records remain available under **Meals needing a trip**. Meals still count once in financial totals and reviewed tax allocations.
 - **Receipt preview:** View receipt opens a viewer inside the app. Images and multi-page PDFs support zoom and page navigation. Download remains optional. PDF pages render individually; no external document viewer receives your receipts.
 - **Employment income:** record gross taxable salary and PAYG withholding by payment date, using payslips or an annual total for the same income, not both. Employer super is excluded.
@@ -317,7 +328,7 @@ Open an issued invoice or quote and choose **Edit wording** to change line descr
 
 **Expense Pilot — A clearer view of every dollar.**
 
-- Create reusable expense categories in **Settings → Expense categories**, or while editing an expense. Owners and write-enabled tax agents can create workspace categories; employees can use them.
+- Create reusable expense categories in **Settings → Expense categories**, or while editing an expense. Owners and write-enabled tax agents can create workspace categories.
 - **Vehicles** stores vehicles, registrations, journeys and running costs. Log either start/end odometer readings or a distance in kilometres, with the purpose, workspace and use percentage. Link an expense to a vehicle from either screen. Costs remain ordinary expenses and are counted once. Journey kilometres are not automatically turned into a tax deduction. Export journeys as CSV; expense CSV includes the linked vehicle.
 - The receipt inbox now has **Draft receipts** and **All receipts**. **Save draft** persists partial details without creating an expense. **Save expense** files the reviewed values. All receipts displays the current linked expense’s AUD amount, date and merchant rather than the original AI reading.
 - New receipt currency defaults to **AUD** when no other currency is specified; explicit foreign-currency evidence and manual currency confirmations take precedence. Conflicting currency markers still require review. Work/business use defaults to **100%**, preserving manual overrides; personal expenses remain excluded from allocated totals.

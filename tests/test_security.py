@@ -10,7 +10,10 @@ import billing
 import security
 
 class SecurityTest(unittest.TestCase):
-    setUp=base.AppTest.setUp
+    def setUp(self):
+        clock=patch('security.clock',return_value=1800000000)
+        clock.start();self.addCleanup(clock.stop)
+        base.AppTest.setUp(self)
     call=base.AppTest.call
     login=base.AppTest.login
 
