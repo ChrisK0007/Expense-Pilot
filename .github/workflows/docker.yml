@@ -25,6 +25,7 @@ jobs:
         run: |
           node --check server/static/app.js
           node --check server/static/billing.js
+          node --check server/static/billing-mail.js
           node --check server/static/receipts.js
           node --check server/static/finance.js
           node --check server/static/workspace.js

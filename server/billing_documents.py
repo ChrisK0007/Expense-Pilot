@@ -29,7 +29,7 @@ def document_detail(did):
     if request.method == 'GET':
         doc = document(did)
         doc['payments'] = rows('SELECT * FROM billing_payments WHERE document_id=? ORDER BY id', (did,))
-        doc['emails'] = rows('SELECT id,recipient,subject,state,error,created_at FROM billing_outbox WHERE document_id=? ORDER BY id DESC', (did,)) if g.user['role'] == 'owner' else []
+        doc['emails'] = rows('SELECT id,recipient,subject,state,error,created_at,message_kind FROM billing_outbox WHERE document_id=? ORDER BY id DESC', (did,)) if g.user['role'] == 'owner' else []
         return jsonify(doc)
     if not can_write():
         fail('Read-only access.', 403)
@@ -37,15 +37,21 @@ def document_detail(did):
     db().execute('BEGIN IMMEDIATE')
     doc = document(did)
     revision(doc, payload)
-    if doc['state'] != 'draft':
-        fail('Issued amounts and details are locked. Use Edit wording for text corrections, or duplicate or void the document for other changes.', 409)
     if request.method == 'DELETE':
+        if doc['kind'] != 'invoice' and doc['state'] != 'draft':
+            fail('Only draft quotes can be deleted. Void an issued quote to retain its history.', 409)
+        if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')", (did,)):
+            fail('Resolve the pending or uncertain email delivery before deleting this document.', 409)
         if doc['source_quote']:
             db().execute("UPDATE billing_documents SET state='accepted',version=version+1 WHERE id=?", (doc['source_quote'],))
         db().execute('UPDATE billing_time SET document_id=NULL WHERE document_id=?', (did,))
+        db().execute('DELETE FROM billing_payments WHERE document_id=?', (did,))
+        db().execute('DELETE FROM billing_outbox WHERE document_id=?', (did,))
         db().execute('DELETE FROM billing_documents WHERE id=?', (did,))
-        audit('draft deleted', did)
+        audit(doc['kind'] + ' deleted', f"{did} ({doc['number']})")
     else:
+        if doc['state'] != 'draft':
+            fail('Issued amounts and details are locked. Use Edit wording for text corrections, or duplicate or void the document for other changes.', 409)
         values = validate_document(payload)
         if values['kind'] != doc['kind']:
             fail('Document type cannot be changed.')
@@ -189,21 +195,22 @@ def add_payment(did):
 @bp.get('/documents/<int:did>/email-draft')
 @owner
 def email_draft(did):
-    from billing import aud, date_au, document, document_defaults, jsonify, mail_settings, request, secrets, template_text
+    from billing import document, jsonify, mail_settings, request, secrets
+    from billing_emails import document_message
     doc, config = document(did), mail_settings()
-    values = dict(kind=doc['kind'], number=doc['number'], business=doc['business']['name'], client=doc['client']['contact'] or doc['client']['name'],
-                  total=aud(doc['total_cents']), balance=aud(doc['balance_cents']), due_date=date_au(doc['due_date']))
-    reminder = request.args.get('reminder') == '1'
-    subject = 'Payment reminder: {number}' if reminder else document_defaults()[doc['kind'] + '_email_subject']
-    message = 'Hi {client},\n\nA reminder that invoice {number}, due {due_date}, has an outstanding balance of {balance}. A copy is attached.\n\nThank you,\n{business}' if reminder else document_defaults()[doc['kind'] + '_email_body']
-    return jsonify(recipient=doc['client']['email'], subject=template_text(subject, values), body=template_text(message, values),
-                   from_email=config['from_email'], ready=bool(config['host'] and config['from_email']), request_key=secrets.token_hex(24), version=doc['version'])
+    kind = request.args.get('kind') or ('reminder_manual' if request.args.get('reminder') == '1' else 'document')
+    draft = document_message(doc, kind)
+    return jsonify(**draft, recipient=doc['client']['email'], from_email=config['from_email'],
+                   attachment_url=f'/api/billing/documents/{did}/' + ('receipt' if kind == 'receipt' else 'pdf'),
+                   filename=doc['number'] + ('-receipt' if kind == 'receipt' else '') + '.pdf',
+                   ready=bool(config['host'] and config['from_email']), request_key=secrets.token_hex(24), version=doc['version'])
 
 
 @bp.post('/documents/<int:did>/send')
 @owner
 def send_document(did):
-    from billing import audit, body, db, deliver, document, email, fail, header, jsonify, mail_settings, now, one, pdf_document, ready_to_issue, request_key, revision, txt
+    from billing import body, db, document, email, fail, header, jsonify, mail_settings, one, request_key, revision, txt
+    from billing_emails import clean_signature, deliver_queued, email_templates, queue_document_email
     payload = body()
     key = request_key(payload.get('request_key'))
     recipient, subject, message = email(payload.get('recipient'), True), header(payload.get('subject')), txt(payload.get('body'), 20000)
@@ -219,23 +226,12 @@ def send_document(did):
         return jsonify(state=previous['state'], error=previous['error'])
     doc = document(did)
     revision(doc, payload)
-    if doc['state'] in ('void', 'declined', 'converted'):
-        fail('This document cannot be sent.', 409)
-    if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')", (did,)):
-        fail('An email is pending or its delivery is uncertain. Review email history before retrying.', 409)
-    ready_to_issue(doc)
-    if doc['state'] == 'draft':
-        db().execute("UPDATE billing_documents SET state='issued' WHERE id=?", (did,))
-        doc['state'] = 'issued'
-    attachment = pdf_document(doc)
-    cur = db().execute("INSERT INTO billing_outbox(document_id,recipient,subject,body,state,request_key,created_at) VALUES (?,?,?,?,'sending',?,?)",
-                       (did, recipient, subject, message, key, now()))
-    oid = cur.lastrowid
-    db().execute('UPDATE billing_documents SET version=version+1 WHERE id=?', (did,))
-    audit('document email queued', did)
+    kind = payload.get('message_kind', 'document')
+    # Automatic reminder types are generated only by the configured scheduler.
+    if kind not in ('document', 'reminder_manual', 'receipt'):
+        fail('Choose an invoice, reminder or payment receipt email.')
+    signature = clean_signature(email_templates()['signature_html'])[0] if payload.get('include_signature', True) else ''
+    oid, attachment, filename = queue_document_email(doc, recipient, subject, message, key, kind, signature)
     db().commit()
-    state, error = deliver(recipient, subject, message, attachment, doc['number'] + '.pdf')
-    db().execute('UPDATE billing_outbox SET state=?,error=? WHERE id=?', (state, error, oid))
-    audit('document email ' + state, did)
-    db().commit()
+    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature)
     return jsonify(state=state, error=error)

@@ -133,9 +133,10 @@ def document_defaults():
     seller, mail = business(), mail_settings()
     defaults = dict(invoice_notes=seller['notes'], quote_notes=seller['notes'],
                     invoice_payment_details=seller['payment_details'], quote_valid_days=seller['terms'])
+    from billing_email_core import DEFAULT_TEMPLATES
     for kind in ('invoice', 'quote'):
-        defaults[kind + '_email_subject'] = mail['subject']
-        defaults[kind + '_email_body'] = mail['body']
+        for field in ('subject', 'body'):
+            defaults[kind + '_email_' + field] = DEFAULT_TEMPLATES[kind][field] if mail[field] == DEFAULT_MAIL[field] else mail[field]
     return settings('document_defaults', defaults)
 
 
@@ -333,7 +334,7 @@ def configure_email():
     return jsonify(ok=True)
 
 
-def deliver(recipient, subject, message, attachment=None, filename=None):
+def deliver(recipient, subject, message, attachment=None, filename=None, signature_html=''):
     config = mail_settings()
     if not config['host'] or not config['from_email']:
         raise ValueError('Configure your SMTP account in Email settings first.')
@@ -345,7 +346,8 @@ def deliver(recipient, subject, message, attachment=None, filename=None):
     outgoing['Message-ID'] = make_msgid()
     if config['reply_to']:
         outgoing['Reply-To'] = email(config['reply_to'])
-    outgoing.set_content(message)
+    from billing_email_core import add_message_content
+    add_message_content(outgoing, message, signature_html)
     if attachment:
         outgoing.add_attachment(attachment, maintype='application', subtype='pdf', filename=filename)
     context = ssl.create_default_context()
@@ -649,8 +651,10 @@ def start_scheduler(app):
             try:
                 with app.app_context():
                     run_due()
+                    from billing_emails import run_reminders
+                    run_reminders()
             except Exception:
-                app.logger.error('Recurring draft generation failed; check schedule status in Billing.')
+                app.logger.exception('Billing background processing failed; check schedules and email history.')
             threading.Event().wait(60)
     threading.Thread(target=work, daemon=True, name='recurring-drafts').start()
 
@@ -689,6 +693,9 @@ def report():
                    gst_cents=sum(p['gst_cents'] for p in records), net_cents=sum(p['net_cents'] for p in records))
 
 from billing_documents import documents, document_detail, document_wording, document_action, sharing, download_pdf, add_payment, email_draft, send_document
+
+import billing_emails
+import billing_statements
 
 
 def register(app, database, single, many, failure, activity, data_path):
