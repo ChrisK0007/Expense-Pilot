@@ -24,6 +24,7 @@ jobs:
       - name: Syntax checks
         run: |
           node --check server/static/app.js
+          node --check server/static/bank-feeds.js
           node --check server/static/billing.js
           node --check server/static/billing-mail.js
           node --check server/static/receipts.js
@@ -80,6 +81,8 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_receipt_trip.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_security.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_splits.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_bank_feeds.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_beta_billing_cleanup.cjs
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |

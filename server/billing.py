@@ -208,8 +208,11 @@ def validate_document(payload):
     due = day(payload.get('due_date'))
     if due < issued:
         raise ValueError('Due date / valid until must be on or after the issue date.')
+    reminders = payload.get('reminders_enabled', True)
+    if type(reminders) not in (bool, int) or reminders not in (0, 1):
+        raise ValueError('Choose whether automatic reminders are on or off for this invoice.')
     snapshot = {k: client[k] for k in ('id', 'name', 'contact', 'email', 'address', 'abn', 'terms')}
-    return dict(kind=kind, client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
+    return dict(kind=kind, reminders_enabled=int(reminders), client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
                 issue_date=issued, due_date=due, notes=txt(payload.get('notes', document_defaults()[kind + '_notes']), 5000),
                 reference=txt(payload.get('reference'), 100),
                 payment_details=txt(payload.get('payment_details', document_defaults()['invoice_payment_details'] if kind == 'invoice' else ''), 2000), **amounts)
@@ -226,7 +229,7 @@ def insert_document(values, source_quote=None, schedule_id=None, occurrence=None
         number = f'{prefix}{n:04d}'
     db().execute('UPDATE billing_counters SET next_number=? WHERE kind=?', (n + 1, kind))
     columns = ['kind', 'client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes',
-               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents']
+               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled']
     data = [json.dumps(values[k]) if k in ('client', 'business', 'lines') else values[k] for k in columns]
     cur = db().execute('INSERT INTO billing_documents(' + ','.join(columns) + ',number,source_quote,schedule_id,occurrence,created_at) VALUES (' + ','.join('?' for _ in range(len(columns) + 5)) + ')',
                        data + [number, source_quote, schedule_id, occurrence, now()])
@@ -580,6 +583,13 @@ def schedules():
         fail('End date must follow start date.')
     terms = integer(payload.get('terms', 14), 'payment terms')
     template = {k: doc[k] for k in ('lines', 'tax_mode', 'notes', 'reference', 'payment_details')}
+    template['reminders_enabled'] = bool(doc['reminders_enabled'])
+    if 'reminders_enabled' in payload:
+        if g.user['role'] != 'owner':
+            fail('Only the owner can change automatic reminder preferences.', 403)
+        if not isinstance(payload['reminders_enabled'], bool):
+            fail('Choose whether generated invoices allow automatic reminders.')
+        template['reminders_enabled'] = payload['reminders_enabled']
     cur = db().execute('INSERT INTO billing_schedules(client_id,template,interval,next_date,anchor_day,end_date,terms) VALUES (?,?,?,?,?,?,?)',
                        (doc['client_id'], json.dumps(template), interval, start, date.fromisoformat(start).day, end, terms))
     audit('recurring draft schedule created', cur.lastrowid)

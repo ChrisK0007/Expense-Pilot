@@ -2,7 +2,9 @@
 import importlib
 import sqlite3
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+import migrations
 from migrations import apply, execute_script
 
 
@@ -27,7 +29,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),7)
+        self.assertEqual(len(ledger),8)
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
         self.assertEqual(c.execute('SELECT version FROM users WHERE id=2').fetchone()[0],8)
@@ -48,7 +50,35 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+
+    def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
+        c = self.connection
+        stable_files = sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py')
+                              if p.name < 'm008_')
+        with patch('migrations.Path.glob', return_value=stable_files):
+            apply(c)
         self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],7)
+        c.execute("INSERT INTO users(id,name,email,password,role) VALUES (1,'Owner','owner@test','hash','owner')")
+        c.execute("INSERT INTO receipts VALUES ('kept-receipt',1,'kept.png','image/png')")
+        c.execute("INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,work_percent,business_percent,receipt_id) VALUES (1,'2026-10-08','Kept expense',17999,'split','Other',80,30,50,'kept-receipt')")
+        c.execute("INSERT INTO billing_clients(id,name,email) VALUES (1,'Kept client','client@example.test')")
+        c.execute("INSERT INTO billing_documents(kind,number,client_id,client,business,issue_date,due_date,tax_mode,lines,subtotal_cents,gst_cents,total_cents,created_at,reminders_enabled) VALUES ('invoice','INV-0042',1,'{}','{}','2026-10-08','2026-10-22','none','[]',4500,0,4500,'2026-10-08',0)")
+        c.execute("INSERT INTO billing_settings VALUES ('custom-setting','keep this value')")
+        c.commit()
+        tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+        before = {table:c.execute('SELECT * FROM "'+table+'"').fetchall() for table in tables}
+        apply(c)
+        for table, records in before.items():
+            with self.subTest(table=table):
+                current = c.execute('SELECT * FROM "'+table+'"').fetchall()
+                self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
+        self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
+        self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
+        apply(c)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)

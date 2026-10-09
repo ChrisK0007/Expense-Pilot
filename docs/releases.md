@@ -1,19 +1,25 @@
 # Stable and beta releases
 
-| Channel | Git branch | Docker image | Version format |
+| Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
-| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.0` |
-| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.1-beta.1` |
+| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.1` |
+| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.1-beta.4` |
+
+Stable v1.0.1 promotes all changes through v1.0.1-beta.4: [PocketSmith bank feeds](pocketsmith.md), the nullable transfer flag fix, shared billing navigation including Clients, invoice reminder controls and permanent expense/receipt deletion.
 
 The first stable release is v1.0.0, carrying forward v0.8.6. The initial beta starts from the same application features, identified as v1.0.1-beta.1 so future development is clearly separate. Each published build also has its exact version tag and a `sha-` tag.
 
 ## Using the channels on Unraid
 
-For normal use, keep the existing `expense-pilot` container on `ghcr.io/chrisk0007/expense-pilot:latest`. Use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. To stay on the first stable release, set the image to `ghcr.io/chrisk0007/expense-pilot:1.0.0` instead. Preserve the existing `/data` mapping and environment settings.
+For normal use, keep the existing `expense-pilot` container on `ghcr.io/chrisk0007/expense-pilot:latest`. Use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. To pin this stable release, set the image to `ghcr.io/chrisk0007/expense-pilot:1.0.1` instead. Preserve the existing `/data` mapping and environment settings.
 
 For testing, create a separate `expense-pilot-beta` container using `ghcr.io/chrisk0007/expense-pilot:beta`. Map `/data` to a different host directory, such as `/mnt/user/appdata/expense-pilot-beta`, and choose a different host port, such as `8787` mapped to container port `8788`. Give this fresh instance its own setup token and test records. Do not mount the live data directory in both containers. Keep automatic reminders and real email delivery disabled in a test instance unless deliberately testing them with test recipients.
 
 The beta container updates only when the beta image is published; the stable container updates only when a stable image is published. A beta may later introduce database migrations that an older stable build cannot read. Returning that data to an older release requires restoring its matching backup; changing only the image tag does not undo migrations.
+
+## Upgrading from v1.0.0 to v1.0.1
+
+Back up each stable instance’s `/data` directory before updating. Migration m008 adds the PocketSmith tables automatically; existing users, expenses, receipts, invoices and settings are retained. No new container variables are needed. Configure PocketSmith separately in each instance if desired. Returning to v1.0.0 requires restoring that instance’s pre-upgrade backup.
 
 ## Developing and promoting a release
 

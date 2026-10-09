@@ -55,3 +55,13 @@ The backup utility inspects the selected container's actual `/data` mount instea
 Archives contain `data/` including `rounded.sqlite`, receipts and `session.key`; the checkout's `.env` is included when present. For a different `.env` location, set `EXPENSE_PILOT_ENV_FILE` to that file. Unraid template environment settings live outside the data mount; preserve those settings separately using your normal Unraid configuration backup.
 
 For offline data without a Docker container, first stop every process using the database, then set `EXPENSE_PILOT_DATA_DIR` to the data directory. This explicit mode does not stop or restart any container. Protect archives as sensitive financial data. Restore `data/` to the configured host mount while the app is stopped and retain the existing ownership (normally UID 99/GID 100).
+
+## PocketSmith bank feeds
+
+`pocketsmith_client.py` is a GET-only client for the fixed PocketSmith v2 HTTPS host. It passes developer keys in a header, blocks redirects, bounds pages, response sizes and duration, validates pagination and sanitises upstream failures. `pocketsmith.py` manages an encrypted per-instance connection, account mapping, sync leases, the transaction ledger and review routes. `bank-feeds.js` provides connection settings and the bank review queue.
+
+Migration m008 adds the connection, account mapping and source transaction tables. Keys use a dedicated Fernet derivation from `session.key`; backups must retain both the database and key. The Gunicorn hook starts a polling thread; a durable lease and connection version prevent overlapping workers or superseded configuration from committing stale syncs. Automatic sync is disabled until selected by the owner.
+
+A sync fetches the complete selected date window before an atomic upsert. The unique source user/transaction ID prevents repeated imports. Absent transactions are flagged as not returned, not silently deleted. Financial changes to linked source records flag review and never change expense amounts or allocations. Creating an expense and linking its source row share one database transaction; deleting a linked expense leaves an ignored source record to prevent recreation. Existing-expense matching is explicit and limited to equal AUD amounts within three days and the same or unassigned account.
+
+Tests replace only the PocketSmith client in the disposable browser server; the production image contains neither test credentials nor test endpoints. Tests cover failed sync atomicity, pagination, retry limits, pending replacement, duplicate protection, changed/missing records, permission boundaries, encryption and configuration changes during sync.

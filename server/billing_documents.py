@@ -4,11 +4,14 @@ from billing import bp, owner, reader
 @bp.route('/documents', methods=['GET', 'POST'])
 @reader
 def documents():
-    from billing import body, can_write, db, fail, hydrate, insert_document, jsonify, request, rows, validate_document
+    from billing import body, can_write, db, fail, g, hydrate, insert_document, jsonify, request, rows, validate_document
     if request.method == 'POST':
         if not can_write():
             fail('Read-only access.', 403)
-        values = validate_document(body())
+        payload = body()
+        if 'reminders_enabled' in payload and g.user['role'] != 'owner':
+            fail('Only the owner can change automatic reminder preferences.', 403)
+        values = validate_document(payload)
         db().execute('BEGIN IMMEDIATE')
         did = insert_document(values)
         db().commit()
@@ -52,13 +55,16 @@ def document_detail(did):
     else:
         if doc['state'] != 'draft':
             fail('Issued amounts and details are locked. Use Edit wording for text corrections, or duplicate or void the document for other changes.', 409)
+        if 'reminders_enabled' in payload and g.user['role'] != 'owner':
+            fail('Only the owner can change automatic reminder preferences.', 403)
+        payload.setdefault('reminders_enabled', bool(doc['reminders_enabled']))
         values = validate_document(payload)
         if values['kind'] != doc['kind']:
             fail('Document type cannot be changed.')
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:
             fail('This invoice contains linked time entries for its current client.')
         columns = ['client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes', 'reference',
-                   'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents']
+                   'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled']
         data = [json.dumps(values[k]) if k in ('client', 'business', 'lines') else values[k] for k in columns]
         db().execute('UPDATE billing_documents SET ' + ','.join(k + '=?' for k in columns) + ',version=version+1 WHERE id=?', data + [did])
         audit('draft updated', did)
@@ -120,13 +126,13 @@ def document_action(did):
     elif action == 'convert':
         if doc['kind'] != 'quote' or doc['state'] != 'accepted':
             fail('Mark the quote accepted before converting it.', 409)
-        payload = {**doc, 'kind': 'invoice', 'issue_date': local_today(),
+        payload = {**doc, 'kind': 'invoice', 'reminders_enabled': True, 'issue_date': local_today(),
                    'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
         values = validate_document(payload)
         result_id = insert_document(values, source_quote=did)
         db().execute("UPDATE billing_documents SET state='converted',version=version+1 WHERE id=?", (did,))
     elif action == 'duplicate':
-        payload = {**doc, 'issue_date': local_today(), 'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
+        payload = {**doc, 'reminders_enabled': bool(doc['reminders_enabled']), 'issue_date': local_today(), 'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
         result_id = insert_document(validate_document(payload))
     elif action == 'void':
         if doc['paid_cents'] or doc['state'] in ('void', 'converted', 'draft'):

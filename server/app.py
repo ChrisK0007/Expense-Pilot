@@ -213,16 +213,21 @@ def expenses():
         uid=t['user_id'];existing={'user_id':uid,'account_id':None}
     if not existing and d.get('vehicle_id'):
         v=tracking_vehicle(d['vehicle_id']);uid=v['user_id'];existing={'user_id':uid,'account_id':None}
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
     db().execute('BEGIN IMMEDIATE')
     e=expense(eid,True)
-    if request.method=='DELETE': db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
+    if request.method=='DELETE':
+        from receipt_routes import delete_receipt_record, remove_receipt_files
+        db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
+        if e['receipt_id']: delete_receipt_record(e['receipt_id'])
     else:
         d=request.get_json();p=payload(d,e);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
-    db().commit();return jsonify(ok=True)
+    db().commit()
+    if request.method=='DELETE' and e['receipt_id']: remove_receipt_files(e['receipt_id'])
+    return jsonify(ok=True)
 
 
 @app.get('/api/audit')
@@ -266,5 +271,8 @@ import security
 security.register(app, db=db, one=one, fail=fail, audit=audit, newpass=newpass, textval=textval, DATA=DATA)
 
 features.register(app, db=db, one=one, fail=fail)
+
+import pocketsmith
+pocketsmith.register(app, db=db, one=one, rows=rows, fail=fail, audit=audit, auth=auth, can_write=can_write, day=day, DATA=DATA)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)

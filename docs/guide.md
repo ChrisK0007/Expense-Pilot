@@ -45,7 +45,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Stable version: 1.0.0.** No live bank feeds: bank exports are imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Stable version: 1.0.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
 
 ## Features
 
@@ -216,7 +216,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 1.0.0**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 1.0.1**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -224,7 +224,7 @@ New database tables are created automatically on startup. Existing users, expens
 
 The billing workflows were informed by [Rounded's feature list](https://rounded.com.au/features) and [invoicing overview](https://rounded.com.au/features/invoicing), with an original interface and implementation. This version adds the core client, quote, invoice, payment and email workflows, not every Rounded feature.
 
-Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
+Not yet provided: Stripe/PayPal card checkout and fee surcharges, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
 
 ## Verification
 
@@ -277,3 +277,13 @@ This is the container-list icon. Your invoice business logo is separately set in
 ## Development and backup options
 
 See [architecture and backups](architecture.md) for development commands, numbered migrations, custom backup mounts and restore guidance. Run installation commands from the repository root.
+
+## Billing navigation, reminders and deleting expenses
+
+In v1.0.1, Invoices, Quotes, Clients, Recurring invoices and Line item templates share a top navigation bar. Choose Invoices or Quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
+
+The owner can switch automatic reminders on or off while creating an invoice or directly in any invoice’s details. The preference is saved for drafts, issued invoices and recurring-generated invoices. Editing or duplicating a draft preserves it. When making a recurring schedule, select whether its generated invoices allow reminders; each generated invoice can then be changed individually.
+
+Settings → Automatic invoice reminders controls the shared sending switch and dates. Choose a reminder before the due date, on the due date, and up to six separate days after it. The summary shows the schedule. Switching global sending off keeps the schedule saved. An invoice must also allow reminders, be issued, and have an unpaid balance and client email address. Dates use Brisbane time. Changing the schedule can make an existing invoice eligible to send today; drafts, paid invoices and voided invoices are skipped.
+
+Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Receipt inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
