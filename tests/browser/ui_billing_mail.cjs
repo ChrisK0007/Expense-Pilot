@@ -31,6 +31,7 @@ async function billingMailChecks(page,output){
   assert.equal(await page.getByLabel('Enable automatic reminder emails').isChecked(),false);
   await page.getByLabel('Days before due (0 to skip)').fill('5');
   await page.getByRole('button',{name:'Save reminder schedule',exact:true}).click();
+  await page.getByText('Reminder schedule saved.',{exact:true}).waitFor();
   assert.equal((await page.evaluate(()=>api('billing/reminder-settings'))).before_days,5);
   await navigate(page,'invoices');
   const row=page.locator('#billing-table tbody tr').filter({hasText:'INV-0001'});
