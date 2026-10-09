@@ -41,6 +41,7 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   // Saving a meal with no trip opens the review instead of the previous error.
   await page.getByRole('button',{name:'Save expense',exact:true}).click();
   await page.getByRole('heading',{name:'Review draft overnight trip',exact:true}).waitFor();
+  assert.equal(await page.locator('#receipt-trip-review select[name=scope]').count(),0);
   assert.equal(await page.locator('.proposal-receipt').count(),2);
   assert.equal(await page.locator('#proposal_amount_0').inputValue(),'30.08');
   assert.equal(await page.locator('#proposal_notes_0').inputValue(),'Includes payment service fee');
@@ -73,6 +74,7 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await navigate(page,'receipts');await open('Receipt trip lime');
   await page.locator('#receipt-to-trip').click();
   await page.getByRole('heading',{name:'Review meals for existing trip',exact:true}).waitFor();
+  assert.equal(await page.locator('#receipt-trip-review select[name=scope]').count(),0);
   assert.equal(await page.getByLabel('Trip purpose').inputValue(),'Overnight flying duties');
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

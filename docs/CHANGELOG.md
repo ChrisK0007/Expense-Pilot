@@ -1,5 +1,10 @@
 # Release history
 
+## 0.8.4
+
+- Remove the redundant Workspace selector from adding and editing expenses and meals; employment and business percentages determine the allocation.
+- Remove Trip workspace from receipt trip review. The proposed trip inherits the receipt allocation, and each meal percentage is labelled Employment or Business.
+
 ## 0.8.3
 
 - Keep Receipt inbox for unfiled drafts only. Accepted receipts are available through Expenses, including trip meals.

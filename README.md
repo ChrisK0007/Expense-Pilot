@@ -11,7 +11,7 @@ Self-hosted expense tracking for sole traders and people tracking employment exp
 - [Development and repository structure](docs/architecture.md)
 - [Release history](docs/CHANGELOG.md)
 
-Docker image: `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:0.8.3`).
+Docker image: `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:0.8.4`).
 
 Existing Unraid installations can update the image normally. Container paths remain `/app` and `/data`; the database remains `/data/rounded.sqlite`. Keep your current appdata mount and environment settings.
 

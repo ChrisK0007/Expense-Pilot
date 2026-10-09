@@ -199,6 +199,7 @@ async function main() {
     await page.getByLabel('Work / business purpose').fill('Flight duties');
     await page.getByRole('button',{name:'Save trip',exact:true}).click();
     await page.getByRole('button',{name:'Add meal',exact:false}).click();
+    assert.equal(await page.locator('#expense-form').getByLabel('Workspace',{exact:true}).count(),0);
     await page.getByLabel('Merchant / payee').fill('Overnight dinner');
     await page.getByLabel('Amount paid (AUD)').fill('35');
     await page.getByLabel('Meal type',{exact:true}).selectOption('Dinner');
