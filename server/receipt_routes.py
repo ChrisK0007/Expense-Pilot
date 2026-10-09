@@ -171,8 +171,10 @@ def confirm_receipt_currency(rid):
 @app.get('/api/receipts')
 @auth()
 def receipt_inbox():
-    from app import draft_for, g, json, jsonify, money, one, receipt_profile, rows
+    from app import draft_for, g, json, jsonify, money, one, receipt_profile, request, rows
     where,args=('1=1',[]) if g.user['role']!='employee' else ('r.user_id=?',[g.user['id']])
+    if request.args.get('unfiled')=='1':
+        where+=' AND NOT EXISTS (SELECT 1 FROM expenses saved WHERE saved.receipt_id=r.id)'
     result=rows(f'''SELECT r.*,u.name AS owner,u.role AS owner_role,d.uploaded_at,d.scan_status,d.scan_error,d.extraction,
         (SELECT e.id FROM expenses e WHERE e.receipt_id=r.id LIMIT 1) AS expense_id
         FROM receipts r JOIN users u ON u.id=r.user_id LEFT JOIN receipt_details d ON d.receipt_id=r.id
@@ -187,8 +189,9 @@ def receipt_inbox():
         if merchant:
             # Only learn from this person's explicitly reviewed records; never infer deductibility.
             r['suggestion']=one("SELECT category,scope FROM expenses WHERE user_id=? AND lower(trim(merchant))=lower(trim(?)) AND status='ready' AND category!='Uncategorised' ORDER BY id DESC LIMIT 1",(r['user_id'],merchant))
-        extracted=r['extraction']
-        if extracted.get('amount') is not None and extracted.get('currency')=='AUD' and extracted.get('date'):
+        extracted={**r['extraction'],**r['draft']}
+        amount_is_aud=extracted.get('currency')=='AUD' or r['draft'].get('amount') is not None
+        if extracted.get('amount') is not None and amount_is_aud and extracted.get('date'):
             r['matches']=rows('SELECT id,date,merchant,amount_cents,receipt_id FROM expenses WHERE user_id=? AND date=? AND amount_cents=? ORDER BY id DESC LIMIT 8',(r['user_id'],extracted['date'],money(extracted['amount'])))
     return jsonify(result)
 

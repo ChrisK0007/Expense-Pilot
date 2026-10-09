@@ -85,6 +85,27 @@ class ReceiptTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,'receipts/'+rid+'/expense',{'existing_expense_id':eid}).status_code,409)
         self.assertEqual(self.call(self.owner,'receipts/'+rid,{},'DELETE').status_code,409)
 
+    def test_draft_inbox_excludes_accepted_receipts_and_keeps_expense_access(self):
+        rid=self.upload().json['id'];pending=self.upload(color='blue').json['id']
+        eid=self.expense(self.owner,category='Equipment').json['id']
+        self.assertEqual(self.call(self.owner,'receipts/'+rid+'/expense',{'existing_expense_id':eid}).status_code,200)
+        self.assertEqual([r['id'] for r in self.owner.get('/api/receipts?unfiled=1').json],[pending])
+        self.assertEqual(len(self.owner.get('/api/receipts').json),2)
+        expense=next(e for e in self.owner.get('/api/expenses').json if e['id']==eid)
+        self.assertEqual(expense['receipt_id'],rid)
+        self.assertEqual(self.owner.get('/api/receipts/'+rid+'/info').status_code,200)
+
+    def test_match_uses_corrected_draft_amount_and_retains_already_attached_candidate(self):
+        rid=self.upload().json['id'];attached=self.upload(color='red').json['id']
+        first=self.expense(self.owner,category='Equipment',date='2026-10-08',amount=30.08,receipt_id=attached).json['id']
+        second=self.expense(self.owner,category='Equipment',date='2026-10-08',amount=30.08).json['id']
+        self.scan(rid,dict(merchant='Cafe',date='2026-10-09',amount=29.50,currency='AUD',category='Equipment'))
+        self.call(self.owner,'receipts/'+rid+'/draft',{'date':'2026-10-08','amount':30.08},'PUT')
+        row=next(r for r in self.owner.get('/api/receipts?unfiled=1').json if r['id']==rid)
+        self.assertEqual({e['id'] for e in row['matches']},{first,second})
+        self.assertEqual(next(e for e in row['matches'] if e['id']==first)['receipt_id'],attached)
+        self.assertEqual(self.call(self.owner,'receipts/'+rid+'/expense',{'existing_expense_id':first}).status_code,409)
+
     def test_delete_unfiled_and_readonly_cannot_delete(self):
         rid=self.upload().json['id']
         self.assertEqual(self.call(self.staff,'receipts/'+rid,{},'DELETE').status_code,403)

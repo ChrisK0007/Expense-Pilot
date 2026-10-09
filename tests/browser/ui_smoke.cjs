@@ -97,7 +97,8 @@ async function main() {
     await page.getByLabel('Merchant / payee').fill('Example receipt merchant');
     await page.getByLabel('Receipt date').fill('08/10/2026');
     await page.getByLabel('Amount paid (AUD)').fill('25.50');
-    await page.getByLabel('Workspace',{exact:true}).selectOption('work');
+    assert.equal(await page.locator('#receipt-review').getByLabel('Workspace',{exact:true}).count(),0);
+    await page.getByLabel('Business (%)').fill('0');
     await page.getByLabel('Category',{exact:true}).selectOption('Equipment');
     await page.getByLabel('Employment (%)').fill('50');
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
