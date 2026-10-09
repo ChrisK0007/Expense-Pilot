@@ -28,4 +28,8 @@ with app.app_context():
 def captured_invitations():
     return jsonify(invitations)
 
+import pocketsmith
+from pocketsmith_fixture import BrowserClient
+pocketsmith.Client=BrowserClient
+
 app.run(host='0.0.0.0',port=int(os.environ.get('PORT','8788')),threaded=True)

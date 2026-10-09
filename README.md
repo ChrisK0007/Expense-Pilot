@@ -8,6 +8,7 @@ Self-hosted expense tracking for sole traders and people tracking employment exp
 
 - [Installation, Unraid, HTTPS, backups and account recovery](docs/guide.md)
 - [iPhone app and free Xcode installation](https://github.com/ChrisK0007/expense-pilot-ios)
+- [PocketSmith bank feeds (beta)](docs/pocketsmith.md)
 - [Stable and beta release channels](docs/releases.md)
 - [Development and repository structure](docs/architecture.md)
 - [Release history](docs/CHANGELOG.md)

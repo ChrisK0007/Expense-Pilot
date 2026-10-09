@@ -1,5 +1,12 @@
 # Release history
 
+## 1.0.1-beta.2
+
+- Add an owner-configured PocketSmith bank feed with an encrypted developer key, account discovery and mapping, manual sync and optional hourly syncing. Bank authorisation remains in PocketSmith.
+- Add a bank transaction review queue with receipt/CSV expense suggestions, explicit matching, new expenses and expense refunds, ignore/restore controls and links to accepted expenses. New expenses default to Personal / To review.
+- Preserve source transaction identities across repeated syncs, block pending transactions and transfers from becoming expenses, and flag changed or missing source transactions without overwriting linked expenses. Failed syncs leave the ledger unchanged.
+- Add migration m008, bank-feed integration tests and desktop/mobile browser coverage. Beta only; stable remains v1.0.0.
+
 ## 1.0.1-beta.1
 
 - Start the beta development channel from the v1.0.0 feature set, with a prerelease version and isolated `beta` Docker tag.
