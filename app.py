@@ -244,11 +244,12 @@ def upload():
             im=Image.open(io.BytesIO(b), formats=['JPEG','PNG','WEBP'])
             if im.width * im.height > 25000000: fail('Image is too large. Use a photo under 25 megapixels.')
             im.verify();im=ImageOps.exif_transpose(Image.open(io.BytesIO(b), formats=['JPEG','PNG','WEBP']));im.thumbnail((2400,2400));out=io.BytesIO();im.convert('RGB').save(out,format='JPEG',quality=90);b=out.getvalue();mime='image/jpeg'
+        except HTTPException: raise
         except Exception: fail('Cannot read this image. Use JPEG, PNG or WebP.')
     elif ext=='.pdf':
         try:
             inspect_pdf(b)
-        except HTTPException: raise
+        except ValueError as exc: fail(str(exc))
         except Exception: fail('Invalid PDF.')
         mime='application/pdf'
     else: fail('Use JPEG, PNG, WebP or PDF (maximum 12 MB).')

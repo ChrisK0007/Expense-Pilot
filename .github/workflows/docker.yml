@@ -57,6 +57,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/expense-pilot-ui"
           docker exec expense-pilot-ui cat /sys/fs/cgroup/memory.peak | tee "$RUNNER_TEMP/expense-pilot-ui/memory-peak-bytes.txt"
+          docker logs expense-pilot-ui > "$RUNNER_TEMP/expense-pilot-ui/server.log" 2>&1
           docker inspect --format 'OOMKilled={{.State.OOMKilled}} Running={{.State.Running}}' expense-pilot-ui
       - name: Upload browser evidence
         if: always()

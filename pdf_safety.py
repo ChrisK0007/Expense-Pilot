@@ -11,7 +11,7 @@ _slots = BoundedSemaphore(2)
 def inspect_pdf(data, extract=False):
     if not data or len(data) > 12 * 1024 * 1024:
         raise ValueError('Use a PDF no larger than 12 MB.')
-    if not _slots.acquire(blocking=False):
+    if not _slots.acquire(timeout=5):
         raise ValueError('Receipt processing is busy. Please retry shortly.')
     try:
         result = subprocess.run([sys.executable, str(Path(__file__).resolve()), 'text' if extract else 'pages'],

@@ -87,3 +87,12 @@ class HardeningTest(unittest.TestCase):
             response=app.test_client().get('/api/session')
             self.assertIn('Secure',response.headers['Set-Cookie'])
             self.assertEqual(response.headers['Strict-Transport-Security'],'max-age=31536000')
+
+    def test_parallel_pdf_requests_wait_for_bounded_workers(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from pypdf import PdfWriter
+        pdf=PdfWriter();pdf.add_blank_page(width=100,height=100)
+        buf=io.BytesIO();pdf.write(buf)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results=list(pool.map(inspect_pdf,[buf.getvalue()]*4))
+        self.assertEqual([r['pages'] for r in results],[1,1,1,1])
