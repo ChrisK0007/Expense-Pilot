@@ -53,8 +53,15 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await page.getByRole('heading',{name:'Review draft overnight trip',exact:true}).waitFor();
   await page.getByLabel('Trip purpose').fill('Overnight flying duties');
   await page.screenshot({path:output+'/receipt-create-trip.png',fullPage:true});
-  await page.getByRole('button',{name:'Accept trip & meals',exact:true}).click();
-  await page.getByText('Trip and meals saved.',{exact:true}).waitFor();
+  const acceptTrip=async label=>{
+   const [saved]=await Promise.all([
+    page.waitForResponse(response=>response.url()===url+'/api/receipt-trip-proposals/accept'&&response.request().method()==='POST'),
+    page.getByRole('button',{name:label,exact:true}).click()
+   ]);
+   assert.ok(saved.ok(),await saved.text());
+   await page.locator('#modal').waitFor({state:'hidden'});
+  };
+  await acceptTrip('Accept trip & meals');
   let trips=await api('trips'),expenses=await api('expenses');
   assert.equal(trips.length,initialTrips+1);
   const trip=trips.find(t=>t.location==='Cawdor'&&t.scope==='work'&&t.start==='2025-10-08');assert.ok(trip);
@@ -70,8 +77,7 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:output+'/receipt-existing-trip-mobile.png',fullPage:true});
-  await page.getByRole('button',{name:'Accept meals',exact:true}).click();
-  await page.getByText('Trip and meals saved.',{exact:true}).waitFor();
+  await acceptTrip('Accept meals');
   assert.equal((await api('trips')).length,initialTrips+1);
   assert.equal((await api('expenses')).find(e=>e.receipt_id===third).trip_id,trip.id);
   await page.setViewportSize({width:1280,height:1100});
