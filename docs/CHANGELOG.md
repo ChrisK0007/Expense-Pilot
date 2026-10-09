@@ -1,5 +1,11 @@
 # Release history
 
+## 1.0.1-beta.4
+
+- Add Clients to the shared business page navigation and retain that menu on the Clients page. Shorten All invoices and All quotes to Invoices and Quotes.
+- Fix PocketSmith sync rejecting null transfer markers as an unsupported transaction status. Treat unset markers consistently, retaining category transfer protection, while preserving explicit transaction flags and pending-transaction checks. Give invalid status and transfer fields separate errors; failed syncs still leave prior imports intact.
+- Cover nullable feed data and client navigation in backend and desktop/mobile browser regressions. Beta only; stable remains v1.0.0.
+
 ## 1.0.1-beta.3
 
 - Keep the billing navigation on invoices, quotes, recurring invoices and line item templates, with direct routes back to both document lists. Replace the Wording defaults tab with an Email settings menu for templates, signature, SMTP delivery and reminders.

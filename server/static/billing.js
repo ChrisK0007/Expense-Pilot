@@ -13,7 +13,7 @@ const Billing = (() => {
   };});
   const go = key => { page=key; render(); };
   function navigation(active){
-    const pages=[['invoices','All invoices'],['quotes','All quotes'],['recurring','Recurring invoices'],['services','Line item templates']];
+    const pages=[['invoices','Invoices'],['quotes','Quotes'],['clients','Clients'],['recurring','Recurring invoices'],['services','Line item templates']];
     return `<nav class="billing-tabs" aria-label="Billing pages">${pages.map(([key,title])=>`<button type="button" data-billing-page="${key}" class="${key===active?'active':''}" ${key===active?'aria-current="page"':''}>${title}</button>`).join('')}${owner()?'<button type="button" id="branding-tab">Branding</button><button type="button" id="email-settings-tab">Email settings</button>':''}</nav>`;
   }
   function bindNavigation(){
@@ -134,7 +134,7 @@ const Billing = (() => {
     formHandler('#payment-form',async(data,form)=>{const receipt=owner()&&form.elements.email_receipt.checked;await api(`billing/documents/${d.id}/payments`,{...data,version:d.version,request_key:key});if(receipt)await BillingMail.compose(await api(`billing/documents/${d.id}`),'receipt');else await view(d.id);if(page==='invoices')documents('invoice');});
   }
   async function clientsPage() {
-    $('#content').innerHTML=heading('Clients','Client details, payment terms and billing history.','<button id="add-client" disabled>+ Add client</button>');
+    $('#content').innerHTML=heading('Clients','Client details, payment terms and billing history.','<button id="add-client" disabled>+ Add client</button>')+navigation('clients');bindNavigation();
     await run(async()=>{await loadOwner();if(page!=='clients')return;$('#content').insertAdjacentHTML('beforeend',`<section class="panel table-wrap"><table><thead><tr><th>Client</th><th>Contact</th><th>Terms</th><th>Status</th><th></th></tr></thead><tbody>${clients.map(c=>`<tr><td><strong>${esc(c.name)}</strong><br><small>${esc(c.abn)}</small></td><td>${esc(c.contact)}<br><small>${esc(c.email)}</small></td><td>${c.terms} days</td><td>${c.archived?'Archived':'Active'}</td><td><button class="ghost edit-client" data-id="${c.id}">${bookkeeper()?'Edit':'View'}</button><button class="ghost client-invoices" data-id="${c.id}">Invoices ↗</button><button class="ghost client-statement" data-id="${c.id}">Statement ↗</button></td></tr>`).join('')}</tbody></table>${clients.length?'':'<div class="empty"><h2>Your first client starts here</h2><p>Add a name and billing email to get started.</p></div>'}</section>`);click('#add-client',()=>clientForm());$('#add-client').disabled=!bookkeeper();click('.edit-client',b=>clientForm(clients.find(c=>c.id===Number(b.dataset.id))));click('.client-statement',b=>BillingMail.statement(Number(b.dataset.id)));click('.client-invoices',b=>{clientFilter=b.dataset.id;status='all';search='';go('invoices');});});
   }
   async function clientForm(c=null) {
