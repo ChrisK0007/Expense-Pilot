@@ -171,12 +171,12 @@ The script discovers the container’s actual `/data` mount, stops it if running
 ## Billing and your own email
 
 1. Open **Settings → Business profile & branding**. Enter your trading name, ABN, contact details, payment instructions and default terms. Enable GST only if your business is registered. A logo and brand colour are supported. Invoice and quote numbering have separate configurable prefixes.
-2. Open **Settings → Email delivery & templates**. Enter your provider's SMTP hostname, port, username, password/app password, sender name/address and optional reply-to address. Choose STARTTLS (usually port 587) or SSL/TLS (usually port 465). Save, then use **Send test email** to send one message to your saved sender address.
+2. Open **Settings → Email delivery (SMTP)**. Enter your provider's SMTP hostname, port, username, password/app password, sender name/address and optional reply-to address. Choose STARTTLS (usually port 587) or SSL/TLS (usually port 465). Save, then use **Send test email** to send one message to your saved sender address.
 3. Add billing contacts in **Clients**. Client payment terms are applied to new invoices.
 4. Choose **Invoices → New invoice** or **Quotes → New quote**. Add line items, quantities, rates, discounts and GST treatment. Save a draft, inspect it and download the PDF.
 5. **Issue & email** opens a recipient, subject and message preview. Nothing is sent until you click **Send email**. The PDF is attached. You can also **Issue without email** and send the downloaded file yourself.
-6. Record deposits or partial/full payments when received. Overdue balances are highlighted. **Send reminder** opens an editable reminder; it does not automatically contact your client.
-7. Mark an issued quote accepted, then **Convert to invoice**. Each quote can have one linked invoice; deleting the invoice draft releases the quote for another conversion.
+6. Record deposits or partial/full payments when received. Overdue balances are highlighted. **Send reminder** opens an editable manual reminder. **Email payment receipt** uses the partial-payment or paid-in-full template and attaches the recorded payments and remaining balance. The payment form can also open a receipt preview after saving; cancelling the email keeps the payment.
+7. Mark an issued quote accepted, then **Convert to invoice**. Each quote can have one linked invoice; deleting the invoice releases the quote for another conversion.
 
 ### Email details
 
@@ -184,16 +184,26 @@ The app supports authenticated SMTP and TLS-enabled SMTP relays. It does not rea
 
 SMTP passwords are encrypted in the database and never returned to the browser. A blank password field keeps the saved password; **Remove the saved SMTP password** clears it. Back up the whole data folder including `session.key`: this key is needed to decrypt the password after a restore. This protects the database value, not against someone with access to both the database and its key.
 
-Email templates support `{kind}`, `{number}`, `{client}`, `{business}`, `{total}`, `{balance}` and `{due_date}`. Each outgoing document has a delivery history. **Sent / mail server accepted** means SMTP accepted the message, not proof that the recipient read or received it. A timeout during delivery is marked uncertain and blocks an accidental retry. Check your provider's logs, then use **Confirm delivery status** to reconcile it. A pending delivery can be reconciled after five minutes if a process restart interrupted it.
+**Settings → Email templates** has Invoices, Quotes, Reminders, Receipts, Statements and Signature tabs. Each message has separate subject/body text, insertable fields and a sample preview. Templates start with the supplied reference wording; **Use default wording** restores a tab's defaults before saving. Existing custom invoice/quote wording is preserved. Invoice and quote notes/payment terms stay under **Invoice & quote defaults**.
+
+Fields include `{kind}`, `{number}`, `{client}`, `{business}`, `{total}`, `{balance}`, `{due_date}`, `{full_name}`, `{latest_payment}` and `{date_range}` where relevant. Client contact name falls back to the client business name; full name uses the owner's profile; latest payment excludes reversed records. The default manual reminder avoids saying overdue before the due date has passed.
+
+The signature supports bold, italic, underline, text size, colour, highlighting, links and up to three embedded images (no wider than 300 px, no taller than 600 px and under 100 KB). Images are included in the email rather than fetched from a remote server. A plain-text alternative is included. Signatures apply to client billing emails, not invitations or SMTP test messages. You can omit the signature in an individual send preview.
+
+**Settings → Automatic reminders** is off by default. The owner can enable reminders for a chosen number of days before due, on the due date, and up to six overdue dates. Only issued, unpaid invoices with a client email are eligible. **Reminder options** on an invoice allows an individual pause. Dates use Brisbane time; the container checks once per minute. Each scheduled date is claimed once across workers/restarts; missed days are not sent as a batch after downtime. Failed/uncertain sends are not automatically retried. Pause the schedule before changing templates if you do not want scheduled sends during editing.
+
+**Clients → Statement** offers all invoices and payments for a date range or all outstanding invoices as at today. The dated ledger includes opening balance, period invoices/payments, running balance and closing balance. Draft/void invoices and reversed payment records are excluded. Statements use the currently recorded information, so correcting/deleting past records can change a historical statement. Both forms can be downloaded as PDFs; the owner can preview and email them, with separate statement delivery history. Changes to statement data after the email preview require reloading before sending.
+
+Each outgoing document has a delivery history. **Sent / mail server accepted** means SMTP accepted the message, not proof that the recipient read or received it. A timeout during delivery is marked uncertain and blocks an accidental retry. Check your provider's logs, then use **Confirm delivery status** to reconcile it. A pending delivery can be reconciled after five minutes if a process restart interrupted it.
 
 ### Billing records and access
 
 - Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued documents are immutable, so changing a client address or business name does not rewrite old invoices.
 - Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
 - Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
-- Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. Credit notes and actual refund processing are not yet implemented.
+- Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. **Delete invoice** permanently removes the invoice and its payment, wording and email history after confirmation. Payment totals and income reports update, linked time is released, the original quote returns to Accepted, and recurring schedules continue. Invoice numbers are not reused. Pending or uncertain email delivery must be resolved first. Credit notes and actual refund processing are not yet implemented.
 - **Saved services & prices** keeps common line items ready to use.
-- **Billable time** records client, date, work, hours and rate. Select unbilled entries for one client to create an invoice. Linked entries cannot be billed twice. Deleting a draft or voiding its invoice releases linked time.
+- **Billable time** records client, date, work, hours and rate. Select unbilled entries for one client to create an invoice. Linked entries cannot be billed twice. Deleting or voiding an invoice releases linked time.
 - **Make recurring** creates weekly, fortnightly, monthly, quarterly or yearly schedules. The container checks once per minute and generates drafts only, never emails. Missed dates are caught up after a restart, at most 24 occurrences per schedule per pass. Month-end dates retain their original day where possible. Paused schedules require a current/future date when resumed. Changing the original invoice does not change the saved schedule; pause it and create a replacement to change its contents.
 - **Income report** exports recorded invoice receipts for a chosen period, including proportional GST on partial payments. Reversed payment records are excluded. It is not a complete BAS or profit-and-loss statement; unrelated income, GST on expenses, bank reconciliation and tax estimates are not included.
 
@@ -214,7 +224,7 @@ New database tables are created automatically on startup. Existing users, expens
 
 The billing workflows were informed by [Rounded's feature list](https://rounded.com.au/features) and [invoicing overview](https://rounded.com.au/features/invoicing), with an original interface and implementation. This version adds the core client, quote, invoice, payment and email workflows, not every Rounded feature.
 
-Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic reminder emails, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, client statements, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
+Not yet provided: live bank feeds, Stripe/PayPal card checkout and fee surcharges, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
 
 ## Verification
 

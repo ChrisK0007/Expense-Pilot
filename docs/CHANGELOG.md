@@ -1,5 +1,12 @@
 # Release history
 
+## 0.8.6
+
+- Add the supplied invoice, quote, due/overdue/manual reminder, partial/full payment receipt and statement email defaults. Provide separate template tabs, insertable fields, sample previews and a formatted signature with links and embedded images. Preserve custom wording and offer a reset to the reference defaults.
+- Add payment receipt PDFs and emails, client statements with opening/running balances or outstanding invoices, and statement PDF/email delivery history.
+- Add owner-controlled automatic reminders with before-due, due-date and overdue dates, per-invoice pause controls, and durable duplicate protection. Automatic sending is off by default; failed or uncertain deliveries require review instead of automatic retries.
+- Add Delete invoice alongside Void, including issued, paid and voided invoices, with a permanent-deletion confirmation. Remove associated payment and document history, update income totals, release linked time entries and restore the original quote to Accepted. Keep recurring schedules and invoice numbering intact, and block deletion while email delivery is pending or uncertain.
+
 ## 0.8.5
 
 - Combine receipt city/suburb and address/state inputs into one Location field. Use detected suburb, state and postcode where available, preserve the full extracted address, and let reviewed locations override AI evidence when matching trips.

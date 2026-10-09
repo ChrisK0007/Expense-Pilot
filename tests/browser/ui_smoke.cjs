@@ -1,4 +1,5 @@
 const {navigate}=require('./ui_navigation.cjs');
+const {billingMailChecks}=require('./ui_billing_mail.cjs');
 // Real browser / API smoke test against an empty, disposable test container.
 // The disposable browser_server.py captures invitations; no network email is sent.
 const { chromium } = require('playwright');
@@ -11,7 +12,8 @@ async function main() {
   const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
   const page = await browser.newPage({viewport:{width:1440,height:1050}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  page.on('dialog', dialog=>dialog.accept());
+  const acceptDialog=dialog=>dialog.accept();
+  page.on('dialog', acceptDialog);
   try {
     for(let n=0;n<30;n++) {
       try {const response=await page.request.get(url+'/api/session');if(response.ok())break;}catch{}
@@ -127,8 +129,6 @@ async function main() {
     await page.getByLabel('Default quote notes & terms').fill('Please confirm acceptance by email.');
     await page.getByLabel('Default payment instructions').fill('Example bank details\nUse the invoice number as your reference.');
     await page.getByLabel('Quote validity (days)').fill('30');
-    await page.getByLabel('Invoice email message').fill('Hi {client}, please pay {number} by {due_date}.');
-    await page.getByLabel('Quote email message').fill('Hi {client}, please review quote {number}.');
     await page.screenshot({path:output+'/wording-defaults.png',fullPage:true});
     await page.getByRole('button',{name:'Save wording defaults'}).click();
     await page.getByText('Wording defaults saved.',{exact:true}).waitFor();
@@ -171,6 +171,46 @@ async function main() {
     await navigate(page,'income');
     await page.getByText('Payments received',{exact:true}).waitFor();
     assert.match(await page.locator('#income-result').innerText(),/200\.00/);
+    // Exercise deletion through the UI without removing the invoice used by later checks.
+    for(const state of ['draft','issued','void','paid']){
+      const deletionDoc=await page.evaluate(async state=>{
+        const client=(await api('billing/clients'))[0];
+        const created=await api('billing/documents',{kind:'invoice',client_id:client.id,issue_date:today(),due_date:today(),tax_mode:'exclusive',lines:[{description:'Invoice deletion test',quantity:1,unit_price:'10',tax:'gst'}]});
+        let doc=await api(`billing/documents/${created.id}`);
+        if(state!=='draft'){
+          await api(`billing/documents/${doc.id}/action`,{action:'issue',version:doc.version});
+          doc=await api(`billing/documents/${doc.id}`);
+        }
+        if(state==='void')await api(`billing/documents/${doc.id}/action`,{action:'void',version:doc.version});
+        if(state==='paid')await api(`billing/documents/${doc.id}/payments`,{version:doc.version,amount:'11',date:today(),reference:'Deletion test',request_key:crypto.randomUUID()});
+        return api(`billing/documents/${doc.id}`);
+      },state);
+      await navigate(page,'invoices');
+      await page.locator('#billing-table tbody tr').filter({hasText:deletionDoc.number}).getByRole('button',{name:'Open ↗',exact:true}).click();
+      const deleteButton=page.getByRole('button',{name:'Delete invoice',exact:true});
+      await deleteButton.waitFor();
+      assert.equal(await page.locator('#void-document').count(),state==='issued'?1:0);
+      let confirmation='';
+      page.removeListener('dialog',acceptDialog);
+      page.once('dialog',async dialog=>{confirmation=dialog.message();await dialog.dismiss();});
+      await deleteButton.click();
+      await page.waitForFunction(()=>!document.querySelector('#delete-document').disabled);
+      assert.ok(confirmation.includes(deletionDoc.number));
+      assert.match(confirmation,/cannot be undone/);
+      if(state==='paid')assert.match(confirmation,/\$11\.00.*income and GST reports/);
+      assert.equal((await page.request.get(`${url}/api/billing/documents/${deletionDoc.id}`)).status(),200);
+      page.on('dialog',acceptDialog);
+      const deleted=page.waitForResponse(r=>r.url()===`${url}/api/billing/documents/${deletionDoc.id}`&&r.request().method()==='DELETE');
+      await deleteButton.click();
+      assert.equal((await deleted).status(),200);
+      await page.locator('#modal').waitFor({state:'hidden'});
+      await page.locator('#billing-table table').waitFor();
+      assert.equal(await page.locator('#billing-table tbody tr').filter({hasText:deletionDoc.number}).count(),0);
+      assert.equal((await page.request.get(`${url}/api/billing/documents/${deletionDoc.id}`)).status(),404);
+    }
+    await navigate(page,'income');
+    await page.getByText('Payments received',{exact:true}).waitFor();
+    assert.match(await page.locator('#income-result').innerText(),/200\.00/);
     await navigate(page,'quotes');
     await page.getByRole('button',{name:'New quote',exact:false}).click();
     await page.getByLabel('Line description').fill('Training session');
@@ -186,6 +226,7 @@ async function main() {
     await page.getByRole('button',{name:'Make recurring'}).click();
     await page.getByRole('button',{name:'Create recurring schedule'}).click();
     await page.getByRole('button',{name:'Pause',exact:true}).waitFor();
+    await billingMailChecks(page,output);
     await navigate(page,'expenses');
     await page.getByRole('button',{name:'Add expense',exact:false}).click();
     assert.equal(await page.getByLabel('Meal type',{exact:true}).count(),0);
@@ -289,6 +330,12 @@ async function main() {
     await agent.getByRole('button',{name:'Open ↗',exact:true}).first().click();
     assert.equal(await agent.getByRole('button',{name:'Record payment',exact:true}).count(),0);
     assert.equal(await agent.getByRole('button',{name:'Edit wording',exact:true}).count(),0);
+    assert.equal(await agent.getByRole('button',{name:'Delete invoice',exact:true}).count(),0);
+    await agent.locator('#close-modal').click();
+    await navigate(agent,'clients');
+    await agent.getByRole('button',{name:'Statement ↗',exact:true}).first().click();
+    await agent.getByRole('link',{name:'Download statement PDF',exact:true}).waitFor();
+    assert.equal(await agent.getByRole('button',{name:'Email statement',exact:true}).count(),0);
     await agent.locator('#close-modal').click();
     await page.getByLabel('Permission for Test Agent').selectOption('read_write');
     await page.getByText('Permission updated.',{exact:true}).waitFor();
@@ -303,7 +350,7 @@ async function main() {
     assert.equal(await agent.getByRole('button',{name:'Add employment income',exact:false}).count(),0);
     await agentContext.close();
     await navigate(page,'settings');
-    await page.getByRole('button',{name:'Email delivery & templates'}).click();
+    await page.getByRole('button',{name:'Email delivery (SMTP)'}).click();
     await page.getByLabel('SMTP host').fill('smtp.example.test');
     await page.getByLabel('SMTP username').fill('owner@example.test');
     await page.getByLabel('SMTP password / app password').fill('Never-a-real-secret');
@@ -383,7 +430,7 @@ async function main() {
     await page.screenshot({path:output+'/invoice-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Mobile page overflows horizontally');
     assert.deepEqual(errors,[],'Browser JavaScript errors');
-    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, trip meals in Expenses, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
+    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, invoice deletion and cancellation, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, trip meals in Expenses, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
   } catch(error) {
     await page.screenshot({path:output+'/failure.png',fullPage:true});
     throw error;

@@ -143,6 +143,8 @@ def pdf_document(doc):
         if seller.get(key): left.append(p(seller[key]))
     if seller.get('abn'): left.append(p('ABN: ' + seller['abn']))
     label = 'QUOTE' if doc['kind'] == 'quote' else ('TAX INVOICE' if seller.get('gst_registered') else 'INVOICE')
+    if doc.get('receipt'):
+        label = 'PAYMENT RECEIPT'
     if doc['state'] in ('draft', 'void'): label = doc['state'].upper() + ' ' + label
     right_side = [p(label, headline), Spacer(1, 5 * mm)]
     buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k))
@@ -188,6 +190,14 @@ def pdf_document(doc):
     total_table.setStyle(TableStyle([('LINEBELOW',(0,-1),(-1,-1),.5,rule),('RIGHTPADDING',(0,0),(-1,-1),0)]))
     note = 'Rates include GST where applicable.' if doc['tax_mode']=='inclusive' else 'Rates exclude GST.' if taxable else 'No GST has been charged'
     story += [KeepTogether([total_table,p(note,ParagraphStyle('tax-note',parent=small,alignment=TA_RIGHT))])]
+    if doc.get('receipt'):
+        story += [Spacer(1, 6 * mm), p('PAYMENTS RECEIVED', label_style)]
+        payment_rows = [[p('Date', small), p('Reference', small), p('Amount AUD', right)]]
+        payment_rows += [[p(date_au(row['date'])), p(row['reference']), p(aud(row['amount_cents']), right)] for row in doc['payments']]
+        payment_table = Table(payment_rows, colWidths=[30 * mm, 101 * mm, 43 * mm], repeatRows=1)
+        payment_table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                                         ('LINEBELOW', (0, 0), (-1, 0), .4, rule), ('LEFTPADDING', (0, 0), (-1, -1), 0)]))
+        story.append(payment_table)
     if doc['kind']=='invoice' and doc.get('payment_details'):
         payment_heading=Table([[p('PAYMENT DETAILS',label_style)]],colWidths=[174*mm])
         payment_heading.setStyle(TableStyle([('LEFTPADDING',(0,0),(-1,-1),0),('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
@@ -204,4 +214,98 @@ def pdf_document(doc):
     SimpleDocTemplate(out, pagesize=A4, rightMargin=18 * mm, leftMargin=18 * mm,
                       topMargin=18 * mm, bottomMargin=24 * mm, title=doc['number'],
                       author=seller.get('name', '')).build(story, onFirstPage=footer, onLaterPages=footer)
+    return out.getvalue()
+
+
+def pdf_statement(statement):
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
+
+    out = io.BytesIO()
+    seller, client = statement['business'], statement['client']
+    accent = seller.get('accent', '#355c46')
+    if not re.fullmatch(r'#[0-9a-fA-F]{6}', accent):
+        accent = '#355c46'
+    accent, ink, muted, rule = (colors.HexColor(value) for value in (accent, '#252b3b', '#737b8d', '#e2e5eb'))
+    font = 'Helvetica'
+    font_path = Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+    if font_path.exists():
+        with _FONT_LOCK:
+            if 'InvoiceSans' not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont('InvoiceSans', str(font_path)))
+        font = 'InvoiceSans'
+    normal = ParagraphStyle('statement-body', fontName=font, fontSize=8.5, leading=12, textColor=ink, spaceAfter=4)
+    small = ParagraphStyle('statement-small', parent=normal, fontSize=7.5, leading=10, textColor=muted)
+    right = ParagraphStyle('statement-right', parent=normal, alignment=TA_RIGHT)
+    title = ParagraphStyle('statement-title', parent=normal, fontSize=22, leading=27, textColor=accent, spaceAfter=10)
+    def p(value, style=normal):
+        return Paragraph(escape(str(value if value is not None else '')).replace('\n', '<br/>'), style)
+    seller_lines = [p(seller.get('name', ''))]
+    if seller.get('logo'):
+        logo = Image(io.BytesIO(base64.b64decode(seller['logo'])))
+        factor = min(42 * mm / logo.imageWidth, 22 * mm / logo.imageHeight)
+        logo.drawWidth, logo.drawHeight = logo.imageWidth * factor, logo.imageHeight * factor
+        logo.hAlign = 'LEFT'
+        seller_lines.insert(0, logo)
+    for key in ('address', 'email', 'phone'):
+        if seller.get(key):
+            seller_lines.append(p(seller[key], small))
+    if seller.get('abn'):
+        seller_lines.append(p('ABN: ' + seller['abn'], small))
+    buyer = [p('TO', small)] + [p(client[k]) for k in ('name', 'contact', 'address', 'email') if client.get(k)]
+    header = Table([[seller_lines, buyer]], colWidths=[87 * mm, 87 * mm])
+    header.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                               ('RIGHTPADDING', (0, 0), (-1, -1), 12), ('BOTTOMPADDING', (0, 0), (-1, -1), 12)]))
+    all_rows = statement['mode'] == 'all'
+    subtitle = ('All invoices and payments | ' + date_au(statement['start']) + ' to ' + date_au(statement['end'])) if all_rows else 'Outstanding invoices | As at ' + date_au(statement['end'])
+    story = [p('Statement of account', title), p(subtitle, small), Spacer(1, 5 * mm), header]
+    if all_rows:
+        story += [p('Opening balance: AU ' + aud(statement['opening_cents']), right), Spacer(1, 3 * mm)]
+        headings = ['Date', 'Invoice', 'Details', 'Invoiced', 'Paid', 'Balance']
+        widths = [24, 29, 41, 25, 25, 30]
+        data = [[p(value, small) for value in headings]]
+        for row in statement['rows']:
+            data.append([p(date_au(row['date'])), p(row['number']), p(row['description']),
+                         p(aud(row['debit_cents']) if row['debit_cents'] else '-', right),
+                         p(aud(row['credit_cents']) if row['credit_cents'] else '-', right), p(aud(row['balance_cents']), right)])
+    else:
+        headings = ['Issued', 'Invoice', 'Due', 'Total', 'Paid', 'Outstanding']
+        widths = [24, 30, 24, 32, 32, 32]
+        data = [[p(value, small) for value in headings]]
+        for row in statement['rows']:
+            data.append([p(date_au(row['date'])), p(row['number']), p(date_au(row['due_date'])),
+                         p(aud(row['amount_cents']), right), p(aud(row['paid_cents']), right), p(aud(row['balance_cents']), right)])
+    table = Table(data, colWidths=[width * mm for width in widths], repeatRows=1, hAlign='LEFT')
+    table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LINEBELOW', (0, 0), (-1, 0), .6, accent),
+                               ('LINEBELOW', (0, 1), (-1, -1), .25, rule), ('TOPPADDING', (0, 0), (-1, -1), 7),
+                               ('BOTTOMPADDING', (0, 0), (-1, -1), 7), ('LEFTPADDING', (0, 0), (-1, -1), 2),
+                               ('RIGHTPADDING', (0, 0), (-1, -1), 5)]))
+    story.append(table)
+    if not statement['rows']:
+        story += [Spacer(1, 4 * mm), p('No invoice or payment activity in this period.' if all_rows else 'No outstanding invoices.')]
+    summary = [('Invoiced in period' if all_rows else 'Invoice total', statement['invoice_cents']),
+               ('Payments in period' if all_rows else 'Payments received', statement['payment_cents']),
+               ('Closing balance' if all_rows else 'Total outstanding', statement['closing_cents'])]
+    totals = Table([[p(label, right), p('AU ' + aud(amount), right)] for label, amount in summary], colWidths=[131 * mm, 43 * mm])
+    totals.setStyle(TableStyle([('LINEABOVE', (0, -1), (-1, -1), .6, accent), ('TOPPADDING', (0, -1), (-1, -1), 8)]))
+    story.append(KeepTogether([Spacer(1, 6 * mm), totals]))
+    if seller.get('payment_details'):
+        story += [Spacer(1, 7 * mm), p('PAYMENT DETAILS', small), p(seller['payment_details'])]
+    def footer(canvas, layout):
+        canvas.saveState()
+        canvas.setStrokeColor(accent)
+        canvas.line(18 * mm, 17 * mm, 192 * mm, 17 * mm)
+        canvas.setFillColor(muted)
+        canvas.setFont(font, 8)
+        canvas.drawString(18 * mm, 12 * mm, 'Statement | AUD | ' + date_au(statement['end']))
+        canvas.drawRightString(192 * mm, 12 * mm, f'Page {layout.page}')
+        canvas.restoreState()
+    SimpleDocTemplate(out, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm,
+                      bottomMargin=24 * mm, title='Statement of account', author=seller.get('name', '')).build(story, onFirstPage=footer, onLaterPages=footer)
     return out.getvalue()

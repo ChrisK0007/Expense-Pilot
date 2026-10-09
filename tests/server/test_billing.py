@@ -174,7 +174,96 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(saved['business']['name'], 'Example Flight Testing')
         self.assertEqual(saved['client']['name'], 'Example Client')
         self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {**saved,'version':saved['version']}, 'PUT').status_code, 409)
-        self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {'version':saved['version']}, 'DELETE').status_code, 409)
+
+    def test_delete_issued_and_void_invoices_without_reusing_numbers(self):
+        for state in ('issued', 'void'):
+            with self.subTest(state=state):
+                doc = self.issue(self.create())
+                if state == 'void':
+                    self.assertEqual(self.action(doc, 'void').status_code, 200)
+                    doc = self.get(doc['id'])
+                path = f"billing/documents/{doc['id']}"
+                self.assertEqual(self.call(self.owner, path, {'version':doc['version']}, 'DELETE').status_code, 200)
+                self.assertEqual(self.owner.get('/api/' + path).status_code, 404)
+                self.assertEqual(self.owner.get('/api/' + path + '/pdf').status_code, 404)
+                self.assertEqual(self.owner.get('/api/billing/documents').json, [])
+                with app.app_context():
+                    record = db().execute("SELECT entity FROM audit WHERE action='invoice deleted' ORDER BY id DESC LIMIT 1").fetchone()
+                    self.assertIn(doc['number'], record['entity'])
+        self.assertEqual(self.create()['number'], 'INV-0003')
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_delete_paid_invoice_cleans_history_and_updates_income(self, smtp):
+        self.email_config()
+        kept = self.issue(self.create())
+        self.assertEqual(self.pay(kept, '11').status_code, 200)
+        for amount in ('40', '110'):
+            with self.subTest(amount=amount):
+                doc = self.create()
+                path = f"billing/documents/{doc['id']}"
+                draft = self.owner.get('/api/' + path + '/email-draft').json
+                self.assertEqual(self.call(self.owner, path + '/send', draft).json['state'], 'sent')
+                doc = self.get(doc['id'])
+                payment = self.pay(doc, '10').json['id']
+                doc = self.get(doc['id'])
+                self.assertEqual(self.call(self.owner, f'billing/payments/{payment}/reverse',
+                                          dict(version=doc['version'], reason='Incorrect record')).status_code, 200)
+                doc = self.get(doc['id'])
+                self.assertEqual(self.pay(doc, amount).status_code, 200)
+                doc = self.get(doc['id'])
+                self.assertEqual(self.call(self.owner, path + '/wording',
+                                          dict(version=doc['version'], descriptions=['Corrected wording']), 'PUT').status_code, 200)
+                doc = self.get(doc['id'])
+                self.assertEqual(len(doc['payments']), 2)
+                self.assertEqual(len(doc['emails']), 1)
+                self.assertGreater(self.owner.get('/api/billing/report').json['received_cents'], 1100)
+                self.assertEqual(self.call(self.owner, path, {'version':doc['version']}, 'DELETE').status_code, 200)
+                report = self.owner.get('/api/billing/report').json
+                self.assertEqual((report['received_cents'], report['gst_cents'], report['net_cents']), (1100, 100, 1000))
+                self.assertEqual([r['invoice'] for r in report['records']], [kept['number']])
+                self.assertEqual(self.get(kept['id'])['paid_cents'], 1100)
+                with app.app_context():
+                    for table in ('billing_payments', 'billing_outbox', 'billing_wording_history'):
+                        self.assertEqual(db().execute(f'SELECT count(*) FROM {table} WHERE document_id=?', (doc['id'],)).fetchone()[0], 0)
+                    self.assertEqual(db().execute('PRAGMA foreign_key_check').fetchall(), [])
+
+    def test_delete_invoice_checks_permissions_and_revision(self):
+        stale = self.issue(self.create())
+        self.assertEqual(self.pay(stale, '40').status_code, 200)
+        doc = self.get(stale['id'])
+        path = f"billing/documents/{doc['id']}"
+        payload = {'version':doc['version']}
+        self.assertEqual(self.owner.delete('/api/' + path, json=payload).status_code, 403)
+        self.assertEqual(self.call(app.test_client(), path, payload, 'DELETE').status_code, 401)
+        self.assertEqual(self.call(self.agent, path, payload, 'DELETE').status_code, 403)
+        self.assertEqual(self.call(self.owner, path, {'version':stale['version']}, 'DELETE').status_code, 409)
+        self.assertEqual(self.get(doc['id']), doc)
+        uid = next(u['id'] for u in self.owner.get('/api/users').json if u['email']=='agent@example.test')
+        self.assertEqual(self.call(self.owner, f'users/{uid}/permission', {'permission':'read_write'}, 'PUT').status_code, 200)
+        self.assertEqual(self.call(self.agent, path, payload, 'DELETE').status_code, 200)
+
+    def test_delete_blocks_unresolved_delivery_and_issued_quotes(self):
+        doc = self.issue(self.create())
+        self.assertEqual(self.pay(doc, '40').status_code, 200)
+        doc = self.get(doc['id'])
+        with app.app_context():
+            oid = db().execute('INSERT INTO billing_outbox(document_id,recipient,subject,body,state,request_key,created_at) VALUES (?,?,?,?,?,?,?)',
+                               (doc['id'], 'client@example.test', 'Invoice', 'Attached', 'sending', secrets.token_hex(24), billing.now())).lastrowid
+            db().commit()
+        for state in ('sending', 'unknown'):
+            with app.app_context():
+                db().execute('UPDATE billing_outbox SET state=? WHERE id=?', (state, oid))
+                db().commit()
+            before = self.get(doc['id'])
+            response = self.call(self.owner, f"billing/documents/{doc['id']}", {'version':doc['version']}, 'DELETE')
+            self.assertEqual(response.status_code, 409)
+            self.assertIn('email delivery', response.json['error'])
+            self.assertEqual(self.get(doc['id']), before)
+        self.assertEqual(self.call(self.owner, f'billing/emails/{oid}/resolve', {'state':'failed'}).status_code, 200)
+        self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {'version':doc['version']}, 'DELETE').status_code, 200)
+        quote = self.issue(self.create(kind='quote'))
+        self.assertEqual(self.call(self.owner, f"billing/documents/{quote['id']}", {'version':quote['version']}, 'DELETE').status_code, 409)
+        self.assertEqual(self.get(quote['id']), quote)
 
     def test_wording_updates_pdf_without_changing_financial_records(self):
         for kind in ('invoice', 'quote'):
@@ -232,6 +321,10 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(invoice['kind'], 'invoice')
         self.assertEqual(invoice['total_cents'], quote['total_cents'])
         self.assertEqual(self.action(quote, 'convert').status_code, 409)
+        self.assertEqual(self.call(self.owner, f"billing/documents/{invoice['id']}", {'version':invoice['version']}, 'DELETE').status_code, 200)
+        self.assertEqual(self.get(quote['id'])['state'], 'accepted')
+        response = self.action(self.get(quote['id']), 'convert')
+        invoice = self.issue(self.get(response.json['id']))
         self.assertEqual(self.call(self.owner, f"billing/documents/{invoice['id']}", {'version':invoice['version']}, 'DELETE').status_code, 200)
         self.assertEqual(self.get(quote['id'])['state'], 'accepted')
 
@@ -364,6 +457,12 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, 'billing/schedules/run', {}).json['created'], 0)
         self.assertEqual(len(self.owner.get('/api/billing/documents').json), 2)
         self.assertTrue(all(d['state']=='draft' for d in self.owner.get('/api/billing/documents').json))
+        generated = next(d for d in self.owner.get('/api/billing/documents').json if d['schedule_id'])
+        generated = self.issue(self.get(generated['id']))
+        schedules = self.owner.get('/api/billing/schedules').json
+        self.assertEqual(self.call(self.owner, f"billing/documents/{generated['id']}", {'version':generated['version']}, 'DELETE').status_code, 200)
+        self.assertEqual(self.owner.get('/api/billing/schedules').json, schedules)
+        self.assertEqual(self.call(self.owner, 'billing/schedules/run', {}).json['created'], 0)
         with app.app_context():
             self.assertEqual(db().execute('SELECT count(*) FROM billing_outbox').fetchone()[0], 0)
 
@@ -376,7 +475,8 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(doc['total_cents'], 16500)
         self.assertEqual(self.call(self.owner, 'billing/time/invoice', {'ids':[tid]}).status_code, 409)
         self.assertEqual(self.call(self.owner, f'billing/time/{tid}', {}, 'DELETE').status_code, 409)
-        self.call(self.owner, f"billing/documents/{doc['id']}", {'version':doc['version']}, 'DELETE')
+        doc = self.issue(doc)
+        self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {'version':doc['version']}, 'DELETE').status_code, 200)
         self.assertEqual(self.call(self.owner, 'billing/time/invoice', {'ids':[tid]}).status_code, 200)
 
     def test_pdf_contains_invoice_details_and_multiple_pages(self):
