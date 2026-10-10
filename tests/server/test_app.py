@@ -11,6 +11,7 @@ class AppTest(unittest.TestCase):
         app.config['TESTING']=True
         with app.app_context():
             for table in ['bank_transactions','pocketsmith_accounts','billing_outbox','billing_payments','billing_time','billing_documents','billing_schedules','billing_services','billing_clients','billing_settings','employment_income','tax_settings','vehicle_journeys','expenses','vehicles','trips','receipt_drafts','receipt_preferences','custom_categories','receipt_details','receipts','accounts','audit','users','attempts']: db().execute('DELETE FROM '+table)
+            db().execute('DELETE FROM billing_reusable_invoice_numbers')
             db().execute('DELETE FROM pocketsmith_connection')
             db().execute('INSERT INTO pocketsmith_connection(id) VALUES (1)')
             db().execute('UPDATE billing_counters SET next_number=1')

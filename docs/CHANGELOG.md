@@ -1,5 +1,22 @@
 # Release history
 
+## 1.0.2-beta.1
+
+- Edit saved service descriptions, prices and GST treatment from Services & prices. Existing invoice and quote line items keep their saved values.
+- Reuse the most recently permanently deleted invoice number for the next automatically numbered invoice, then any other available deleted numbers. Voiding keeps the number reserved. Add a custom number when creating an invoice or change a saved invoice number, with duplicate and concurrent-edit protection.
+- Customise automatic reminder dates and due-date, overdue and manual reminder email wording per invoice. Preview messages using the invoice's details, inherit shared settings when overrides are off, and carry preferences into duplicates and recurring drafts. The shared automatic sending switch remains the master control.
+- Standardise service labels and shared business navigation, including Billable time. Improve settings spacing, dialog layout, mobile buttons, theme colours and keyboard focus.
+- Migration m009 preserves existing records and reminder delivery claims when numbers change. Number reuse applies to invoices deleted after this upgrade. Back up beta data before updating; rollback requires its matching pre-upgrade backup. Stable remains v1.0.1.
+
+## 1.0.1
+
+- Promote all changes tested through v1.0.1-beta.4 to the stable channel. Publish `1.0.1` and update `latest`.
+- Add PocketSmith bank feeds with encrypted credentials, manual/hourly sync, transaction review, expense matching and duplicate protection, including the nullable transfer flag fix.
+- Keep shared navigation across Invoices, Quotes, Clients, Recurring invoices and Line item templates; provide Email settings and clearer automatic reminder controls, including a switch on each invoice.
+- Permanently remove accepted expenses and their attached receipts together so deleted records cannot return to the draft inbox.
+- Upgrade existing v1.0.0 databases with migration m008 while preserving existing records and settings. PocketSmith stays disconnected until configured. Back up the existing `/data` directory before upgrading; returning to v1.0.0 requires its matching backup.
+
+
 ## 1.0.1-beta.4
 
 - Add Clients to the shared business page navigation and retain that menu on the Clients page. Shorten All invoices and All quotes to Invoices and Quotes.

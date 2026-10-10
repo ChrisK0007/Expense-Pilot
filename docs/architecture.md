@@ -56,7 +56,7 @@ Archives contain `data/` including `rounded.sqlite`, receipts and `session.key`;
 
 For offline data without a Docker container, first stop every process using the database, then set `EXPENSE_PILOT_DATA_DIR` to the data directory. This explicit mode does not stop or restart any container. Protect archives as sensitive financial data. Restore `data/` to the configured host mount while the app is stopped and retain the existing ownership (normally UID 99/GID 100).
 
-## PocketSmith bank feeds (beta)
+## PocketSmith bank feeds
 
 `pocketsmith_client.py` is a GET-only client for the fixed PocketSmith v2 HTTPS host. It passes developer keys in a header, blocks redirects, bounds pages, response sizes and duration, validates pagination and sanitises upstream failures. `pocketsmith.py` manages an encrypted per-instance connection, account mapping, sync leases, the transaction ledger and review routes. `bank-feeds.js` provides connection settings and the bank review queue.
 
