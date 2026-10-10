@@ -262,7 +262,10 @@ def link_vehicle(eid,uid,d,existing=None):
 def vehicles_api():
     if request.method=='GET':
         where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
-        return jsonify(rows(f'SELECT v.*,u.name AS owner,u.role AS owner_role FROM vehicles v JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY v.name',args))
+        data=rows(f'SELECT v.*,u.name AS owner,u.role AS owner_role FROM vehicles v JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY v.name',args)
+        for v in data:
+            log=vehicle_logbook.logbook(v['id']);v['odometer_estimate_m']=log['estimate_m'];v['odometer_ambiguous_trips']=log['ambiguous_trips']
+        return jsonify(data)
     d=body();name=textval(d.get('name'),100)
     if not name: fail('Enter a vehicle name.')
     vid=db().execute('INSERT INTO vehicles(user_id,name,registration,notes) VALUES (?,?,?,?)',(record_user_id(),name,textval(d.get('registration'),30),textval(d.get('notes'),1000))).lastrowid
@@ -273,7 +276,7 @@ def vehicles_api():
 def vehicle_api(vid):
     vehicle(vid)
     if request.method=='DELETE':
-        if one('SELECT id FROM expenses WHERE vehicle_id=?',(vid,)) or one('SELECT id FROM vehicle_journeys WHERE vehicle_id=?',(vid,)): fail('Remove or unlink this vehicle’s records before deleting it.',409)
+        if one('SELECT id FROM expenses WHERE vehicle_id=?',(vid,)) or one('SELECT id FROM vehicle_journeys WHERE vehicle_id=?',(vid,)) or one('SELECT id FROM vehicle_odometer WHERE vehicle_id=?',(vid,)): fail('Remove or unlink this vehicle’s records before deleting it.',409)
         db().execute('DELETE FROM vehicles WHERE id=?',(vid,))
     else:
         d=body();name=textval(d.get('name'),100)
@@ -304,7 +307,16 @@ def journey_values(d):
 @access
 def journeys_api():
     if request.method=='POST':
-        values=journey_values(body());jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent) VALUES (?,?,?,?,?,?,?,?,?,?)',values).lastrowid
+        d=body(); values=journey_values(d); meta=vehicle_logbook.metadata(d)
+        db().execute('BEGIN IMMEDIATE')
+        if meta[2]:
+            old=one('SELECT * FROM vehicle_journeys WHERE client_ref=?',(meta[2],))
+            if old:
+                vehicle(old['vehicle_id'])
+                keys=('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent','started_at','ended_at','client_ref')
+                if tuple(old[k] for k in keys)!=values+meta: fail('This journey was already uploaded with different details. Check Vehicles before uploading again.',409)
+                db().commit();return jsonify(id=old['id'])
+        jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent,started_at,ended_at,client_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',values+meta).lastrowid
         audit('vehicle journey created',jid);db().commit();return jsonify(id=jid)
     where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
     data=rows(f'SELECT j.*,v.name AS vehicle,v.registration,v.user_id,u.name AS owner FROM vehicle_journeys j JOIN vehicles v ON v.id=j.vehicle_id JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY j.date DESC,j.id DESC',args)
@@ -325,9 +337,13 @@ def journey_api(jid):
     else:
         d=body();values=journey_values(d)
         vehicle(values[0],old['user_id'])
-        db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=? WHERE id=?',values+(jid,))
+        meta=vehicle_logbook.metadata(d,j)
+        db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=?,started_at=?,ended_at=?,client_ref=? WHERE id=?',values+meta+(jid,))
     audit('vehicle journey updated',jid);db().commit();return jsonify(ok=True)
 
 def register(app, **deps):
     globals().update(deps)
+    vehicle_logbook.register()
     app.register_blueprint(bp)
+
+import vehicle_logbook
