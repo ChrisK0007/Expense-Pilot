@@ -22,7 +22,7 @@ def metadata(d, existing=None):
     if start is not None:
         start, end = timestamp(start), timestamp(end)
         if start > end: t.fail('Trip finish must be after its start.')
-        if datetime.fromtimestamp(end, BRISBANE).date().isoformat() != d.get('date'): t.fail('Trip date must match the finish time in Queensland.')
+        if not datetime.fromtimestamp(start, BRISBANE).date().isoformat() <= d.get('date','') <= datetime.fromtimestamp(end, BRISBANE).date().isoformat(): t.fail('Trip date must fall within its start and finish dates in Queensland.')
     # Old clients editing a trip's details retain timestamps unless they move its date.
     elif existing and existing['date'] == d.get('date'):
         start, end = existing['started_at'], existing['ended_at']

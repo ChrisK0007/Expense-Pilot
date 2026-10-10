@@ -68,6 +68,12 @@ class VehicleLogbookTest(unittest.TestCase):
         self.call(self.owner,'vehicle-journeys',self.journey(started_at=self.start-100,ended_at=self.start+100))
         self.assertEqual(self.get()['ambiguous_trips'],2)
 
+    def test_trip_crossing_midnight_keeps_its_departure_date(self):
+        self.prepare()
+        result=self.call(self.owner,'vehicle-journeys',self.journey(started_at=self.start+23*3600,ended_at=self.start+25*3600))
+        self.assertEqual(result.status_code,200,result.json)
+        self.assertEqual(self.get()['estimate_m'],52028600)
+
     def test_permissions_invalid_readings_and_vehicle_isolation(self):
         self.prepare()
         self.assertEqual(app.test_client().get('/api/'+self.path).status_code,401)
