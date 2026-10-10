@@ -41,3 +41,13 @@ Read the installation guide before exposing the application outside your local n
 | `docs/` | Installation guide, architecture and release history |
 
 The root Dockerfile and Compose files stay as stable deployment entry points. Root `prepare.sh` and `backup.sh` forward to `scripts/` so existing commands continue to work. The iPhone app has its own source, version and build workflow in [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios).
+
+## Vehicle odometer log (1.0.2-beta.2)
+
+Open **Tracking → Vehicles → Odometer log** to add an actual dashboard reading with its date/time. The estimated odometer adds the full distance of later uploaded journeys, including personal driving; allocation percentages do not reduce vehicle mileage. Editing/deleting journeys recalculates the estimate. Add another actual reading to reconcile GPS differences or unrecorded driving without overwriting previous readings. Actual readings can be edited or deleted, with protection against stale concurrent edits.
+
+The iPhone app 0.4.0 adds address search, driving-route choices, optional via locations, manual trips, GPS route extensions/gap corrections and a native odometer screen. It includes local pending mileage in its estimate and deduplicates journeys already uploaded. Maps and route geometry stay on the iPhone. Address search/routing use Apple Maps and need internet access; the web journey form continues to accept entered kilometres or odometer readings.
+
+Trips without a time on the baseline day, or trips spanning the reading time, are flagged and excluded rather than guessed. Add the reading after stopping the trip, or add a later reading to establish a clear baseline. The web estimate only includes server journeys. New iPhone uploads include timestamps and an idempotency reference; identical repeated uploads resolve to the original journey. Existing server/API clients remain compatible.
+
+Update the **beta** container to `ghcr.io/chrisk0007/expense-pilot:beta` after backing up its appdata. The migration adds odometer history and journey metadata; the stable container is unchanged.
