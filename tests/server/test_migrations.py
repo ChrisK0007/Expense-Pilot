@@ -29,7 +29,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),8)
+        self.assertEqual(len(ledger),9)
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
         self.assertEqual(c.execute('SELECT version FROM users WHERE id=2').fetchone()[0],8)
@@ -50,7 +50,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],9)
 
     def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
         c = self.connection
@@ -67,18 +67,19 @@ class MigrationTest(unittest.TestCase):
         c.execute("INSERT INTO billing_settings VALUES ('custom-setting','keep this value')")
         c.commit()
         tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
-        before = {table:c.execute('SELECT * FROM "'+table+'"').fetchall() for table in tables}
+        columns = {table:','.join('"'+r[1]+'"' for r in c.execute('PRAGMA table_info("'+table+'")')) for table in tables}
+        before = {table:c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall() for table in tables}
         apply(c)
         for table, records in before.items():
             with self.subTest(table=table):
-                current = c.execute('SELECT * FROM "'+table+'"').fetchall()
+                current = c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall()
                 self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],9)
         self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
         self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],9)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)

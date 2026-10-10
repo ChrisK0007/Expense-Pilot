@@ -9,11 +9,11 @@ def documents():
         if not can_write():
             fail('Read-only access.', 403)
         payload = body()
-        if 'reminders_enabled' in payload and g.user['role'] != 'owner':
+        if {'reminders_enabled', 'reminder_options'} & payload.keys() and g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)
         values = validate_document(payload)
         db().execute('BEGIN IMMEDIATE')
-        did = insert_document(values)
+        did = insert_document(values, custom_number=payload.get('number'))
         db().commit()
         return jsonify(id=did)
     where = '1=1'
@@ -51,23 +51,43 @@ def document_detail(did):
         db().execute('DELETE FROM billing_payments WHERE document_id=?', (did,))
         db().execute('DELETE FROM billing_outbox WHERE document_id=?', (did,))
         db().execute('DELETE FROM billing_documents WHERE id=?', (did,))
+        if doc['kind'] == 'invoice':
+            db().execute('INSERT OR REPLACE INTO billing_reusable_invoice_numbers(number) VALUES (?)', (doc['number'],))
         audit(doc['kind'] + ' deleted', f"{did} ({doc['number']})")
     else:
         if doc['state'] != 'draft':
             fail('Issued amounts and details are locked. Use Edit wording for text corrections, or duplicate or void the document for other changes.', 409)
-        if 'reminders_enabled' in payload and g.user['role'] != 'owner':
+        if {'reminders_enabled', 'reminder_options'} & payload.keys() and g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)
         payload.setdefault('reminders_enabled', bool(doc['reminders_enabled']))
+        payload.setdefault('reminder_options', doc['reminder_options'])
         values = validate_document(payload)
         if values['kind'] != doc['kind']:
             fail('Document type cannot be changed.')
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:
             fail('This invoice contains linked time entries for its current client.')
+        if 'number' in payload:
+            from billing_numbers import change_number
+            change_number(doc, payload['number'], bump_version=False)
         columns = ['client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes', 'reference',
-                   'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled']
-        data = [json.dumps(values[k]) if k in ('client', 'business', 'lines') else values[k] for k in columns]
+                   'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options']
+        data = [json.dumps(values[k]) if k in ('client', 'business', 'lines', 'reminder_options') else values[k] for k in columns]
         db().execute('UPDATE billing_documents SET ' + ','.join(k + '=?' for k in columns) + ',version=version+1 WHERE id=?', data + [did])
         audit('draft updated', did)
+    db().commit()
+    return jsonify(ok=True)
+
+
+@bp.put('/documents/<int:did>/number')
+@reader
+def document_number(did):
+    from billing import body, db, document, jsonify, revision
+    from billing_numbers import change_number
+    payload = body()
+    db().execute('BEGIN IMMEDIATE')
+    doc = document(did)
+    revision(doc, payload)
+    change_number(doc, payload.get('number'))
     db().commit()
     return jsonify(ok=True)
 

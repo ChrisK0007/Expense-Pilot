@@ -400,12 +400,11 @@ async function main() {
     await page.emulateMedia({colorScheme:'light'});
     await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');
     await navigate(page,'services');
-    await page.getByRole('button',{name:'Manage line items'}).click();
+    await page.getByRole('button',{name:'+ Add service'}).click();
     await page.getByLabel('Service / item description').fill('Reusable flight test');
     await page.getByLabel('Unit price (AUD)',{exact:true}).fill('600');
     await page.getByRole('button',{name:'Add service',exact:true}).click();
-    await page.locator('#modal').getByText('Reusable flight test',{exact:true}).waitFor();
-    await page.locator('#close-modal').click();
+    await page.locator('#content').getByText('Reusable flight test',{exact:true}).waitFor();
     await navigate(page,'reports');
     await page.locator('.report-donut').waitFor();
     await page.getByLabel('Group by',{exact:true}).selectOption('scope');

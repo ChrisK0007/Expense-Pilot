@@ -3,9 +3,11 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.1` |
-| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.1-beta.4` |
+| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.2-beta.1` |
 
 Stable v1.0.1 promotes all changes through v1.0.1-beta.4: [PocketSmith bank feeds](pocketsmith.md), the nullable transfer flag fix, shared billing navigation including Clients, invoice reminder controls and permanent expense/receipt deletion.
+
+Beta v1.0.2-beta.1 adds editable services/prices and invoice numbers, reuse of newly deleted invoice numbers, per-invoice reminder schedules and email wording, and interface improvements. Migration m009 runs automatically and retains existing records. Back up beta `/data` before updating; restore that backup to return to an older image. Stable stays on v1.0.1.
 
 The first stable release is v1.0.0, carrying forward v0.8.6. The initial beta starts from the same application features, identified as v1.0.1-beta.1 so future development is clearly separate. Each published build also has its exact version tag and a `sha-` tag.
 

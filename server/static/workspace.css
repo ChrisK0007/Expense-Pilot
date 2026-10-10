@@ -54,3 +54,15 @@ button{transition:box-shadow .15s}
 #expense-match-viewer{width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}
 
 .feed-panel{margin-top:24px;padding:22px}.feed-heading{display:flex;justify-content:space-between;align-items:start;gap:16px;flex-wrap:wrap}.feed-heading h2{margin-top:0}.feed-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0}.feed-actions .field{margin-bottom:0}.feed-account-list{display:grid;gap:12px;margin:18px 0}.feed-account{padding:14px;border:1px solid var(--line);border-radius:8px;min-width:0}.feed-account .check{overflow-wrap:anywhere}.feed-table td{vertical-align:top}.feed-table td:nth-child(2){min-width:170px;max-width:300px;overflow-wrap:anywhere}.feed-table small{color:var(--muted)}@media(max-width:650px){.feed-panel{padding:14px}.feed-actions{gap:8px}.feed-heading{display:block}}
+
+/* Consistent settings spacing, table actions and keyboard focus. */
+#content.settings-page>.card,#content.settings-page>.grid2,#content.settings-page>.grid3{margin-bottom:24px}
+#content.settings-page>.card>h2{margin-top:0}
+.table-actions{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.service-description{min-width:220px;max-width:560px;overflow-wrap:anywhere;white-space:pre-wrap}
+:where(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#modal .modal-footer{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:24px}
+#modal .modal-title{gap:16px;align-items:flex-start}
+#modal .modal-title h2{overflow-wrap:anywhere;min-width:0}
+#modal #close-modal{flex-shrink:0}
+@media(max-width:600px){#modal .modal-footer>button{flex:1;min-height:44px}.billing-tabs button{min-height:44px}.table-actions{gap:4px}}

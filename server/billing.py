@@ -178,7 +178,7 @@ def revision(doc, payload):
 
 def hydrate(row):
     doc = dict(row)
-    for key in ('client', 'business', 'lines'):
+    for key in ('client', 'business', 'lines', 'reminder_options'):
         doc[key] = json.loads(doc[key])
     doc['paid_cents'] = one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['n']
     doc['paid_date'] = one('SELECT MAX(date) AS value FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['value'] if doc['paid_cents'] >= doc['total_cents'] and doc['paid_cents'] > 0 else None
@@ -212,25 +212,22 @@ def validate_document(payload):
     if type(reminders) not in (bool, int) or reminders not in (0, 1):
         raise ValueError('Choose whether automatic reminders are on or off for this invoice.')
     snapshot = {k: client[k] for k in ('id', 'name', 'contact', 'email', 'address', 'abn', 'terms')}
-    return dict(kind=kind, reminders_enabled=int(reminders), client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
+    from billing_emails import validate_reminder_options
+    options = validate_reminder_options(payload.get('reminder_options', {})) if kind == 'invoice' else {}
+    return dict(kind=kind, reminders_enabled=int(reminders), reminder_options=options, client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
                 issue_date=issued, due_date=due, notes=txt(payload.get('notes', document_defaults()[kind + '_notes']), 5000),
                 reference=txt(payload.get('reference'), 100),
                 payment_details=txt(payload.get('payment_details', document_defaults()['invoice_payment_details'] if kind == 'invoice' else ''), 2000), **amounts)
 
 
-def insert_document(values, source_quote=None, schedule_id=None, occurrence=None):
-    # Caller holds BEGIN IMMEDIATE: number allocation and creation are one transaction.
+def insert_document(values, source_quote=None, schedule_id=None, occurrence=None, custom_number=None):
+    # Caller holds BEGIN IMMEDIATE: allocation, reuse and creation are atomic.
+    from billing_numbers import allocate_number
     kind = values['kind']
-    n = one('SELECT next_number FROM billing_counters WHERE kind=?', (kind,))['next_number']
-    prefix = values['business'][kind + '_prefix']
-    number = f'{prefix}{n:04d}'
-    while one('SELECT id FROM billing_documents WHERE number=?', (number,)):
-        n += 1
-        number = f'{prefix}{n:04d}'
-    db().execute('UPDATE billing_counters SET next_number=? WHERE kind=?', (n + 1, kind))
+    number = allocate_number(values, custom_number)
     columns = ['kind', 'client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes',
-               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled']
-    data = [json.dumps(values[k]) if k in ('client', 'business', 'lines') else values[k] for k in columns]
+               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options']
+    data = [json.dumps(values[k]) if k in ('client', 'business', 'lines', 'reminder_options') else values[k] for k in columns]
     cur = db().execute('INSERT INTO billing_documents(' + ','.join(columns) + ',number,source_quote,schedule_id,occurrence,created_at) VALUES (' + ','.join('?' for _ in range(len(columns) + 5)) + ')',
                        data + [number, source_quote, schedule_id, occurrence, now()])
     audit(kind + ' draft created', cur.lastrowid)
@@ -429,12 +426,7 @@ def edit_client(cid):
     return jsonify(ok=True)
 
 
-@bp.route('/services', methods=['GET', 'POST'])
-@reader
-def services():
-    if request.method == 'GET':
-        return jsonify(rows('SELECT * FROM billing_services ORDER BY description'))
-    payload = body()
+def service_values(payload):
     description = txt(payload.get('description'), 1000)
     if not description:
         fail('Enter a service description.')
@@ -442,15 +434,39 @@ def services():
     tax = payload.get('tax', 'none')
     if tax not in ('gst', 'gst_free', 'none'):
         fail('Invalid GST treatment.')
-    cur = db().execute('INSERT INTO billing_services(description,unit_cents,tax) VALUES (?,?,?)', (description, rate, tax))
+    return description, rate, tax
+
+
+@bp.route('/services', methods=['GET', 'POST'])
+@reader
+def services():
+    if request.method == 'GET':
+        return jsonify(rows('SELECT * FROM billing_services ORDER BY description'))
+    values = service_values(body())
+    cur = db().execute('INSERT INTO billing_services(description,unit_cents,tax) VALUES (?,?,?)', values)
+    audit('service created', cur.lastrowid)
     db().commit()
     return jsonify(id=cur.lastrowid)
 
 
-@bp.delete('/services/<int:sid>')
+@bp.route('/services/<int:sid>', methods=['PUT', 'DELETE'])
 @reader
-def delete_service(sid):
-    db().execute('DELETE FROM billing_services WHERE id=?', (sid,))
+def service_detail(sid):
+    payload = body()
+    values = service_values(payload) if request.method == 'PUT' else None
+    db().execute('BEGIN IMMEDIATE')
+    service = one('SELECT * FROM billing_services WHERE id=?', (sid,))
+    if not service:
+        fail('Service not found.', 404)
+    if request.method == 'PUT' or 'version' in payload:
+        if payload.get('version') != service['version']:
+            fail('This service changed in another tab. Reload it before continuing.', 409)
+    if request.method == 'PUT':
+        db().execute('UPDATE billing_services SET description=?,unit_cents=?,tax=?,version=version+1 WHERE id=?', values + (sid,))
+        audit('service updated', sid)
+    else:
+        db().execute('DELETE FROM billing_services WHERE id=?', (sid,))
+        audit('service deleted', sid)
     db().commit()
     return jsonify(ok=True)
 
@@ -584,6 +600,7 @@ def schedules():
     terms = integer(payload.get('terms', 14), 'payment terms')
     template = {k: doc[k] for k in ('lines', 'tax_mode', 'notes', 'reference', 'payment_details')}
     template['reminders_enabled'] = bool(doc['reminders_enabled'])
+    template['reminder_options'] = doc['reminder_options']
     if 'reminders_enabled' in payload:
         if g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)
