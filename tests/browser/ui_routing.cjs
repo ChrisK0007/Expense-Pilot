@@ -53,8 +53,9 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await page.goBack();await check('invoices','Invoices');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:output+'/page-routing-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1440,height:1050});
   await page.locator('#logout').click();await page.locator('#login-form').waitFor();
   await page.goBack();await page.locator('#login-form').waitFor();assert.equal(await page.locator('.shell').count(),0);
   assert.deepEqual(errors,[]);console.log('PASS: page URLs, sign-in deep links, refresh, Back/Forward, nested settings, feature guards and mobile navigation');
- }catch(e){await page.screenshot({path:output+'/routing-failure.png',fullPage:true});throw e;}finally{await browser.close();}
+ }catch(e){console.error('Browser errors:',errors);await page.screenshot({path:output+'/routing-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
