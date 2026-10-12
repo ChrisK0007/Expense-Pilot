@@ -261,7 +261,7 @@ from receipt_routes import upload, receipt, download, receipt_info, preview_rece
 
 from finance_routes import csv_rows, import_preview, bank_import, export, employment_income, employment_values, edit_employment, tax_forecast
 
-from tracking import register as register_tracking, category_names, draft_for, link_vehicle, profile as receipt_profile, vehicle as tracking_vehicle
+from tracking import body as tracking_body, register as register_tracking, category_names, draft_for, link_vehicle, profile as receipt_profile, vehicle as tracking_vehicle
 register_tracking(app, db=db, one=one, rows=rows, fail=fail, audit=audit, can_write=can_write, record_user_id=record_user_id, textval=textval, money=money, day=day, receipt=receipt, payload=payload, BASE_CATEGORIES=CATEGORIES)
 
 from billing import register as register_billing, business as billing_business
@@ -274,5 +274,9 @@ features.register(app, db=db, one=one, fail=fail)
 
 import pocketsmith
 pocketsmith.register(app, db=db, one=one, rows=rows, fail=fail, audit=audit, auth=auth, can_write=can_write, day=day, DATA=DATA)
+
+
+import planning
+planning.register(app, db=db, rows=rows, one=one, fail=fail, audit=audit, body=tracking_body, category_names=category_names, money=money, day=day, textval=textval, vehicle=tracking_vehicle, expense=expense)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)

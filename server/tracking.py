@@ -294,7 +294,7 @@ def meters(value):
 def journey_values(d):
     v=vehicle(d.get('vehicle_id'));scope=d.get('scope','business');purpose=textval(d.get('purpose'),1000)
     if scope not in ('work','business','personal') or one('SELECT role FROM users WHERE id=?',(v['user_id'],))['role']=='employee' and scope!='business': fail('Invalid journey workspace.')
-    if not purpose: fail('Enter the journey purpose.')
+    if not purpose and scope!='personal': fail('Enter the journey purpose for employment or business travel.')
     a,b=d.get('odometer_start'),d.get('odometer_end')
     if (a in ('',None))!=(b in ('',None)): fail('Enter both odometer readings, or a distance instead.')
     a,b=(None,None) if a in ('',None) else (meters(a),meters(b))
