@@ -51,3 +51,15 @@ The iPhone app 0.4.0 adds address search, driving-route choices, optional via lo
 Trips without a time on the baseline day, or trips spanning the reading time, are flagged and excluded rather than guessed. Add the reading after stopping the trip, or add a later reading to establish a clear baseline. The web estimate only includes server journeys. New iPhone uploads include timestamps and an idempotency reference; identical repeated uploads resolve to the original journey. Existing server/API clients remain compatible.
 
 Update the **beta** container to `ghcr.io/chrisk0007/expense-pilot:beta` after backing up its appdata. The migration adds odometer history and journey metadata; the stable container is unchanged.
+
+## Category budgets and vehicle comparison (1.0.2-beta.3)
+
+Budgets are monthly, per category and allocation. Create or edit a limit under **Budgets**, or copy the prior month. Actuals include recorded expenses/refunds and exclude reimbursements. Split amounts use the same cent rounding as expense reports. Months stay independent, and overlapping allocations are not added into a misleading combined total.
+
+Under **Vehicles → Compare vehicle methods**, select a financial year. The cents/km estimate uses eligible recorded employment/business kilometres together, capped at 5,000 km per car. Rates are 78c (2022–23), 85c (2023–24), 88c (2024–25 and 2025–26), and 91c (2026–27). Future years are not assumed. The logbook estimate uses linked running costs, entered annual depreciation and representative logbook percentages. Cost settings exclude reimbursements, parking/tolls and purchase price, and allow GST credits and other exclusions. Receipts stay attached to their expenses and remain viewable/downloadable.
+
+This is a comparison only: it does not choose a method or post another deduction to the tax forecast. Ordinary expense allocations remain as entered. Do not add cents/km to fuel and other costs already covered by that rate. Enter depreciation as annual decline in value, not purchase price; percentages need supporting logbook and odometer records.
+
+Sources checked 12 October 2026: [2026 rate determination](https://www.legislation.gov.au/F2026L00785/asmade/text), [ATO car record requirements](https://www.ato.gov.au/api/public/content/bc562d4d-fcaf-4e15-b595-cca75e30f8bc_Taxtimetoolkit_Keepingrecordsforworkrelatedexpenses_pdf), [2024/2025 rate](https://softwaredevelopers.ato.gov.au/cents-kilometre-deduction-rate-car-expenses-2024-determination).
+
+Personal journeys no longer require a purpose. Employment and business journeys still do. Distances display to one decimal place; stored metres are unchanged. iPhone 0.5.0 uses native screens for sign-in, expenses, receipt review, budgets and vehicle comparisons.
