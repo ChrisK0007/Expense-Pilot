@@ -47,7 +47,7 @@ function capture(){
  if(!editor())return;
  if(busy||batch.running)return toast('Receipt processing is still running.');
  modal('Capture receipts',`<div class="capture-drop"><span class="capture-symbol">▤</span><h2>Snap it. Save it. Sort it later.</h2><p>JPEG, PNG, WebP or PDF · up to 12 MB per file</p><label class="upload-label" for="inbox-files">Choose files</label><input class="hidden" id="inbox-files" type="file" multiple accept="${accept}"><label class="upload-label secondary" for="inbox-camera">Take a photo</label><input class="hidden" id="inbox-camera" type="file" accept="image/*" capture="environment"></div><label class="check"><input id="auto-scan" type="checkbox" ${S.ai_configured?'checked':'disabled'}>Read with AI after upload</label><p class="footnote">${S.ai_configured?'Sends these receipts to your configured Ollama server.':'AI is not configured. Receipts are still saved and can be categorised manually.'} No category, workspace or tax allocation is required now.</p><div id="capture-progress" role="status" aria-live="polite"></div><div class="modal-footer"><button class="secondary" id="capture-done">Done</button></div>`);
- bind('#capture-done',()=>{$('#modal').close();page='receipts';render();});
+ bind('#capture-done',()=>{$('#modal').close();navigate('receipts');});
  const upload=async files=>{
   if(!files.length||busy)return;
   busy=true;const scan=$('#auto-scan').checked;const progress=$('#capture-progress');

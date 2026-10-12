@@ -29,7 +29,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),11)
+        self.assertEqual(len(ledger),12)
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
         self.assertEqual(c.execute('SELECT version FROM users WHERE id=2').fetchone()[0],8)
@@ -50,7 +50,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],11)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],12)
 
     def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
         c = self.connection
@@ -74,12 +74,12 @@ class MigrationTest(unittest.TestCase):
             with self.subTest(table=table):
                 current = c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall()
                 self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],11)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],12)
         self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
         self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],11)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],12)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)
@@ -88,6 +88,22 @@ class MigrationTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'modified'):
             apply(self.connection)
         self.assertFalse(self.connection.in_transaction)
+
+    def test_budget_duration_upgrade_preserves_ids_amounts_versions_and_sequence(self):
+        c = self.connection
+        old_files = sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name < 'm012_')
+        with patch('migrations.Path.glob', return_value=old_files):
+            apply(c)
+        c.execute("INSERT INTO category_budgets(id,month,category,scope,amount_cents,version) VALUES (42,'2026-10','Other','all',120000,7),(99,'2026-11','Other','all',100,1)")
+        c.execute('DELETE FROM category_budgets WHERE id=99')
+        c.commit()
+        apply(c)
+        self.assertEqual(c.execute('SELECT id,month,category,scope,amount_cents,version,period FROM category_budgets').fetchall(),[(42,'2026-10','Other','all',120000,7,'monthly')])
+        new_id=c.execute("INSERT INTO category_budgets(month,period,category,scope,amount_cents) VALUES ('2026-10','yearly','Other','all',120000)").lastrowid
+        self.assertGreater(new_id,99)
+        c.commit()
+        apply(c)
+        self.assertEqual(c.execute('SELECT count(*) FROM category_budgets').fetchone()[0],2)
 
     def test_future_database_is_rejected(self):
         apply(self.connection)

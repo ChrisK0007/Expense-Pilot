@@ -5,7 +5,7 @@ const Workspace=(()=>{
  let chartYear=currentYear(),compareYear=currentYear()-1,metric='income',chartMode='line',fy=currentYear()-(Number(today().slice(5,7))<7?1:0),revision=0;
  let reportYear=String(fy),reportScope='all',reportGroup='category';
  const sum=(items,key)=>items.reduce((n,x)=>n+(typeof key==='function'?key(x):x[key]||0),0);
- const go=p=>{page=p;render();};
+ const go=p=>navigate(p);
  function grouped(items,key,value){const totals=new Map();for(const item of items){const name=typeof key==='function'?key(item):item[key]||'Other';totals.set(name,(totals.get(name)||0)+value(item));}return [...totals].map(([name,amount])=>({name,amount})).sort((a,b)=>b.amount-a.amount);}
  function breakdown(items,empty='No records in this period'){
   if(!items.length)return `<p class="empty compact-empty">${empty}</p>`;

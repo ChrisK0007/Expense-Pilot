@@ -1,5 +1,11 @@
 # Release history
 
+## 1.0.2-beta.4
+
+- Give web pages bookmarkable URLs; preserve the page through refresh/sign-in and support browser Back/Forward, including shared billing pages and tax agent settings.
+- Add monthly, quarterly and yearly category budgets with a selectable starting month, full-period spending totals, date ranges, duration editing and copying of the previous period.
+- Preserve existing monthly budgets and API compatibility with iPhone 0.5.0. Add migration, financial-period and desktop/mobile navigation regressions.
+
 ## 1.0.2-beta.1
 
 - Edit saved service descriptions, prices and GST treatment from Services & prices. Existing invoice and quote line items keep their saved values.

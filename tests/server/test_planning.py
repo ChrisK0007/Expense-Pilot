@@ -33,12 +33,60 @@ class PlanningTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,'budgets/copy',{'from':'2026-10','to':'2026-11'}).json['added'],1)
         self.assertEqual(self.call(self.owner,'budgets/copy',{'from':'2026-10','to':'2026-11'}).json['added'],0)
         self.assertEqual(self.call(self.owner,f'budgets/{bid}',{'version':2},'DELETE').status_code,200)
-        for field,value in [('month','2026-13'),('category','missing'),('scope','invalid'),('amount','NaN'),('amount',0)]:
+        for field,value in [('month','2026-13'),('period','weekly'),('period',None),('period',[]),('category','missing'),('scope','invalid'),('amount','NaN'),('amount',0)]:
             self.assertEqual(self.call(self.owner,'budgets',{**data,field:value}).status_code,400)
         self.assertEqual(self.agent.get('/api/budgets?month=2026-11').status_code,200)
         self.assertEqual(self.call(self.agent,'budgets',data).status_code,403)
         self.assertEqual(app.test_client().get('/api/budgets?month=2026-11').status_code,401)
         self.assertEqual(self.owner.post('/api/budgets',json=data).status_code,403)
+
+    def test_period_boundaries_leap_year_and_allocations(self):
+        # A quarter starting in December crosses a year and includes leap day.
+        for day,amount in [('2027-11-30','999'),('2027-12-01','100'),('2028-01-31','100'),
+                           ('2028-02-29','100'),('2028-03-01','100'),('2028-11-30','100'),('2028-12-01','999')]:
+            self.expense(self.owner,date=day,amount=amount,category='Other',work_percent=30,business_percent=50)
+        self.expense(self.owner,date='2028-02-29',amount='-20',category='Other',work_percent=30,business_percent=50)
+        self.expense(self.owner,date='2028-02-29',amount='5000',category='Other',reimbursed=True)
+        self.expense(self.owner,date='2028-02-29',amount='7000',category='Vehicle expenses')
+        for period,total,end in [('monthly',10000,'2027-12-31'),('quarterly',28000,'2028-02-29'),('yearly',48000,'2028-11-30')]:
+            for scope,percent in [('all',100),('work',30),('business',50),('personal',20)]:
+                data=dict(month='2027-12',period=period,category='Other',scope=scope,amount=400)
+                self.assertEqual(self.call(self.owner,'budgets',data).status_code,200)
+                self.assertEqual(self.call(self.owner,'budgets',data).status_code,409)
+                items=self.owner.get('/api/budgets?month=2027-12&period='+period).json
+                budget=next(b for b in items if b['scope']==scope)
+                self.assertEqual((budget['start_date'],budget['end_date']),('2027-12-01',end))
+                self.assertEqual(budget['spent_cents'],total*percent//100)
+                self.assertEqual(budget['remaining_cents'],40000-total*percent//100)
+        legacy=self.owner.get('/api/budgets?month=2027-12').json
+        self.assertEqual(len(legacy),4)
+        self.assertTrue(all(b['period']=='monthly' for b in legacy))
+        self.assertEqual(self.owner.get('/api/budgets?month=2027-12&period=weekly').status_code,400)
+
+    def test_duration_edit_copy_isolation_and_financial_year(self):
+        data=dict(month='2026-07',category='Other',scope='all',amount=1200)
+        monthly=self.call(self.owner,'budgets',data).json['id']
+        annual=self.call(self.owner,'budgets',{**data,'period':'yearly'}).json['id']
+        self.expense(self.owner,date='2026-06-30',amount=999,category='Other')
+        self.expense(self.owner,date='2026-07-01',amount=100,category='Other')
+        self.expense(self.owner,date='2027-06-30',amount=200,category='Other')
+        self.expense(self.owner,date='2027-07-01',amount=999,category='Other')
+        annual_budget=self.owner.get('/api/budgets?month=2026-07&period=yearly').json[0]
+        self.assertEqual((annual_budget['spent_cents'],annual_budget['end_date']),(30000,'2027-06-30'))
+        # Older clients omitting period cannot silently change an existing duration.
+        self.assertEqual(self.call(self.owner,f'budgets/{annual}',{**data,'amount':1500,'version':1},'PUT').status_code,200)
+        self.assertEqual(self.owner.get('/api/budgets?month=2026-07&period=yearly').json[0]['amount_cents'],150000)
+        self.assertEqual(self.call(self.owner,f'budgets/{annual}',{**data,'period':'monthly','version':2},'PUT').status_code,409)
+        copy={'from':'2026-07','to':'2027-07','period':'yearly'}
+        self.assertEqual(self.call(self.owner,'budgets/copy',copy).json['added'],1)
+        self.assertEqual(self.call(self.owner,'budgets/copy',copy).json['added'],0)
+        self.assertEqual(self.owner.get('/api/budgets?month=2027-07').json,[])
+        self.assertEqual(self.call(self.owner,f'budgets/{monthly}',{**data,'period':'quarterly','version':1},'PUT').status_code,200)
+        self.assertEqual(self.owner.get('/api/budgets?month=2026-07').json,[])
+        quarterly=self.owner.get('/api/budgets?month=2026-07&period=quarterly').json[0]
+        self.assertEqual((quarterly['id'],quarterly['version'],quarterly['end_date']),(monthly,2,'2026-09-30'))
+        self.assertEqual(self.call(self.owner,f'budgets/{monthly}',{'version':1},'DELETE').status_code,409)
+        self.assertEqual(self.call(self.owner,f'budgets/{monthly}',{'version':2},'DELETE').status_code,200)
 
     def prepare_vehicle(self):
         self.vid=self.call(self.owner,'vehicles',{'name':'Kia Cerato'}).json['id']
