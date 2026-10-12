@@ -93,7 +93,8 @@ def comparison(vid,year):
     costs=rows('SELECT e.id,e.date,e.merchant,e.amount_cents,e.reimbursed,e.receipt_id,e.status,e.notes,COALESCE(c.kind,\'running\') kind,COALESCE(c.included,1) included,COALESCE(c.gst_credit_cents,0) gst_credit_cents,COALESCE(c.version,0) version FROM expenses e LEFT JOIN vehicle_cost_details c ON c.expense_id=e.id WHERE e.vehicle_id=? AND e.date BETWEEN ? AND ? ORDER BY e.date DESC,e.id DESC',(vid,start,end))
     base=0
     for cost in costs:
-        cost['counted']=bool(cost['included'] and not cost['reimbursed'] and cost['kind'] not in ('parking_tolls','purchase'))
+        cost['invalid_credit']=cost['gst_credit_cents']>max(0,cost['amount_cents'])
+        cost['counted']=bool(cost['included'] and not cost['reimbursed'] and cost['kind'] not in ('parking_tolls','purchase') and not cost['invalid_credit'])
         cost['net_cents']=cost['amount_cents']-cost['gst_credit_cents']
         if cost['counted']: base+=cost['net_cents']
     js=rows('SELECT * FROM vehicle_journeys WHERE vehicle_id=? AND date BETWEEN ? AND ?',(vid,start,end))
@@ -106,6 +107,7 @@ def comparison(vid,year):
     log_work=rounded(Decimal(expense_base)*settings['work_percent']/100)
     period_days=(date.fromisoformat(settings['logbook_end'])-date.fromisoformat(settings['logbook_start'])).days+1 if settings['logbook_start'] and settings['logbook_end'] else 0
     warnings=[]
+    if any(c['invalid_credit'] for c in costs): warnings.append('A saved GST credit exceeds the current expense amount. That cost is excluded until you correct its GST credit in cost settings.')
     if not settings['version']: warnings.append('Enter your representative logbook percentages to estimate the logbook method.')
     if period_days<84: warnings.append('A representative logbook normally covers at least 12 continuous weeks. The entered dates do not establish a full period.')
     if any(c['counted'] and not c['receipt_id'] for c in costs): warnings.append('Some included costs have no attached receipt. Fuel/oil estimates require supporting records; retain evidence for other costs.')

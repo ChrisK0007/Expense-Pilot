@@ -85,6 +85,13 @@ class PlanningTest(unittest.TestCase):
         self.assertTrue((DATA/'receipts'/rid).exists())
         self.assertEqual(self.call(self.owner,self.path,d,'PUT').status_code,409)
         self.assertEqual(self.call(self.owner,f'vehicle-costs/{eid}',dict(kind='fuel',included=True,gst_credit=0,version=0),'PUT').status_code,409)
+        # An amount correction must not leave an impossible saved GST credit in the estimate.
+        from app import db
+        with app.app_context():
+            db().execute('UPDATE expenses SET amount_cents=5000 WHERE id=?',(eid,));db().commit()
+        changed=self.owner.get('/api/'+self.path).json
+        self.assertEqual(changed['running_costs_cents'],0)
+        self.assertTrue(any('GST credit exceeds' in w for w in changed['warnings']))
         self.call(self.owner,f'expenses/{eid}',{},'DELETE')
         self.assertFalse((DATA/'receipts'/rid).exists())
         self.assertEqual(self.owner.get('/api/'+self.path).json['running_costs_cents'],0)
