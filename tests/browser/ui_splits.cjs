@@ -37,7 +37,7 @@ async function main(){
   const before=await (await page.request.get(url+'/api/tax/2026')).json();
   await navigate(page,'settings');await page.getByRole('button',{name:'Employment expenses only',exact:true}).click();await page.getByRole('button',{name:'Save features',exact:true}).click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();
   assert.equal(await page.locator('[popovertarget=nav-business]').count(),0);assert.equal(await page.locator('[data-page=vehicles]').count(),0);assert.equal(await page.locator('[data-page=tax]').count(),0);
-  await page.reload();await page.getByRole('heading',{name:'Recent expenses',exact:true}).waitFor();assert.equal(await page.locator('[popovertarget=nav-business]').count(),0);assert.equal(await page.getByRole('heading',{name:'Recent invoices',exact:true}).count(),0);
+  await page.reload();await page.locator('#feature-form').waitFor();assert.equal(new URL(page.url()).hash,'#/settings');await navigate(page,'dashboard');await page.getByRole('heading',{name:'Recent expenses',exact:true}).waitFor();assert.equal(await page.locator('[popovertarget=nav-business]').count(),0);assert.equal(await page.getByRole('heading',{name:'Recent invoices',exact:true}).count(),0);
   const after=await (await page.request.get(url+'/api/tax/2026')).json();assert.deepEqual(after.recorded,before.recorded);
   await page.screenshot({path:output+'/employment-only-dashboard.png',fullPage:true});await navigate(page,'expenses');await page.getByRole('button',{name:'Add expense',exact:false}).first().click();
   assert.equal(await page.getByLabel('Business (%)').count(),0);assert.equal(await page.getByLabel('Employment (%)').inputValue(),'100');await page.locator('#close-modal').click();

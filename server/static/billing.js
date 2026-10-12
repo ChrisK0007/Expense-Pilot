@@ -11,7 +11,7 @@ const Billing = (() => {
     el.disabled = true;
     try { await handler(el); } catch (error) { toast(error.message); } finally { el.disabled = false; }
   };});
-  const go = key => { page=key; render(); };
+  const go = key => navigate(key);
   function navigation(active){
     const pages=[['invoices','Invoices'],['quotes','Quotes'],['clients','Clients'],['recurring','Recurring invoices'],['services','Services & prices'],['time','Billable time']];
     return `<nav class="billing-tabs" aria-label="Billing pages">${pages.map(([key,title])=>`<button type="button" data-billing-page="${key}" class="${key===active?'active':''}" ${key===active?'aria-current="page"':''}>${title}</button>`).join('')}${owner()?'<button type="button" id="branding-tab">Branding</button><button type="button" id="email-settings-tab">Email settings</button>':''}</nav>`;

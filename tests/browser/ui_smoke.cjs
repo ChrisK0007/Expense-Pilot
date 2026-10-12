@@ -379,6 +379,9 @@ async function main() {
     await page.locator('#theme-choice').selectOption('dark');
     await page.screenshot({path:output+'/invoices-dark.png',fullPage:true});
     await page.reload();
+    await page.locator('#billing-table table').waitFor();
+    assert.equal(new URL(page.url()).hash,'#/invoices');
+    await navigate(page,'dashboard');
     await page.locator('.comparison-chart').waitFor();
     assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
     assert.match(await page.locator('.financial-summary').innerText(),/10,000\.00/);

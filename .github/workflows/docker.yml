@@ -34,6 +34,7 @@ jobs:
           node --check server/static/tracking.js
           node --check server/static/security.js
           node --check server/static/preferences.js
+          node --check server/static/planning.js
           python -m compileall -q server tests
           bash -n prepare.sh backup.sh scripts/prepare.sh scripts/backup.sh
       - name: Release version
@@ -86,6 +87,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_billing_controls.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_vehicle_logbook.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_planning.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_routing.cjs
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |

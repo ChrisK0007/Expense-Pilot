@@ -1,6 +1,6 @@
-"""Monthly category budgets and non-posting Australian car-method comparisons."""
+"""Category budgets and non-posting Australian car-method comparisons."""
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from flask import Blueprint, jsonify, request
 from expense_core import allocations, percent
@@ -22,6 +22,22 @@ def month_value(value):
     return value
 
 
+PERIOD_MONTHS = {'monthly': 1, 'quarterly': 3, 'yearly': 12}
+
+
+def period_value(value):
+    if not isinstance(value, str) or value not in PERIOD_MONTHS:
+        fail('Choose a monthly, quarterly or yearly budget duration.')
+    return value
+
+
+def budget_bounds(month, period):
+    start = date.fromisoformat(month+'-01')
+    last = start.year*12+start.month-1+PERIOD_MONTHS[period]
+    end = date(last//12, last%12+1, 1)
+    return start.isoformat(), end.isoformat()
+
+
 def scope_amount(expense, scope):
     # Budgets measure recorded spending, including bank-review entries and refunds.
     # Reimbursed costs are excluded; tax deductibility is a separate calculation.
@@ -30,12 +46,14 @@ def scope_amount(expense, scope):
     return {'all':expense['amount_cents'],'work':work,'business':business,'personal':expense['amount_cents']-work-business}[scope]
 
 
-def budget_list(month):
-    expenses = rows('SELECT * FROM expenses WHERE date>=? AND date<=?', (month+'-01', month+'-31'))
-    result = rows('SELECT * FROM category_budgets WHERE month=? ORDER BY category,scope', (month,))
+def budget_list(month, period):
+    start, end = budget_bounds(month, period)
+    expenses = rows('SELECT * FROM expenses WHERE date>=? AND date<?', (start, end))
+    result = rows('SELECT * FROM category_budgets WHERE month=? AND period=? ORDER BY category,scope', (month,period))
     for item in result:
         spent = sum(scope_amount(e, item['scope']) for e in expenses if e['category']==item['category'])
-        item.update(spent_cents=spent, remaining_cents=item['amount_cents']-spent)
+        item.update(spent_cents=spent, remaining_cents=item['amount_cents']-spent,
+                    start_date=start, end_date=(date.fromisoformat(end)-timedelta(days=1)).isoformat())
     return result
 
 
@@ -43,21 +61,21 @@ def budget_list(month):
 @access
 def budgets():
     if request.method == 'GET':
-        return jsonify(budget_list(month_value(request.args.get('month'))))
+        return jsonify(budget_list(month_value(request.args.get('month')), period_value(request.args.get('period','monthly'))))
     d=body(); values=budget_values(d)
     db().execute('BEGIN IMMEDIATE')
-    if one('SELECT id FROM category_budgets WHERE month=? AND category=? AND scope=?',values[:3]):
-        fail('A budget already exists for this category, month and allocation.',409)
-    bid=db().execute('INSERT INTO category_budgets(month,category,scope,amount_cents) VALUES (?,?,?,?)',values).lastrowid
+    if one('SELECT id FROM category_budgets WHERE month=? AND period=? AND category=? AND scope=?',values[:4]):
+        fail('A budget already exists for this category, duration, starting month and allocation.',409)
+    bid=db().execute('INSERT INTO category_budgets(month,period,category,scope,amount_cents) VALUES (?,?,?,?,?)',values).lastrowid
     audit('category budget created',bid);db().commit();return jsonify(id=bid)
 
 
-def budget_values(d):
+def budget_values(d, default_period='monthly'):
     month=month_value(d.get('month')); category=d.get('category'); scope=d.get('scope','all')
     if category not in category_names() or scope not in ('all','work','business','personal'): fail('Choose a category and allocation.')
     amount=money(d.get('amount'))
     if amount<=0: fail('Enter a budget greater than zero.')
-    return month,category,scope,amount
+    return month,period_value(d.get('period',default_period)),category,scope,amount
 
 
 @bp.route('/budgets/<int:bid>', methods=['PUT','DELETE'])
@@ -69,19 +87,19 @@ def budget(bid):
     if type(d.get('version')) is not int or d['version']!=old['version']: fail('This budget changed. Refresh before editing.',409)
     if request.method=='DELETE': db().execute('DELETE FROM category_budgets WHERE id=?',(bid,))
     else:
-        values=budget_values(d)
-        if one('SELECT id FROM category_budgets WHERE month=? AND category=? AND scope=? AND id!=?',values[:3]+(bid,)): fail('That budget already exists.',409)
-        db().execute('UPDATE category_budgets SET month=?,category=?,scope=?,amount_cents=?,version=version+1 WHERE id=?',values+(bid,))
+        values=budget_values(d,old['period'])
+        if one('SELECT id FROM category_budgets WHERE month=? AND period=? AND category=? AND scope=? AND id!=?',values[:4]+(bid,)): fail('That budget already exists.',409)
+        db().execute('UPDATE category_budgets SET month=?,period=?,category=?,scope=?,amount_cents=?,version=version+1 WHERE id=?',values+(bid,))
     audit('category budget updated',bid);db().commit();return jsonify(ok=True)
 
 
 @bp.post('/budgets/copy')
 @access
 def copy_budgets():
-    d=body(); source=month_value(d.get('from')); target=month_value(d.get('to'))
-    if source==target: fail('Choose different months.')
+    d=body(); source=month_value(d.get('from')); target=month_value(d.get('to')); period=period_value(d.get('period','monthly'))
+    if source==target: fail('Choose different starting months.')
     db().execute('BEGIN IMMEDIATE')
-    count=db().execute('INSERT OR IGNORE INTO category_budgets(month,category,scope,amount_cents) SELECT ?,category,scope,amount_cents FROM category_budgets WHERE month=?',(target,source)).rowcount
+    count=db().execute('INSERT OR IGNORE INTO category_budgets(month,period,category,scope,amount_cents) SELECT ?,period,category,scope,amount_cents FROM category_budgets WHERE month=? AND period=?',(target,source,period)).rowcount
     audit('category budgets copied',target);db().commit();return jsonify(added=count)
 
 

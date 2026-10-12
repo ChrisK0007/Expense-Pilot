@@ -2,7 +2,7 @@
 const Tracking=(()=>{
  let journeys=[],vehicleFilter='',search='',scope='all',fy='all';
  const km=m=>new Intl.NumberFormat('en-AU',{minimumFractionDigits:1,maximumFractionDigits:1}).format(m/1000);
- const go=()=>{page='vehicles';render();};
+ const go=()=>navigate('vehicles');
  async function categoryForm(selected=null){
   modal('Expense categories',`<p class="muted">Your categories are shared across the workspace. Meals remain in Trips & meals.</p><div class="category-list">${S.categories.filter(c=>c!=='Meals').map(c=>`<span class="pill">${esc(c)}</span>`).join('')}</div>${bookkeeper()?`<form id="category-form">${field('New category name','category_name','text','','required maxlength="80"')}<button type="submit">Create category</button></form>`:''}`);
   if(bookkeeper())formHandler('#category-form',async d=>{S.categories=await api('categories',{name:d.category_name});toast('Category created.');if(selected){$('#modal').close();selected(d.category_name);}else categoryForm();});
