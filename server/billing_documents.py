@@ -11,9 +11,23 @@ def documents():
         payload = body()
         if {'reminders_enabled', 'reminder_options'} & payload.keys() and g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)
-        values = validate_document(payload)
+        import hashlib, json, re
+        key = payload.get('request_key')
+        if key is not None and (not isinstance(key, str) or not re.fullmatch(r'[A-Za-z0-9-]{16,80}', key)):
+            fail('Invalid invoice request key.')
+        fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',',':')).encode()).hexdigest()
         db().execute('BEGIN IMMEDIATE')
+        if key:
+            prior = db().execute('SELECT fingerprint,document_id FROM billing_document_requests WHERE user_id=? AND request_key=?', (g.user['id'],key)).fetchone()
+            if prior:
+                if prior['fingerprint'] != fingerprint: fail('This request key was already used for different invoice details.',409)
+                if not db().execute('SELECT id FROM billing_documents WHERE id=?', (prior['document_id'],)).fetchone(): fail('That invoice was deleted. Start a new invoice.',409)
+                db().commit()
+                return jsonify(id=prior['document_id'])
+        values = validate_document(payload)
         did = insert_document(values, custom_number=payload.get('number'))
+        if key:
+            db().execute('INSERT INTO billing_document_requests(user_id,request_key,fingerprint,document_id) VALUES (?,?,?,?)', (g.user['id'],key,fingerprint,did))
         db().commit()
         return jsonify(id=did)
     where = '1=1'

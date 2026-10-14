@@ -24,6 +24,7 @@ jobs:
       - name: Syntax checks
         run: |
           node --check server/static/app.js
+          node --check server/static/overnights.js
           node --check server/static/bank-feeds.js
           node --check server/static/billing.js
           node --check server/static/billing-mail.js

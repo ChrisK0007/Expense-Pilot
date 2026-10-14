@@ -116,7 +116,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version=VERSION,features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -249,8 +249,11 @@ def update_trip(tid):
         if scope not in ('work','business') or (g.user['role']=='employee' and scope!='business'): fail('Invalid scope.')
         if any((e['scope']!=scope and not (e['scope']=='split' and percentages(e)[0 if scope=='work' else 1]>0)) or not start<=e['date']<=end for e in linked): fail('This change would exclude linked expenses. Update or unlink those expenses first.',409)
         if not textval(d.get('location')) or not textval(d.get('purpose')): fail('Location and purpose are required.')
-        db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=? WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
+        db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=?,comparison_version=comparison_version+1 WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
     db().commit();return jsonify(ok=True)
+
+import overnights
+overnights.register(app, auth)
 
 # Employment ledger and one resident/sole-trader tax forecast for the owner's workspace.
 
