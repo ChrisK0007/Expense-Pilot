@@ -41,7 +41,7 @@ class SplitsFeaturesTest(unittest.TestCase):
         self.assertEqual(len(export),1)
         self.assertEqual([export[0][x] for x in ('Employment %','Business %','Personal %','Employment allocation AUD','Business allocation AUD','Allocated amount AUD (not tax determination)')],['30','20','50','30.00','20.00','50.00'])
         for extra in ({'amount':-10},{'amount':1000,'reimbursed':True},{'amount':1000,'status':'review'}):
-            values=dict(scope='split',work_percent=30,business_percent=20,status='ready');values.update(extra)
+            values=dict(category='Phone & internet',scope='split',work_percent=30,business_percent=20,status='ready');values.update(extra)
             self.expense(self.owner,**values)
         report=self.owner.get('/api/tax/2026').json['recorded']
         self.assertEqual((report['work_deductions_cents'],report['business_deductions_cents']),(2700,1800))
