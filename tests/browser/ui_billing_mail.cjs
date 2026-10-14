@@ -30,8 +30,9 @@ async function billingMailChecks(page,output){
   await page.getByRole('button',{name:'Automatic invoice reminders',exact:false}).click();
   assert.equal(await page.getByLabel('Enable automatic reminder emails').isChecked(),false);
   await page.getByLabel('Days before the due date',{exact:true}).fill('5');
+  const reminderSaved=page.waitForResponse(r=>r.url().endsWith('/api/billing/reminder-settings')&&r.request().method()==='PUT'&&r.status()===200);
   await page.getByRole('button',{name:'Save reminder schedule',exact:true}).click();
-  await page.getByText('Reminder schedule saved.',{exact:true}).waitFor();
+  await reminderSaved;
   assert.equal((await page.evaluate(()=>api('billing/reminder-settings'))).before_days,5);
   await navigate(page,'invoices');
   const row=page.locator('#billing-table tbody tr').filter({hasText:'INV-0001'});
