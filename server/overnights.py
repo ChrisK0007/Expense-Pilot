@@ -38,6 +38,7 @@ def days(start, end):
 
 
 def validate_settings(payload, trip, money):
+    if not isinstance(payload, dict): raise ValueError('Provide comparison details as an object.')
     salary = money(payload.get('salary', 0))
     if salary <= 0: raise ValueError('Enter your annual salary excluding allowances (full-time equivalent if part-time).')
     destination = payload.get('destination_class')
@@ -54,6 +55,7 @@ def validate_settings(payload, trip, money):
         result.append({'date': row['date'], **{meal: row.get(meal, False) for meal in MEALS}})
     custom = {}
     if destination == 'custom':
+        if not isinstance(payload.get('custom_rates', {}), dict): raise ValueError('Provide custom amounts for each meal.')
         for meal in MEALS:
             value = money(payload.get('custom_rates', {}).get(meal, 0))
             if value < 0: raise ValueError('Custom amounts cannot be negative.')
