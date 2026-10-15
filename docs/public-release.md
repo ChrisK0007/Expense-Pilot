@@ -12,6 +12,8 @@ Expense Pilot is a free self-hosted application with a separately versioned nati
 
 The portable file uses a Docker named volume, avoiding host-path permissions on Windows/macOS. The existing Unraid templates and `compose.yaml`/`compose.registry.yaml` keep their existing mounts and configuration; do not switch an existing installation to an empty volume. Multiple installations need separate data volumes, ports and setup tokens. Never share the same data volume between stable and beta.
 
+The published server image is currently Linux AMD64. This Compose file selects that platform explicitly; Apple silicon and other ARM Docker hosts need AMD64 emulation. Native ARM images and host-specific installation tests remain release follow-up work. Ollama's companion image chooses its own available native platform.
+
 The default port binds only to the host's loopback interface. For trusted LAN access, set `BIND_ADDRESS=0.0.0.0` and configure the host firewall. For access from a phone away from home use a VPN or a properly configured HTTPS reverse proxy. Do not expose unencrypted HTTP to the internet. Set `COOKIE_SECURE=true` when using HTTPS. The native app requires a direct Expense Pilot endpoint and does not bypass an external SSO wall or invalid TLS certificate.
 
 ## Receipt AI modes

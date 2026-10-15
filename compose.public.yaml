@@ -3,6 +3,7 @@
 services:
   expense-pilot:
     image: ${IMAGE:-ghcr.io/chrisk0007/expense-pilot:beta}
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8788}:8788"

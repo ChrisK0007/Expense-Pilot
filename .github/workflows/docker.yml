@@ -90,6 +90,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_vehicle_logbook.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_planning.cjs
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_routing.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_public_release.cjs
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |
