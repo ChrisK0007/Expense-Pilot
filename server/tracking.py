@@ -4,6 +4,7 @@ import io
 import json
 import re
 import location_core
+import journey_routes
 from expense_core import split_values
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -30,7 +31,7 @@ def norm(value):
     return re.sub(r'[^a-z0-9]+', ' ', str(value).casefold()).strip()
 
 def category_names():
-    return BASE_CATEGORIES + [r['name'] for r in rows('SELECT name FROM custom_categories ORDER BY name COLLATE NOCASE')]
+    return sorted(BASE_CATEGORIES + [r['name'] for r in rows('SELECT name FROM custom_categories')], key=lambda name: (name.casefold(), name))
 
 @bp.route('/categories', methods=['GET', 'POST'])
 @access
@@ -307,17 +308,29 @@ def journey_values(d):
 @access
 def journeys_api():
     if request.method=='POST':
-        d=body(); values=journey_values(d); meta=vehicle_logbook.metadata(d)
+        d=body(); values=journey_values(d); meta=vehicle_logbook.metadata(d); route=journey_routes.archive(d.get('route'))
+        fingerprint=journey_routes.fingerprint(values,meta,route)
         db().execute('BEGIN IMMEDIATE')
         if meta[2]:
+            receipt=one('SELECT * FROM journey_upload_receipts WHERE client_ref=?',(meta[2],))
+            if receipt:
+                if receipt['fingerprint']!=fingerprint: fail('This upload reference has different reviewed details. Check saved journeys.',409)
+                saved=one('SELECT * FROM vehicle_journeys WHERE id=?',(receipt['journey_id'],))
+                if not saved: fail('This journey was uploaded and then deleted. A delayed retry cannot recreate it.',409)
+                vehicle(saved['vehicle_id'])
+                if journey_routes.fingerprint(tuple(saved[k] for k in ('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent')),tuple(saved[k] for k in ('started_at','ended_at','client_ref')),saved['route_json'])!=fingerprint:
+                    fail('This journey was changed on the server. Check it before removing the local copy.',409)
+                db().commit();return jsonify(journey_routes.acknowledgement(saved['id'],meta[2],saved['route_json']))
             old=one('SELECT * FROM vehicle_journeys WHERE client_ref=?',(meta[2],))
             if old:
                 vehicle(old['vehicle_id'])
                 keys=('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent','started_at','ended_at','client_ref')
-                if tuple(old[k] for k in keys)!=values+meta: fail('This journey was already uploaded with different details. Check Vehicles before uploading again.',409)
-                db().commit();return jsonify(id=old['id'])
-        jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent,started_at,ended_at,client_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',values+meta).lastrowid
-        audit('vehicle journey created',jid);db().commit();return jsonify(id=jid)
+                if tuple(old[k] for k in keys)!=values+meta or old['route_json']!=route: fail('This journey was already uploaded with different details. Check Vehicles before uploading again.',409)
+                db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],old['id'],fingerprint))
+                db().commit();return jsonify(journey_routes.acknowledgement(old['id'],meta[2],route))
+        jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent,started_at,ended_at,client_ref,route_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',values+meta+(route,)).lastrowid
+        if meta[2]: db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],jid,fingerprint))
+        audit('vehicle journey created',jid);db().commit();return jsonify(journey_routes.acknowledgement(jid,meta[2],route))
     where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
     data=rows(f'SELECT j.*,v.name AS vehicle,v.registration,v.user_id,u.name AS owner FROM vehicle_journeys j JOIN vehicles v ON v.id=j.vehicle_id JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY j.date DESC,j.id DESC',args)
     if request.args.get('format')=='csv':
@@ -325,20 +338,31 @@ def journeys_api():
         def safe(s): return "'"+s if str(s).lstrip().startswith(('=','+','-','@')) else s
         for x in data: writer.writerow([date.fromisoformat(x['date']).strftime('%d/%m/%Y'),*[safe(x[k]) for k in ('vehicle','registration','owner','origin','destination','purpose')],x['scope'],'' if x['odometer_start'] is None else x['odometer_start']/1000,'' if x['odometer_end'] is None else x['odometer_end']/1000,x['distance_m']/1000,x['percent'],x['distance_m']*x['percent']/100000])
         return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-vehicle-journeys.csv')
+    for item in data: item['has_route']=item.pop('route_json') is not None
     return jsonify(data)
 
-@bp.route('/vehicle-journeys/<int:jid>',methods=['PUT','DELETE'])
+@bp.route('/vehicle-journeys/<int:jid>',methods=['GET','PUT','DELETE'])
 @access
 def journey_api(jid):
     j=one('SELECT * FROM vehicle_journeys WHERE id=?',(jid,))
     if not j: fail('Journey not found.',404)
     old=vehicle(j['vehicle_id'])
-    if request.method=='DELETE': db().execute('DELETE FROM vehicle_journeys WHERE id=?',(jid,))
+    if request.method=='GET':
+        j['route']=json.loads(j.pop('route_json')) if j['route_json'] else None
+        j.pop('route_json',None)
+        return jsonify(j)
+    if request.method=='DELETE':
+        if j['client_ref']:
+            values=tuple(j[k] for k in ('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent'))
+            meta=tuple(j[k] for k in ('started_at','ended_at','client_ref'))
+            db().execute('INSERT OR IGNORE INTO journey_upload_receipts VALUES (?,?,?)',(j['client_ref'],jid,journey_routes.fingerprint(values,meta,j['route_json'])))
+        db().execute('DELETE FROM vehicle_journeys WHERE id=?',(jid,))
     else:
         d=body();values=journey_values(d)
         vehicle(values[0],old['user_id'])
         meta=vehicle_logbook.metadata(d,j)
-        db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=?,started_at=?,ended_at=?,client_ref=? WHERE id=?',values+meta+(jid,))
+        route=journey_routes.archive(d['route']) if 'route' in d else j['route_json']
+        db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=?,started_at=?,ended_at=?,client_ref=?,route_json=? WHERE id=?',values+meta+(route,jid))
     audit('vehicle journey updated',jid);db().commit();return jsonify(ok=True)
 
 def register(app, **deps):

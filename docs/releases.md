@@ -3,7 +3,9 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.1` |
-| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.2-beta.1` |
+| Beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.2-beta.6` |
+
+Beta v1.0.2-beta.6 retains reviewed iPhone route maps on the server, acknowledges exact retry-safe uploads and blocks delayed retries from recreating deleted journeys. Expense categories are alphabetised across built-in and custom names. Migration m014 runs automatically. The iPhone 0.7.0 update adds saved addresses, automatic endpoint addresses, Private trip defaults and optional car audio connection gating.
 
 Stable v1.0.1 promotes all changes through v1.0.1-beta.4: [PocketSmith bank feeds](pocketsmith.md), the nullable transfer flag fix, shared billing navigation including Clients, invoice reminder controls and permanent expense/receipt deletion.
 
