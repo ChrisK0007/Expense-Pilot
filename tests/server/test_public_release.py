@@ -108,7 +108,10 @@ class PublicReleaseTest(unittest.TestCase):
         raw = response.data
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); archive = root/'backup.zip'; archive.write_bytes(raw)
-            restore(archive, root/'restored')
+            target = root/'restored'; target.mkdir()
+            root.chmod(0o500)
+            try: restore(archive, target)
+            finally: root.chmod(0o700)
             import sqlite3
             con = sqlite3.connect(root/'restored/rounded.sqlite')
             self.assertEqual(con.execute('SELECT count(*) FROM expenses').fetchone()[0], 1)

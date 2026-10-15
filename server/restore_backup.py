@@ -18,7 +18,9 @@ def restore(archive, destination):
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     if any(destination.iterdir()): raise ValueError('Restore requires an empty data directory. Keep the original volume as your rollback copy.')
-    with zipfile.ZipFile(archive) as source, tempfile.TemporaryDirectory(dir=destination.parent) as folder:
+    # The container user can write /data, but cannot create siblings under /.
+    # Keep staging on the target volume, which also avoids /tmp size limits.
+    with zipfile.ZipFile(archive) as source, tempfile.TemporaryDirectory(dir=destination) as folder:
         root = Path(folder)
         names = source.namelist()
         if len(names) != len(set(names)) or 'manifest.json' not in names: raise ValueError('Invalid backup manifest or duplicate files.')
@@ -51,9 +53,9 @@ def restore(archive, destination):
         try:
             for item in (root/'data').iterdir():
                 target = destination/item.name
+                created.append(target)
                 if item.is_dir(): shutil.copytree(item, target)
                 else: shutil.copyfile(item, target); target.chmod(0o600)
-                created.append(target)
         except Exception:
             for item in created:
                 if item.is_dir(): shutil.rmtree(item)

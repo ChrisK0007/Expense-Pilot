@@ -12,7 +12,9 @@ def reference(value):
 
 
 def fingerprint(payload):
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    from app import fail
+    try: return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    except (TypeError, ValueError): fail('Use valid JSON values for this upload.')
 
 
 def previous(uid, kind, ref, digest):
@@ -22,8 +24,14 @@ def previous(uid, kind, ref, digest):
     if not row: return None
     if row['fingerprint'] != digest: fail('This upload reference was already used for different data. Keep the phone draft and review it.', 409)
     table = {'expense': 'expenses', 'receipt': 'receipts'}[kind]
-    record = one(f'SELECT * FROM {table} WHERE id=? AND user_id=?', (row['record_id'], uid))
+    record = one(f'SELECT * FROM {table} WHERE id=?', (row['record_id'],))
     if not record: fail('This record was deleted on the server. The delayed upload will not recreate it.', 409)
+    if kind == 'expense':
+        # Owners can create an expense for an existing employee's vehicle/trip.
+        # Recheck current access instead of confusing that ownership with deletion.
+        from app import expense
+        record = expense(record['id'], True)
+    elif record['user_id'] != uid: fail('Access to this receipt changed. Keep the phone draft and review it.', 409)
     return record
 
 

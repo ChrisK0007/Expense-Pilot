@@ -59,6 +59,9 @@ def register(app, auth):
     def backup():
         from billing import save_settings
         db().execute('BEGIN IMMEDIATE'); reauthenticate()
+        # Consume a recovery code before snapshotting through the read connection.
+        # The archive must not restore a recovery code already used for this backup.
+        db().commit(); db().execute('BEGIN IMMEDIATE')
         archive = tempfile.TemporaryFile()
         try:
             with tempfile.TemporaryDirectory() as directory:
