@@ -73,7 +73,7 @@ def guard():
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -116,7 +116,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -125,7 +125,9 @@ def setup():
     if one('SELECT id FROM users LIMIT 1'): fail('Setup already complete.',409)
     name=textval(d.get('name'),100);email=textval(d.get('email'),200).lower()
     if not name or '@' not in email: fail('Name and email are required.')
-    db().execute('INSERT INTO users(name,email,password,role) VALUES (?,?,?,?)',(name,email,newpass(d.get('password')),'owner'));db().commit()
+    from billing import settings
+    uid = settings('instance', {}).get('owner_id_floor', 1)
+    db().execute('INSERT INTO users(id,name,email,password,role) VALUES (?,?,?,?,?)',(uid,name,email,newpass(d.get('password')),'owner'));db().commit()
     return jsonify(ok=True)
 @app.post('/api/login')
 def login(): return security.login_response()
@@ -207,13 +209,19 @@ def expenses():
     if not can_write(): fail('Read-only access.',403)
     db().execute('BEGIN IMMEDIATE')
     d=request.get_json();uid=record_user_id();existing=None
+    import mobile_uploads
+    ref=mobile_uploads.reference(d.get('client_ref'))
+    digest=mobile_uploads.fingerprint(d) if ref else ''
+    prior=mobile_uploads.previous(uid,'expense',ref,digest)
+    if prior:
+        db().commit();return jsonify(mobile_uploads.ack(prior['id'],ref))
     if d.get('meal') and d.get('trip_id'):
         t=one('SELECT * FROM trips WHERE id=?',(d['trip_id'],))
         if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
         uid=t['user_id'];existing={'user_id':uid,'account_id':None}
     if not existing and d.get('vehicle_id'):
         v=tracking_vehicle(d['vehicle_id']);uid=v['user_id'];existing={'user_id':uid,'account_id':None}
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -283,3 +291,8 @@ import planning
 planning.register(app, db=db, rows=rows, one=one, fail=fail, audit=audit, body=tracking_body, category_names=category_names, money=money, day=day, textval=textval, vehicle=tracking_vehicle, expense=expense)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)
+
+import ai_providers
+ai_providers.register(app, auth)
+import public_release
+public_release.register(app, auth)

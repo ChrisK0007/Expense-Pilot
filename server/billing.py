@@ -25,7 +25,7 @@ DEFAULT_BUSINESS = dict(name='', abn='', address='', email='', phone='', gst_reg
                         payment_details='', notes='Thank you for your business.', terms=14,
                         invoice_prefix='INV-', quote_prefix='QUO-', accent='#355c46', logo='')
 DEFAULT_MAIL = dict(host='', port=587, security='starttls', username='', from_email='',
-                    from_name='', reply_to='', password_encrypted='',
+                    from_name='', reply_to='', password_encrypted='', copy_self=False, copy_email='',
                     subject='{kind} {number} from {business}',
                     body='Hi {client},\n\nPlease find your {kind} {number} attached.\nTotal: {total}\nDue / valid until: {due_date}\n\nThank you,\n{business}')
 
@@ -314,7 +314,10 @@ def configure_email():
                   security=payload.get('security', 'starttls'), username=header(payload.get('username'), 254),
                   from_email=email(payload.get('from_email')), from_name=header(payload.get('from_name')),
                   reply_to=email(payload.get('reply_to')), subject=header(payload.get('subject', old['subject'])),
-                  body=txt(payload.get('body', old['body']), 10000), password_encrypted=old['password_encrypted'])
+                  body=txt(payload.get('body', old['body']), 10000), password_encrypted=old['password_encrypted'],
+                  copy_self=payload.get('copy_self', old['copy_self']) is True, copy_email=email(payload.get('copy_email', old['copy_email'])))
+    if config['copy_self'] and not config['copy_email']:
+        config['copy_email'] = email(one("SELECT email FROM users WHERE role='owner' ORDER BY id LIMIT 1")['email'], True)
     if config['host'] and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.:-]*', config['host']):
         fail('Enter the SMTP hostname without http:// or a path.')
     if config['security'] not in ('starttls', 'ssl'):
@@ -334,7 +337,7 @@ def configure_email():
     return jsonify(ok=True)
 
 
-def deliver(recipient, subject, message, attachment=None, filename=None, signature_html=''):
+def deliver(recipient, subject, message, attachment=None, filename=None, signature_html='', copy=False):
     config = mail_settings()
     if not config['host'] or not config['from_email']:
         raise ValueError('Configure your SMTP account in Email settings first.')
@@ -342,6 +345,8 @@ def deliver(recipient, subject, message, attachment=None, filename=None, signatu
     outgoing['From'] = formataddr((header(config['from_name']), email(config['from_email'], True)))
     outgoing['To'] = email(recipient, True)
     outgoing['Subject'] = header(subject)
+    if copy and config['copy_self'] and config['copy_email'] and config['copy_email'].lower() != recipient.lower():
+        outgoing['Bcc'] = email(config['copy_email'], True)
     outgoing['Date'] = formatdate(localtime=False)
     outgoing['Message-ID'] = make_msgid()
     if config['reply_to']:
@@ -365,7 +370,11 @@ def deliver(recipient, subject, message, attachment=None, filename=None, signatu
             password = secret_box().decrypt(config['password_encrypted'].encode()).decode() if config['password_encrypted'] else ''
             connection.login(config['username'], password)
         phase = 'send'
-        connection.send_message(outgoing)
+        refused = connection.send_message(outgoing)
+        if isinstance(refused, dict) and refused:
+            if any(address.lower() == recipient.lower() for address in refused):
+                return 'failed', 'The client address was rejected. Your copy may have been delivered.'
+            return 'sent', 'Client email sent, but the copy address was rejected. Check the copy address in Email settings.'
     except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError):
         return 'failed', 'The mail server rejected the message. Check the recipient and sender permissions.'
     except (smtplib.SMTPException, OSError, InvalidToken, ValueError):
