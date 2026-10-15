@@ -1,3 +1,10 @@
+# 1.0.2-beta.9
+
+- Simplify Settings into fixed topic groups with clear email, receipt AI, security and data controls, consistent spacing and mobile navigation.
+- Remove Ollama fields from the beta Unraid template; configure AI in the app while retaining existing environment compatibility.
+- Make SETUP_TOKEN optional. A configured token remains enforced, and first-owner creation still closes after setup. Hide the token field when not required.
+- Remove backups from the workspace setup checklist. Optional downloads remain under Data & privacy.
+
 ## 1.0.2-beta.8
 
 - Add an owner-managed workspace timezone in setup and Settings; suggest the browser's timezone on new installs and retain Brisbane on upgrades.

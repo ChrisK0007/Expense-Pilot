@@ -90,24 +90,22 @@ cd /mnt/user/appdata/expense-pilot
 bash prepare.sh
 ```
 
-This creates `.env` with a random first-run setup token and a `data` folder owned by UID 99/GID 100. Existing configuration is preserved.
+This creates `.env` with an optional random first-run setup token and a `data` folder owned by UID 99/GID 100. Existing configuration is preserved. On beta.9 or later, keep the token for protected setup or clear it for token-free setup.
 
 ### Unraid Docker page
 
-A template is supplied in `deploy/unraid/expense-pilot.xml`. Copy it to `/boot/config/plugins/dockerMan/templates-user/my-expense-pilot.xml`, then go to **Docker → Add Container** and select the Expense Pilot template. Set:
+The beta template is supplied in `deploy/unraid/expense-pilot.xml`. For stable v1.0.1, use the template from the main branch; its original setup and AI requirements still apply. Copy it to `/boot/config/plugins/dockerMan/templates-user/my-expense-pilot.xml`, then go to **Docker → Add Container** and select the Expense Pilot template. Set:
 
 | Setting | Value |
 | --- | --- |
-| Repository | `ghcr.io/chrisk0007/expense-pilot:latest` |
+| Repository | `ghcr.io/chrisk0007/expense-pilot:beta` |
 | Network | Bridge |
 | Web port | Host 8788 → container 8788 |
 | Appdata | `/mnt/user/appdata/expense-pilot/data` → `/data` |
-| Setup token | `SETUP_TOKEN` value generated in `.env` |
-| Ollama URL | Blank for manual entry, or your reachable Ollama address |
-| Ollama model | Name of an installed model; photos/scans require vision support |
+| Setup token | Optional; blank, or a random value of at least 24 characters |
 | Secure cookie | `false` for LAN HTTP setup; `true` when using HTTPS |
 
-The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8788`, enter the setup token and create your owner login. No default password is provided. Enable **Autostart** for the container in Unraid.
+The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8788`, create your owner login (enter a setup token only if configured). Complete owner setup before exposing the server remotely. No default password is provided. Enable **Autostart** for the container in Unraid.
 
 When a tested image is published, use the normal Unraid Docker update controls to pull it. Keep the `/data` mapping unchanged. For private packages the server must remain authenticated to GHCR. Back up before updating.
 
@@ -140,7 +138,7 @@ docker compose up -d --build
 
 ## AI receipt reading
 
-Set `OLLAMA_URL` to an address reachable from inside the app container, such as your Unraid host's LAN IP and Ollama port. `localhost` means the expense container itself. Set `OLLAMA_MODEL` to an installed model. Text PDFs send extracted text; scanned PDFs are rendered into images, as are receipt photos. PDFs are limited to eight pages and uploads to 12 MB.
+On the beta, choose **Settings → Receipts & AI → Configure receipt AI → Existing / remote Ollama**. Enter an address reachable from inside the app container, such as your Unraid host's LAN IP and Ollama port, and an installed model. `localhost` means the expense container itself. Legacy `OLLAMA_URL` and `OLLAMA_MODEL` remain supported until settings are saved in the app. Text PDFs send extracted text; scanned PDFs are rendered into images, as are receipt photos. PDFs are limited to eight pages and uploads to 12 MB.
 
 Nothing is sent to Ollama until you select **Read with AI** or enable **Read with AI after upload** during capture. Check all suggested values before saving. Foreign amounts need manual AUD conversion. This version supports Ollama, not OpenAI API connections. If using the Unraid template, edit its environment-variable fields and Apply; if using Compose, edit `.env` and recreate the container.
 

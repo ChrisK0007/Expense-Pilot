@@ -19,7 +19,7 @@ const Tracking=(()=>{
   formHandler('#receipt-preferences',async d=>{await api('receipt-preferences',{...d,home_place_id:selected},'PUT');$('#modal').close();if(page==='receipts')await Receipts.page();toast('Receipt preferences saved.');});
  }
  function settings(){
-  $('#content .heading').insertAdjacentHTML('afterend',`<section class="card tracking-settings"><h2>Make it your workspace</h2><div class="settings-options"><button class="secondary" id="category-settings">Expense categories →</button>${role()!=='tax_agent'?'<button class="secondary" id="receipt-preferences-settings">Home base & receipt sorting →</button>':''}</div></section>`);
+  $('#settings-receipts-cards').insertAdjacentHTML('beforeend',`<section class="card tracking-settings"><h3>Categories & receipt sorting</h3><p class="muted">Manage expense categories and your home base for overnight suggestions.</p><div class="settings-options"><button class="secondary" id="category-settings">Expense categories →</button>${role()!=='tax_agent'?'<button class="secondary" id="receipt-preferences-settings">Home base & receipt sorting →</button>':''}</div></section>`);
   bind('#category-settings',()=>categoryForm());bind('#receipt-preferences-settings',()=>preferences().catch(e=>toast(e.message)));
  }
  async function vehiclesPage(){

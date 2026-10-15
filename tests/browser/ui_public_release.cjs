@@ -13,7 +13,17 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
    await api(`billing/documents/${doc.id}/payments`,{version:doc.version,amount:'11',date:today(),request_key:crypto.randomUUID()});return doc.number;
   });
   await navigate(page,'dashboard');await page.locator('.recent-invoices tr').filter({hasText:paid}).getByText('Paid',{exact:true}).waitFor();
-  await navigate(page,'settings');await page.locator('#configure-timezone').click();
+  await navigate(page,'settings');
+  await page.locator('#mail-settings').waitFor();
+  assert.deepEqual(await page.locator('.settings-group > header h2').allTextContents(),['Workspace','Receipts & AI','Business & email','Bank feeds','Access & security','Data & privacy']);
+  assert.equal(await page.locator('#settings-receipts #configure-ai').count(),1);
+  assert.equal(await page.locator('#settings-business #mail-settings').count(),1);
+  assert.equal(await page.locator('#settings-security #manage-tax-agents').count(),1);
+  assert.equal(await page.locator('#settings-data #full-backup').count(),1);
+  assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
+  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Data & privacy',exact:true}).click();
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'settings-title-data');
+  await page.locator('#configure-timezone').click();
   await page.locator('#timezone').fill('America/Los_Angeles');await page.getByRole('button',{name:'Save timezone',exact:true}).click();await page.getByText('Workspace timezone saved.',{exact:false}).waitFor();
   assert.equal(await page.evaluate(()=>WorkspaceTime.day(new Date('2026-01-01T01:00:00Z'))),'2025-12-31');
   await page.reload();await page.locator('#configure-timezone').click();assert.equal(await page.locator('#timezone').inputValue(),'America/Los_Angeles');

@@ -1,6 +1,7 @@
 """Public-client discovery, onboarding and explicit data lifecycle controls."""
 import hashlib
 import json
+import os
 import sqlite3
 import tempfile
 import uuid
@@ -40,19 +41,18 @@ def register(app, auth):
     def server_info():
         return jsonify(product='Expense Pilot', api_version=1, minimum_client_api=1,
                        version=VERSION, setup=not bool(one('SELECT id FROM users LIMIT 1')),
-                       privacy_path='/privacy', instance_id=instance_id())
+                       setup_token_required=bool(os.environ.get('SETUP_TOKEN','')), privacy_path='/privacy', instance_id=instance_id())
 
     @app.get('/api/setup/checklist')
     @auth('owner')
     def checklist():
-        from billing import business, settings
+        from billing import business
         import ai_providers
         return jsonify(items=[
             dict(key='account', label='Owner account created', complete=True),
             dict(key='timezone', label='Confirm workspace timezone', complete=bool(one("SELECT key FROM billing_settings WHERE key='workspace'"))),
             dict(key='ai', label='Choose receipt AI or manual entry', complete=bool(one("SELECT key FROM billing_settings WHERE key='receipt_ai'")) or ai_providers.configured()),
             dict(key='business', label='Business details (if issuing invoices)', complete=bool(business()['name']), optional=True),
-            dict(key='backup', label='Download a backup and plan regular backups', complete=bool(settings('release_setup', {}).get('backup_downloaded'))),
         ])
 
     @app.post('/api/data/backup')
