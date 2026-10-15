@@ -81,8 +81,11 @@ class WorkspaceTimeTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, 'vehicle-journeys', data).json, result.json)
         saved = self.owner.get('/api/vehicle-journeys/'+str(result.json['id'])).json
         self.assertEqual((saved['date'], saved['date_timezone']), ('2026-01-02', 'Australia/Sydney'))
-        with patch('vehicle_logbook.time.time', return_value=start+3600):
-            self.assertEqual(self.owner.get(f'/api/vehicles/{vid}/odometer').json['estimate_m'], 110000)
+        with patch('vehicle_logbook.time') as clock:
+            clock.time.return_value = start+3600
+            reading = self.owner.get(f'/api/vehicles/{vid}/odometer')
+            self.assertEqual(reading.status_code, 200, reading.json)
+            self.assertEqual(reading.json['estimate_m'], 110000)
         old = dict(data, date='2026-01-01', client_ref=str(uuid.uuid4())); old.pop('date_timezone')
         legacy = self.call(self.owner, 'vehicle-journeys', old)
         self.assertEqual(legacy.status_code, 200, legacy.json)
