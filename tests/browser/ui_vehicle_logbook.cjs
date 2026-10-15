@@ -13,8 +13,8 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await navigate(page,'vehicles');
   const open=async()=>{await page.locator('.card').filter({has:page.getByRole('heading',{name:'Odometer test car',exact:true})}).getByRole('button',{name:'Odometer log',exact:true}).click();await page.locator('#add-odometer').waitFor();};
   await open();await page.locator('#add-odometer').click();
-  const when=new Date(Date.now()-3*86400000);when.setHours(8,0,0,0);const local=new Date(when);local.setMinutes(local.getMinutes()-local.getTimezoneOffset());
-  await page.getByLabel('Dashboard odometer (km)').fill('52000');await page.getByLabel('Reading taken').fill(local.toISOString().slice(0,16));await page.getByLabel('Notes',{exact:true}).fill('Dashboard baseline');await page.getByRole('button',{name:'Save reading',exact:true}).click();
+  const when=new Date(Date.now()-3*86400000);when.setHours(8,0,0,0);const local=await page.evaluate(t=>WorkspaceTime.local(t),when.getTime());
+  await page.getByLabel('Dashboard odometer (km)').fill('52000');await page.getByLabel('Reading taken').fill(local);await page.getByLabel('Notes',{exact:true}).fill('Dashboard baseline');await page.getByRole('button',{name:'Save reading',exact:true}).click();
   await page.getByText('Odometer reading saved.',{exact:true}).waitFor();assert.match(await page.locator('#modal').innerText(),/52,000/);
   const end=when.getTime()/1000+7200,date=new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Brisbane',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(end*1000));
   const trip=await page.request.post(url+'/api/vehicle-journeys',{headers,data:{vehicle_id:vid,date,origin:'Home',destination:'Airport',purpose:'Personal journey',scope:'personal',percent:0,distance:'28.6',started_at:end-1800,ended_at:end,client_ref:'5857d129-dc08-49d1-8b40-42cb9eaf89b1'}});assert.ok(trip.ok(),await trip.text());const jid=(await trip.json()).id;

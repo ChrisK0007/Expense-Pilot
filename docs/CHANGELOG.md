@@ -1,3 +1,11 @@
+## 1.0.2-beta.8
+
+- Add an owner-managed workspace timezone in setup and Settings; suggest the browser's timezone on new installs and retain Brisbane on upgrades.
+- Apply regional dates and daylight saving to invoices, reminders, recurring drafts, budgets, bank-sync date windows, tax-period progress and vehicle logs.
+- Share the timezone with native iOS and retain each recorded trip's timezone for safe offline upload after a setting change.
+- Use workspace time for odometer entry and bank-feed timestamps; reject daylight-saving gaps and explicitly resolve repeated clock times.
+- Preserve saved calendar dates and UTC timestamps. AUD, Australian financial years and tax rules are unchanged.
+
 ## 1.0.2-beta.7
 
 - Add No AI, local Ollama, existing/remote Ollama and cloud API modes with encrypted keys, connection testing and explicit cloud consent. Preserve legacy Ollama configuration.

@@ -14,7 +14,6 @@ from decimal import Decimal
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 from functools import wraps
-from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, g, jsonify, request, send_file
@@ -35,7 +34,8 @@ def now():
 
 
 def local_today():
-    return datetime.now(ZoneInfo('Australia/Brisbane')).date().isoformat()
+    from workspace_time import today
+    return today().isoformat()
 
 
 def owner(fn):

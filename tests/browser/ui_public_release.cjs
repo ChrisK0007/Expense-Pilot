@@ -13,7 +13,14 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
    await api(`billing/documents/${doc.id}/payments`,{version:doc.version,amount:'11',date:today(),request_key:crypto.randomUUID()});return doc.number;
   });
   await navigate(page,'dashboard');await page.locator('.recent-invoices tr').filter({hasText:paid}).getByText('Paid',{exact:true}).waitFor();
-  await navigate(page,'settings');await page.locator('#configure-ai').click();
+  await navigate(page,'settings');await page.locator('#configure-timezone').click();
+  await page.locator('#timezone').fill('America/Los_Angeles');await page.getByRole('button',{name:'Save timezone',exact:true}).click();await page.getByText('Workspace timezone saved.',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>WorkspaceTime.day(new Date('2026-01-01T01:00:00Z'))),'2025-12-31');
+  await page.reload();await page.locator('#configure-timezone').click();assert.equal(await page.locator('#timezone').inputValue(),'America/Los_Angeles');
+  await page.locator('#timezone').fill('Australia/Sydney');await page.getByRole('button',{name:'Save timezone',exact:true}).click();await page.getByText('Workspace timezone saved.',{exact:false}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>['2026-01-01T13:30:00Z','2026-07-01T13:30:00Z'].map(d=>WorkspaceTime.day(new Date(d)))),['2026-01-02','2026-07-01']);
+  await page.locator('#configure-timezone').click();await page.locator('#timezone').fill('Australia/Brisbane');await page.getByRole('button',{name:'Save timezone',exact:true}).click();await page.getByText('Workspace timezone saved.',{exact:false}).waitFor();
+  await page.locator('#configure-ai').click();
   for(const mode of ['none','local_ollama','remote_ollama','cloud']){
    await page.locator('#ai_mode').selectOption(mode);
    assert.equal(await page.locator('#ai-cloud').isVisible(),mode==='cloud');assert.equal(await page.locator('#ai-remote').isVisible(),mode==='remote_ollama');

@@ -1,7 +1,7 @@
 'use strict';
 const BankFeeds=(()=>{
  let filter='review',offset=0;
- const stamp=v=>v?new Date(v).toLocaleString('en-AU'):'Not synced yet';
+ const stamp=v=>v?WorkspaceTime.stamp(v):'Not synced yet';
  const amount=t=>new Intl.NumberFormat('en-AU',{style:'currency',currency:t.currency}).format(t.amount_cents/100);
  const busy=async(button,fn)=>{button.disabled=true;try{await fn();}catch(e){toast(e.message);}finally{button.disabled=false;}};
  function settingsCard(){
