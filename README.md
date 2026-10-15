@@ -1,3 +1,7 @@
+## Public-release preparation
+
+The next beta adds selectable receipt AI, email copies, portable Docker setup and data lifecycle controls. See [installation, AI modes, backup and restore](docs/public-release.md).
+
 # Expense Pilot
 
 *a clearer view of every dollar*

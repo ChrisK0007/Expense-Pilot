@@ -1,3 +1,11 @@
+## 1.0.2-beta.7
+
+- Add No AI, local Ollama, existing/remote Ollama and cloud API modes with encrypted keys, connection testing and explicit cloud consent. Preserve legacy Ollama configuration.
+- Add client-email BCC copies and consistent dashboard invoice status labels.
+- Add portable Docker deployment, setup checklist, public server discovery/API compatibility and privacy/account controls.
+- Add authenticated full backup download and verified restore into an empty volume.
+- Make mobile expense/receipt uploads idempotent with deletion tombstones.
+
 # Release history
 
 ## 1.0.2-beta.4

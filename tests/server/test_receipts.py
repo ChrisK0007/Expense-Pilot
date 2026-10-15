@@ -21,7 +21,7 @@ class ReceiptTest(unittest.TestCase):
 
     def scan(self,rid,result):
         response=MagicMock();response.__enter__.return_value.read.return_value=json.dumps({'message':{'content':json.dumps(result)}}).encode()
-        with patch.dict(os.environ,{'OLLAMA_URL':'http://ollama.example.test:11434','OLLAMA_MODEL':'vision-test'}),patch('app.urllib.request.urlopen',return_value=response):
+        with patch.dict(os.environ,{'OLLAMA_URL':'http://ollama.example.test:11434','OLLAMA_MODEL':'vision-test'}),patch('ai_providers.urllib.request.OpenerDirector.open',return_value=response):
             return self.call(self.owner,'receipts/'+rid+'/extract',{})
 
     def test_capture_is_persistent_without_creating_expense(self):
@@ -61,7 +61,7 @@ class ReceiptTest(unittest.TestCase):
 
     def test_ai_failure_keeps_original_and_supports_manual_entry(self):
         rid=self.upload().json['id']
-        with patch.dict(os.environ,{'OLLAMA_URL':'http://ollama.example.test','OLLAMA_MODEL':'vision'}),patch('app.urllib.request.urlopen',side_effect=TimeoutError):
+        with patch.dict(os.environ,{'OLLAMA_URL':'http://ollama.example.test','OLLAMA_MODEL':'vision'}),patch('ai_providers.urllib.request.OpenerDirector.open',side_effect=TimeoutError):
             self.assertEqual(self.call(self.owner,'receipts/'+rid+'/extract',{}).status_code,502)
         self.assertEqual(self.owner.get('/api/receipts').json[0]['scan_status'],'failed')
         self.assertEqual(self.owner.get('/api/receipts/'+rid).status_code,200)
