@@ -7,7 +7,13 @@ from zoneinfo import ZoneInfo
 import tracking as t
 from flask import request, jsonify
 
-BRISBANE = ZoneInfo('Australia/Brisbane')
+import workspace_time
+
+
+def date_timezone(d, existing=None):
+    # Older iOS clients always recorded Brisbane dates; retain their uploads.
+    default = (existing or {}).get('date_timezone') or (workspace_time.DEFAULT if d.get('client_ref') else workspace_time.name())
+    return workspace_time.validate(d.get('date_timezone', default))
 
 
 def timestamp(value):
@@ -17,12 +23,13 @@ def timestamp(value):
 
 
 def metadata(d, existing=None):
+    zone = ZoneInfo(date_timezone(d, existing))
     start, end = d.get('started_at'), d.get('ended_at')
     if (start is None) != (end is None): t.fail('Provide both the trip start and finish times.')
     if start is not None:
         start, end = timestamp(start), timestamp(end)
         if start > end: t.fail('Trip finish must be after its start.')
-        if not datetime.fromtimestamp(start, BRISBANE).date().isoformat() <= d.get('date','') <= datetime.fromtimestamp(end, BRISBANE).date().isoformat(): t.fail('Trip date must fall within its start and finish dates in Queensland.')
+        if not datetime.fromtimestamp(start, zone).date().isoformat() <= d.get('date','') <= datetime.fromtimestamp(end, zone).date().isoformat(): t.fail('Trip date must fall within its start and finish dates in its recorded timezone.')
     # Old clients editing a trip's details retain timestamps unless they move its date.
     elif existing and existing['date'] == d.get('date'):
         start, end = existing['started_at'], existing['ended_at']
@@ -37,8 +44,8 @@ def metadata(d, existing=None):
 def estimate(reading, journeys):
     if not reading: return None, 0
     total, unknown = reading['reading_m'], 0
-    reading_day = datetime.fromtimestamp(reading['recorded_at'], BRISBANE).date().isoformat()
-    now=time.time(); today=datetime.fromtimestamp(now,BRISBANE).date().isoformat()
+    reading_day = datetime.fromtimestamp(reading['recorded_at'], workspace_time.zone()).date().isoformat()
+    now=time.time(); today=datetime.fromtimestamp(now,workspace_time.zone()).date().isoformat()
     for j in journeys:
         if j['date']>today or j['ended_at'] is not None and j['ended_at']>now: continue
         if j['ended_at'] is None:
@@ -55,7 +62,7 @@ def logbook(vid):
     journeys = t.rows('SELECT id,date,started_at,ended_at,client_ref,distance_m FROM vehicle_journeys WHERE vehicle_id=? ORDER BY date,id', (vid,))
     for i, reading in enumerate(readings):
         previous = readings[i-1] if i else None
-        before, ambiguous = estimate(previous, [j for j in journeys if (j['ended_at'] is not None and j['ended_at'] <= reading['recorded_at']) or (j['ended_at'] is None and j['date'] < datetime.fromtimestamp(reading['recorded_at'], BRISBANE).date().isoformat())])
+        before, ambiguous = estimate(previous, [j for j in journeys if (j['ended_at'] is not None and j['ended_at'] <= reading['recorded_at']) or (j['ended_at'] is None and j['date'] < datetime.fromtimestamp(reading['recorded_at'], workspace_time.zone()).date().isoformat())])
         reading['difference_m'] = reading['reading_m'] - before if before is not None else None
         reading['ambiguous_trips'] = ambiguous
     latest = readings[-1] if readings else None
@@ -64,7 +71,7 @@ def logbook(vid):
 
 
 def reading_values(d, vid, exclude=None):
-    recorded = timestamp(d.get('recorded_at'))
+    recorded = timestamp(workspace_time.local_timestamp(d['recorded_local'], d.get('occurrence')) if 'recorded_local' in d else d.get('recorded_at'))
     if recorded > time.time() + 60: t.fail('An actual odometer reading cannot be in the future.')
     metres = t.meters(d.get('reading'))
     if d.get('reading') in ('', None): t.fail('Enter the odometer reading.')

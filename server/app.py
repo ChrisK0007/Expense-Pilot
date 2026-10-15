@@ -12,6 +12,7 @@ from pdf_safety import inspect_pdf
 from werkzeug.exceptions import HTTPException
 from expense_core import split_values, percentages, allocations
 import features
+import workspace_time
 from version import VERSION
 
 DATA=Path(os.environ.get('DATA_DIR','./data')); DATA.mkdir(parents=True,exist_ok=True)
@@ -116,7 +117,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -125,7 +126,9 @@ def setup():
     if one('SELECT id FROM users LIMIT 1'): fail('Setup already complete.',409)
     name=textval(d.get('name'),100);email=textval(d.get('email'),200).lower()
     if not name or '@' not in email: fail('Name and email are required.')
-    from billing import settings
+    from billing import settings, save_settings
+    selected_timezone = workspace_time.validate(d.get('timezone', workspace_time.DEFAULT))
+    save_settings('workspace', {'timezone': selected_timezone})
     uid = settings('instance', {}).get('owner_id_floor', 1)
     db().execute('INSERT INTO users(id,name,email,password,role) VALUES (?,?,?,?,?)',(uid,name,email,newpass(d.get('password')),'owner'));db().commit()
     return jsonify(ok=True)
@@ -296,3 +299,4 @@ import ai_providers
 ai_providers.register(app, auth)
 import public_release
 public_release.register(app, auth)
+workspace_time.register(app, auth)

@@ -49,6 +49,7 @@ def register(app, auth):
         import ai_providers
         return jsonify(items=[
             dict(key='account', label='Owner account created', complete=True),
+            dict(key='timezone', label='Confirm workspace timezone', complete=bool(one("SELECT key FROM billing_settings WHERE key='workspace'"))),
             dict(key='ai', label='Choose receipt AI or manual entry', complete=bool(one("SELECT key FROM billing_settings WHERE key='receipt_ai'")) or ai_providers.configured()),
             dict(key='business', label='Business details (if issuing invoices)', complete=bool(business()['name']), optional=True),
             dict(key='backup', label='Download a backup and plan regular backups', complete=bool(settings('release_setup', {}).get('backup_downloaded'))),

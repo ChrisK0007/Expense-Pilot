@@ -1,11 +1,11 @@
-# Public-release preparation — beta 1.0.2-beta.7
+# Public-release preparation — beta 1.0.2-beta.8
 
 Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This beta prepares public distribution; it is not an App Store submission.
 
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Create `.env` in that folder with `SETUP_TOKEN=` followed by a unique random value of at least 24 characters. Generate it with a password manager. Do not publish this file. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.7` to pin this beta.
+2. Create `.env` in that folder with `SETUP_TOKEN=` followed by a unique random value of at least 24 characters. Generate it with a password manager. Do not publish this file. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.8` to pin this beta.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter the setup token, your name, email and a password of at least 12 characters. Sign in, then open **Settings → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry, and download a private backup. Configure email, bank feeds and other features only when needed.
@@ -37,7 +37,7 @@ In **Settings → Email delivery**, enable **Send me a copy of client emails** a
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.7 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.8 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
@@ -57,3 +57,11 @@ Account deletion requires a current password, 2FA when enabled and an exact conf
 New mobile expense and receipt uploads accept a UUID `client_ref`. Exact retries return a matching `id`, `client_ref` and `stored: true`. Changed payloads conflict; deleted records retain a tombstone so delayed retries cannot recreate them. Clients must keep local copies until the matching acknowledgement is received. Trips retain their existing route-preserving acknowledgement contract.
 
 Before App Store submission: enrol the Apple developer account, choose final app identifiers and support/privacy URLs, verify privacy disclosures against the actual shipped app, provide a reachable review/demo server with synthetic records, collect screenshots, test on physical devices through TestFlight, and submit via App Store Connect. Use a separate disposable server for review; never provide your personal workspace or financial records. CarPlay requires a separate Driving Task entitlement approval and signing; ordinary free development builds remain usable without it.
+
+## Workspace timezone
+
+New owner setup suggests the browser or iPhone timezone. Confirm it for your workspace. Existing installations retain **Australia/Brisbane** until the owner changes **Settings → Workspace setup → Workspace timezone**. The setting applies to all accounts and devices and handles daylight saving automatically. It is independent of the Docker host's location and `TZ` variable; travelling with a phone does not change it. Refresh other connected devices after changing the setting.
+
+Invoices, recurring drafts, reminders, budget date defaults, bank-feed sync ranges and tax-period progress use the workspace date. Saved invoice/expense/budget dates are never rewritten. Absolute event times stay in UTC; the audit table remains explicitly labelled UTC. Trip records retain their capture timezone, including offline iOS drafts and old Brisbane trips. Odometer entry uses workspace time and asks you to resolve repeated daylight-saving hours; nonexistent local times are rejected. Update iOS to **0.8.1 (build 10)** for timezone-aware native screens.
+
+The app remains Australian-focused: AUD, DD/MM/YYYY input, July–June financial years and Australian tax/allowance rules remain unchanged. Choosing another timezone does not select another country's accounting rules.

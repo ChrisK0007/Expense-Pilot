@@ -135,7 +135,8 @@ def tax_forecast(year):
     business_deductions=sum(allocations(e)[1] for e in expenses)
     work_deductions=sum(allocations(e)[0] for e in expenses)
     unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review' AND trip_id IS NULL AND meal='' AND category!='Meals'",(start,end))['n']
-    current=datetime.now(timezone(timedelta(hours=10))).date();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
+    import workspace_time
+    current=workspace_time.today();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
     elapsed=max(1,min((current-begin).days+1,(finish-begin).days+1));factor=Decimal((finish-begin).days+1)/elapsed if settings.get('annualise') and begin<=current<=finish else Decimal(1)
     def value(key,recorded=0):
         v=settings.get(key)
