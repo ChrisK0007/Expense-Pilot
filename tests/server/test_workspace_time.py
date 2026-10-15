@@ -72,6 +72,7 @@ class WorkspaceTimeTest(unittest.TestCase):
     def test_offline_trip_timezone_survives_settings_change_and_retry(self):
         vid = self.call(self.owner, 'vehicles', {'name': 'Regional car'}).json['id']
         start = datetime(2026, 1, 1, 13, 30, tzinfo=timezone.utc).timestamp()
+        self.call(self.owner, f'vehicles/{vid}/odometer', {'reading': '100', 'recorded_at': start-100})
         data = dict(vehicle_id=vid, date='2026-01-02', date_timezone='Australia/Sydney', scope='personal', distance='10', started_at=start, ended_at=start+600, client_ref=str(uuid.uuid4()))
         self.select('America/Los_Angeles')
         result = self.call(self.owner, 'vehicle-journeys', data)
@@ -80,6 +81,8 @@ class WorkspaceTimeTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, 'vehicle-journeys', data).json, result.json)
         saved = self.owner.get('/api/vehicle-journeys/'+str(result.json['id'])).json
         self.assertEqual((saved['date'], saved['date_timezone']), ('2026-01-02', 'Australia/Sydney'))
+        with patch('vehicle_logbook.time.time', return_value=start+3600):
+            self.assertEqual(self.owner.get(f'/api/vehicles/{vid}/odometer').json['estimate_m'], 110000)
         old = dict(data, date='2026-01-01', client_ref=str(uuid.uuid4())); old.pop('date_timezone')
         legacy = self.call(self.owner, 'vehicle-journeys', old)
         self.assertEqual(legacy.status_code, 200, legacy.json)

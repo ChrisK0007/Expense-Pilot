@@ -44,11 +44,13 @@ def metadata(d, existing=None):
 def estimate(reading, journeys):
     if not reading: return None, 0
     total, unknown = reading['reading_m'], 0
-    reading_day = datetime.fromtimestamp(reading['recorded_at'], workspace_time.zone()).date().isoformat()
-    now=time.time(); today=datetime.fromtimestamp(now,workspace_time.zone()).date().isoformat()
+    now=time.time()
     for j in journeys:
-        if j['date']>today or j['ended_at'] is not None and j['ended_at']>now: continue
+        if j['ended_at'] is not None and j['ended_at']>now: continue
         if j['ended_at'] is None:
+            zone = ZoneInfo(j.get('date_timezone', workspace_time.DEFAULT))
+            if j['date'] > datetime.fromtimestamp(now, zone).date().isoformat(): continue
+            reading_day = datetime.fromtimestamp(reading['recorded_at'], zone).date().isoformat()
             if j['date'] > reading_day: total += j['distance_m']
             elif j['date'] == reading_day: unknown += 1
         elif j['ended_at'] > reading['recorded_at']:
@@ -59,10 +61,10 @@ def estimate(reading, journeys):
 
 def logbook(vid):
     readings = t.rows('SELECT * FROM vehicle_odometer WHERE vehicle_id=? ORDER BY recorded_at,id', (vid,))
-    journeys = t.rows('SELECT id,date,started_at,ended_at,client_ref,distance_m FROM vehicle_journeys WHERE vehicle_id=? ORDER BY date,id', (vid,))
+    journeys = t.rows('SELECT id,date,date_timezone,started_at,ended_at,client_ref,distance_m FROM vehicle_journeys WHERE vehicle_id=? ORDER BY date,id', (vid,))
     for i, reading in enumerate(readings):
         previous = readings[i-1] if i else None
-        before, ambiguous = estimate(previous, [j for j in journeys if (j['ended_at'] is not None and j['ended_at'] <= reading['recorded_at']) or (j['ended_at'] is None and j['date'] < datetime.fromtimestamp(reading['recorded_at'], workspace_time.zone()).date().isoformat())])
+        before, ambiguous = estimate(previous, [j for j in journeys if (j['ended_at'] is not None and j['ended_at'] <= reading['recorded_at']) or (j['ended_at'] is None and j['date'] < datetime.fromtimestamp(reading['recorded_at'], ZoneInfo(j['date_timezone'])).date().isoformat())])
         reading['difference_m'] = reading['reading_m'] - before if before is not None else None
         reading['ambiguous_trips'] = ambiguous
     latest = readings[-1] if readings else None
