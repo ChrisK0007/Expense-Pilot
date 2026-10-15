@@ -1,16 +1,16 @@
-# Public-release preparation — beta 1.0.2-beta.8
+# Public-release preparation — beta 1.0.2-beta.9
 
 Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This beta prepares public distribution; it is not an App Store submission.
 
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Create `.env` in that folder with `SETUP_TOKEN=` followed by a unique random value of at least 24 characters. Generate it with a password manager. Do not publish this file. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.8` to pin this beta.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.9` to pin this beta.
 3. Run `docker compose -f compose.public.yaml up -d`.
-4. Open `http://localhost:8788`. Enter the setup token, your name, email and a password of at least 12 characters. Sign in, then open **Settings → Workspace setup**. Create the owner account before exposing the server remotely.
-5. Set business details if you issue invoices, choose AI or manual entry, and download a private backup. Configure email, bank feeds and other features only when needed.
+4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
+5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
 
-The portable file uses a Docker named volume, avoiding host-path permissions on Windows/macOS. The existing Unraid templates and `compose.yaml`/`compose.registry.yaml` keep their existing mounts and configuration; do not switch an existing installation to an empty volume. Multiple installations need separate data volumes, ports and setup tokens. Never share the same data volume between stable and beta.
+The portable file uses a Docker named volume, avoiding host-path permissions on Windows/macOS. The existing Unraid templates and `compose.yaml`/`compose.registry.yaml` keep their existing mounts and configuration; do not switch an existing installation to an empty volume. Multiple installations need separate data volumes and ports, plus unique setup tokens if configured. Never share the same data volume between stable and beta.
 
 The published server image is currently Linux AMD64. This Compose file selects that platform explicitly; Apple silicon and other ARM Docker hosts need AMD64 emulation. Native ARM images and host-specific installation tests remain release follow-up work. Ollama's companion image chooses its own available native platform.
 
@@ -32,12 +32,12 @@ In **Settings → Email delivery**, enable **Send me a copy of client emails** a
 
 ## Backup and restore
 
-**Settings → Privacy & data → Download full backup / restore guide** creates a consistent database snapshot plus receipt originals and the key needed to decrypt saved credentials. It requires your current password and authenticator/recovery code when enabled. The ZIP is not encrypted: store it privately. Host `.env`, reverse-proxy configuration and earlier archives are separate. The existing `backup.sh` full host backup remains available and is useful for regular scheduled host backups. Large backups that exceed the container's temporary storage should use that host helper.
+**Settings → Data & privacy → Download full backup / restore guide** creates a consistent database snapshot plus receipt originals and the key needed to decrypt saved credentials. It requires your current password and authenticator/recovery code when enabled. The ZIP is not encrypted: store it privately. Host `.env`, reverse-proxy configuration and earlier archives are separate. The existing `backup.sh` full host backup remains available and is useful for regular scheduled host backups. Large backups that exceed the container's temporary storage should use that host helper.
 
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.8 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.9 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
@@ -60,8 +60,16 @@ Before App Store submission: enrol the Apple developer account, choose final app
 
 ## Workspace timezone
 
-New owner setup suggests the browser or iPhone timezone. Confirm it for your workspace. Existing installations retain **Australia/Brisbane** until the owner changes **Settings → Workspace setup → Workspace timezone**. The setting applies to all accounts and devices and handles daylight saving automatically. It is independent of the Docker host's location and `TZ` variable; travelling with a phone does not change it. Refresh other connected devices after changing the setting.
+New owner setup suggests the browser or iPhone timezone. Confirm it for your workspace. Existing installations retain **Australia/Brisbane** until the owner changes **Settings → Workspace → Workspace timezone**. The setting applies to all accounts and devices and handles daylight saving automatically. It is independent of the Docker host's location and `TZ` variable; travelling with a phone does not change it. Refresh other connected devices after changing the setting.
 
 Invoices, recurring drafts, reminders, budget date defaults, bank-feed sync ranges and tax-period progress use the workspace date. Saved invoice/expense/budget dates are never rewritten. Absolute event times stay in UTC; the audit table remains explicitly labelled UTC. Trip records retain their capture timezone, including offline iOS drafts and old Brisbane trips. Odometer entry uses workspace time and asks you to resolve repeated daylight-saving hours; nonexistent local times are rejected. Update iOS to **0.8.1 (build 10)** for timezone-aware native screens.
 
 The app remains Australian-focused: AUD, DD/MM/YYYY input, July–June financial years and Australian tax/allowance rules remain unchanged. Choosing another timezone does not select another country's accounting rules.
+
+## Settings and optional setup — beta.9
+
+Settings is grouped into Workspace, Receipts & AI, Business & email, Bank feeds, Access & security, and Data & privacy. The topic buttons jump to each section. Features are personal preferences; timezone, AI and business configuration are shared owner-managed settings. Backup downloads are optional and are not setup checklist items. They do not schedule automatic backups.
+
+The beta Unraid template no longer contains Ollama fields and uses the beta image. Existing containers keep their saved Unraid configuration when the image is updated. Save your AI configuration in the app before removing legacy `OLLAMA_URL` / `OLLAMA_MODEL` variables. Existing environment settings remain supported until you save in-app AI settings. Do not apply the new template to stable v1.0.1, which still requires its original setup token and AI variables.
+
+`SETUP_TOKEN` is optional for new beta installations. If set, the exact value (at least 24 characters) is required; an invalid or short configured token does not bypass protection. If blank/unset, the first person to reach the setup page can create the owner. Complete setup on a trusted network before exposing the server remotely. Existing logins and records are unaffected by removing the token. Initial owner creation remains locked once any account exists. An intentional full workspace deletion makes first-run setup available again.
