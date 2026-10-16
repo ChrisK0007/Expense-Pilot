@@ -33,7 +33,7 @@ if not key.exists():
         key.chmod(0o600)
     except FileExistsError: pass
 app=Flask(__name__,static_folder='static')
-app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(hours=12))
+app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(days=30))
 CATEGORIES=['Uncategorised','Meals','Accommodation','Transport','Vehicle expenses','Bank fees','Phone & internet','Equipment','Uniform','Training','Insurance','Subscriptions','Other']
 
 def db():
@@ -74,7 +74,7 @@ def guard():
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/security/device-session','/api/security/devices'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -117,7 +117,7 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -283,6 +283,7 @@ from billing import register as register_billing, business as billing_business
 register_billing(app, db, one, rows, fail, audit, DATA)
 
 import security
+app.session_interface=security.DeviceSessionInterface()
 security.register(app, db=db, one=one, fail=fail, audit=audit, newpass=newpass, textval=textval, DATA=DATA)
 
 features.register(app, db=db, one=one, fail=fail)
