@@ -38,8 +38,9 @@ Delivery is best effort. The application retries failures with backoff and dedup
 successful deliveries. The relay adds retry deduplication, a per-container hourly
 limit, APNs collapse IDs and a one-hour expiry. Quiet hours use the last timezone
 reported by the phone. Sign-out revokes the device's server login and registration;
-remote alerts pause when that login expires (currently 12 hours), until the app
-connects/signs in again. Local drive alerts continue independently of push delivery.
+remote alerts pause when that login expires. Beta.12 and iPhone 0.8.5 renew
+remembered-device logins for 30 days from authenticated activity. Older/browser
+logins still expire after 12 hours. Push delivery never renews a login. Local drive alerts continue independently of push delivery.
 This conservative session binding avoids sending account alerts after access ends.
 
 Apple signing, APNs delivery, your reverse proxy and real-device lock-screen behavior

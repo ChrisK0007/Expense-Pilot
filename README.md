@@ -95,3 +95,12 @@ authenticated receipt, invoice, budget and bank-feed alert events. Without a pus
 relay these update when the app connects. Optional remote delivery uses a separate
 [APNs relay](deploy/push-relay/README.md); Apple credentials never ship in this image.
 Quiet hours, per-category switches and private previews are configured on each phone.
+
+## Persistent iPhone sign-in (beta 1.0.2-beta.12)
+
+With iPhone 0.8.5 (15), device logins renew on authenticated activity and expire after
+30 days without use. Existing valid app sessions upgrade automatically. Browsers
+retain a fixed 12-hour login. MFA still completes before a device login is issued.
+Manage/revoke remembered devices in Settings → security or in the iPhone's Account
+& privacy settings. Revocation and sign-out remove the push registration; password,
+2FA and account access changes invalidate the login. Push workers never renew it.
