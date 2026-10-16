@@ -3,7 +3,7 @@ from migrations import execute_script
 
 def upgrade(connection):
     execute_script(connection, '''
-        CREATE TABLE notification_devices(
+        CREATE TABLE IF NOT EXISTS notification_devices(
             installation TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             user_version INTEGER NOT NULL,
