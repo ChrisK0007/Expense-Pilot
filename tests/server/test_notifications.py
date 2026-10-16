@@ -53,6 +53,23 @@ class NotificationTest(AppTest):
         self.assertTrue(all('100%' in x['details'] for x in second))
         self.assertFalse(set(x['key'] for x in first) & set(x['key'] for x in second))
 
+    def test_invoice_payment_overdue_and_unconfirmed_email(self):
+        today = n.workspace_time.today().isoformat()
+        with app.app_context():
+            db().execute("INSERT INTO billing_clients(id,name) VALUES (1,'Client')")
+            db().execute("INSERT INTO billing_documents(id,kind,number,state,client_id,client,business,issue_date,due_date,tax_mode,lines,subtotal_cents,gst_cents,total_cents,created_at) VALUES (1,'invoice','INV-0001','issued',1,'{}','{}','2020-01-01','2020-01-02','none','[]',100,0,100,?)", (today,))
+            db().execute("INSERT INTO billing_outbox(document_id,recipient,subject,body,state,request_key,created_at) VALUES (1,'client@example.test','Private subject','Private text','unknown','mail-1',?)", (today,))
+            db().commit()
+        events = self.owner.get('/api/notifications/events').json
+        self.assertEqual({x['kind'] for x in events}, {'invoiceOverdue','emailFailure'})
+        self.assertNotIn('Private text', json.dumps(events))
+        with app.app_context():
+            db().execute("INSERT INTO billing_payments(document_id,date,amount_cents,reference,request_key,created_at) VALUES (1,?,100,'payment','payment-1',?)", (today,today))
+            db().execute("UPDATE billing_outbox SET state='sent'"); db().commit()
+        events = self.owner.get('/api/notifications/events').json
+        self.assertEqual([x['kind'] for x in events], ['invoicePaid'])
+        self.assertEqual(events[0]['item'], '1')
+
     @patch.dict(os.environ, {'PUSH_RELAY_URL': 'https://relay.example/notify', 'PUSH_RELAY_TOKEN': 'x'*40})
     def test_device_validation_scope_and_csrf(self):
         value = self.registration()

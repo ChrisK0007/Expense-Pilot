@@ -64,7 +64,7 @@ def collect(user):
         elif doc['status'] == 'overdue':
             result.append(event(f"overdue.{doc['id']}.{doc['created_at']}", 'invoiceOverdue', 'invoice', doc['id'], f"Invoice {doc['number']} has ${doc['balance_cents']/100:,.2f} outstanding."))
     if user['role'] == 'owner':
-        for row in rows("SELECT id,document_id,created_at FROM billing_outbox WHERE state IN ('failed','uncertain') ORDER BY id DESC LIMIT 50"):
+        for row in rows("SELECT id,document_id,created_at FROM billing_outbox WHERE state IN ('failed','unknown') ORDER BY id DESC LIMIT 50"):
             result.append(event(f"email.{row['id']}.{row['created_at']}", 'emailFailure', 'invoice', row['document_id']))
         connection = one('SELECT key_encrypted,last_error FROM pocketsmith_connection WHERE id=1')
         if connection and connection['key_encrypted'] and connection['last_error']:
