@@ -1,4 +1,10 @@
-# 1.0.2-beta.9
+# 1.0.2-beta.10
+
+- Sync saved drive addresses between iPhones signed in to the same server account.
+- Version each address, retain deletion tombstones and acknowledge repeated changes safely; concurrent edits require an explicit choice.
+- Keep address collections private to each login, including tax agents, and preserve them in server backups.
+
+## 1.0.2-beta.9
 
 - Simplify Settings into fixed topic groups with clear email, receipt AI, security and data controls, consistent spacing and mobile navigation.
 - Remove Ollama fields from the beta Unraid template; configure AI in the app while retaining existing environment compatibility.
