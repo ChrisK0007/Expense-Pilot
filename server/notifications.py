@@ -12,6 +12,7 @@ import threading
 import time
 import uuid
 import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import g, jsonify, request, session
@@ -197,7 +198,12 @@ def run_once():
             for item in [x for x in items if prefs[x['kind']] and x['key'] not in seen][:10]:
                 # Recheck registration after potentially slow previous deliveries.
                 if not one('SELECT 1 FROM notification_devices WHERE installation=? AND token=? AND preferences=?', (device['installation'], device['token'], device['preferences'])): break
-                deliver(device, item)
+                try:
+                    deliver(device, item)
+                except urllib.error.HTTPError as exc:
+                    if exc.code == 410:
+                        db().execute('DELETE FROM notification_devices WHERE installation=? AND token=?', (device['installation'], device['token'])); db().commit(); break
+                    raise
                 seen[item['key']] = now
                 db().execute('UPDATE notification_devices SET seen=?,failures=0 WHERE installation=? AND token=?', (json.dumps(seen), device['installation'], device['token'])); db().commit()
         except Exception:

@@ -83,7 +83,8 @@ def notify():
                      'apns-push-type': 'alert', 'apns-priority': '5', 'apns-expiration': str(int(time.time()+3600)),
                      'apns-collapse-id': identity})
         if response.status_code != 200:
-            return jsonify(error='Device registration expired' if response.status_code == 410 else 'Push rejected'), 410 if response.status_code == 410 else 502
+            invalid = response.status_code == 410 or (response.status_code == 400 and response.json().get('reason') in ('BadDeviceToken', 'DeviceTokenNotForTopic'))
+            return jsonify(error='Device registration expired' if invalid else 'Push rejected'), 410 if invalid else 502
     except Exception:
         return jsonify(error='Push service unavailable'), 503
     with db() as conn:
