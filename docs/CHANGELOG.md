@@ -1,4 +1,8 @@
-# 1.0.2-beta.10
+# 1.0.2-beta.13
+
+- Show split expense allocations as separate purple Employment and green Business badges, with capitalised labels, in expense tables and recent expenses.
+
+## 1.0.2-beta.10
 
 - Sync saved drive addresses between iPhones signed in to the same server account.
 - Version each address, retain deletion tombstones and acknowledge repeated changes safely; concurrent edits require an explicit choice.
