@@ -53,6 +53,10 @@ jobs:
         run: docker build -t expense-pilot:test .
       - name: Integration tests
         run: docker run --rm --entrypoint python -v "$PWD/tests/server:/app/tests/server:ro" -v "$PWD/scripts:/app/scripts:ro" expense-pilot:test -m unittest discover -s tests/server -v
+      - name: Build and check optional push relay
+        run: |
+          docker build -t expense-pilot-relay:test deploy/push-relay
+          docker run --rm --entrypoint python -v "$PWD/tests/relay:/relay/tests:ro" expense-pilot-relay:test -m unittest discover -s tests -v
       - name: Production startup smoke test
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}

@@ -87,3 +87,11 @@ ATO reasonable amounts concern substantiation; they are neither an automatic cla
 Rate references: ATO TD 2025/4 and TD 2026/4, domestic tables 1–3. The 2026–27 values were cross-checked against the published transcriptions at https://austax.tools/ato-travel-allowance-rates-2026-27-australia/ and https://pay-calculator-australia.com/travel-allowance/ because the ATO PDF returned HTTP 403 during development. Original determinations are linked in the interface; confirm the destination classification against table 4.
 
 The native app's invoice creation uses user-scoped request keys. A retry returns the same invoice, changed payloads are rejected, and a deleted invoice cannot be recreated by a delayed retry. Draft creation does not send mail. Existing web clients keep their existing request behaviour.
+
+## iPhone notifications (beta 1.0.2-beta.11)
+
+The native app has opt-in driving, review and upload-failure alerts. This server adds
+authenticated receipt, invoice, budget and bank-feed alert events. Without a push
+relay these update when the app connects. Optional remote delivery uses a separate
+[APNs relay](deploy/push-relay/README.md); Apple credentials never ship in this image.
+Quiet hours, per-category switches and private previews are configured on each phone.
