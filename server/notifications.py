@@ -107,6 +107,14 @@ def register(app, auth):
     def events():
         return jsonify(collect(g.user))
 
+    @app.get('/api/notifications/budget/<int:bid>')
+    @auth('owner', 'tax_agent')
+    def budget_detail(bid):
+        from planning import budget_list
+        row = one('SELECT month,period FROM category_budgets WHERE id=?', (bid,))
+        if not row: fail('This budget was deleted.', 404)
+        return jsonify(next(x for x in budget_list(row['month'], row['period']) if x['id'] == bid))
+
     @app.route('/api/notifications/device', methods=['PUT', 'DELETE'])
     @auth()
     def device():

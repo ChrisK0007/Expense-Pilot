@@ -40,6 +40,12 @@ class NotificationTest(AppTest):
         self.expense(self.owner, date=today, amount='81')
         first = [x for x in self.owner.get('/api/notifications/events').json if x['kind']=='budgets']
         self.assertEqual(len(first), 3)
+        for item in first:
+            detail = self.owner.get('/api/notifications/budget/' + item['item'])
+            self.assertEqual(detail.status_code, 200)
+            self.assertEqual(detail.json['spent_cents'], 8100)
+            self.assertIn(detail.json['period'], ('monthly', 'quarterly', 'yearly'))
+        self.assertEqual(app.test_client().get('/api/notifications/budget/1').status_code, 401)
         self.assertTrue(all('80%' in x['details'] for x in first))
         self.assertEqual(first, self.owner.get('/api/notifications/events').json)
         self.expense(self.owner, date=today, amount='20')
