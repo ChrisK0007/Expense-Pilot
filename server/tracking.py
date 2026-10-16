@@ -370,6 +370,8 @@ def journey_api(jid):
 def register(app, **deps):
     globals().update(deps)
     vehicle_logbook.register()
+    journey_places.register()
     app.register_blueprint(bp)
 
 import vehicle_logbook
+import journey_places
