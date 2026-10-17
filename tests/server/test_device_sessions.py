@@ -27,25 +27,76 @@ class DeviceSessionTest(unittest.TestCase):
         with app.app_context():
             return one('SELECT * FROM login_sessions WHERE token_hash=?', (digest,))
 
-    def test_device_survives_12_hours_and_renews_but_browser_still_expires(self):
+    def test_device_and_browser_survive_12_hours_and_renew(self):
         now = time.time()
         with patch('security.clock', return_value=now):
             phone = self.phone()
         original = self.row(phone)
         cookie = phone.get_cookie('session')
         self.assertGreater(cookie.expires.timestamp(), now + 29*86400)
-        self.assertLess(self.owner.get_cookie('session').expires.timestamp(), now + 13*3600)
+        self.assertGreater(self.owner.get_cookie('session').expires.timestamp(), now + 29*86400)
         with patch('security.clock', return_value=now + 13*3600):
             self.assertIsNotNone(phone.get('/api/session').json['user'])
-            self.assertIsNone(self.owner.get('/api/session').json['user'])
+            browser = self.owner.get('/api/session').json
+            self.assertIsNotNone(browser['user'])
+            self.assertFalse(browser['device_session'])
         renewed = self.row(phone)
+        self.assertEqual(self.row(self.owner)['expires'], now + 13*3600 + security.BROWSER_IDLE_SECONDS)
         self.assertEqual(renewed['expires'], now + 13*3600 + security.DEVICE_IDLE_SECONDS)
         self.assertGreater(renewed['expires'], original['expires'])
         with patch('security.clock', return_value=renewed['expires']):
             self.assertEqual(phone.get('/api/expenses').status_code, 401)
             self.assertIsNone(phone.get('/api/session').json['user'])
+            self.assertEqual(self.owner.get('/api/expenses').status_code, 401)
         with app.app_context():
             self.assertEqual(one('SELECT expires FROM login_sessions WHERE token_hash=?', (original['token_hash'],))['expires'], renewed['expires'])
+
+    def test_browser_reopens_and_renews_cookie_signature_and_database_over_months(self):
+        now = time.time()
+        browser = app.test_client()
+        with patch('itsdangerous.timed.time.time', return_value=now):
+            self.login(browser, 'owner@example.test', 'Owner-password-123')
+            cookie = browser.get_cookie('session')
+            self.assertTrue(cookie.http_only)
+            self.assertEqual(cookie.same_site, 'Strict')
+        for day in (29, 58):
+            # Reopening with only the saved cookie represents a new browser process.
+            reopened = app.test_client()
+            reopened.set_cookie('session', cookie.value)
+            with patch('itsdangerous.timed.time.time', return_value=now + day*86400):
+                result = reopened.get('/api/session')
+                self.assertIsNotNone(result.json['user'])
+                self.assertFalse(result.json['device_session'])
+                row = self.row(reopened)
+                cookie = reopened.get_cookie('session')
+                deadline = now + (day+30)*86400
+                self.assertEqual(row['expires'], deadline)
+                self.assertAlmostEqual(cookie.expires.timestamp(), deadline, delta=1)
+                self.assertEqual(reopened.get('/api/security/devices').json, [])
+        with patch('itsdangerous.timed.time.time', return_value=now + 89*86400):
+            self.assertEqual(reopened.get('/api/expenses').status_code, 401)
+        with app.app_context():
+            self.assertEqual(one('SELECT expires FROM login_sessions WHERE token_hash=?', (row['token_hash'],))['expires'], deadline)
+
+    def test_valid_legacy_browser_session_renews_without_making_it_a_phone(self):
+        now = time.time()
+        original = self.row(self.owner)
+        with app.app_context():
+            db().execute('UPDATE login_sessions SET expires=?,user_version=0 WHERE token_hash=?',
+                         (now + 3600, original['token_hash']))
+            db().commit()
+        with patch('security.clock', return_value=now):
+            result = self.owner.get('/api/session')
+            self.assertIsNotNone(result.json['user'])
+            self.assertFalse(result.json['device_session'])
+        renewed = self.row(self.owner)
+        self.assertEqual(renewed['token_hash'], original['token_hash'])
+        self.assertEqual(renewed['expires'], now + security.BROWSER_IDLE_SECONDS)
+
+    def test_browser_agent_permissions_still_apply_after_renewal(self):
+        with patch('security.clock', return_value=time.time() + 2*86400):
+            self.assertEqual(self.agent.get('/api/expenses').status_code, 200)
+            self.assertEqual(self.call(self.agent, 'expenses', {}).status_code, 403)
 
     def test_signature_age_accepts_device_after_twelve_hours(self):
         # Exercise the cookie signature clock as well as the database deadline.

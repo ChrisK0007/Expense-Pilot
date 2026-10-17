@@ -10,7 +10,7 @@ import sqlite3
 import struct
 import time
 from functools import wraps
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import quote, urlsplit
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, g, request, jsonify, session, current_app
@@ -24,15 +24,15 @@ bp = Blueprint('security', __name__, url_prefix='/api')
 INVITE_HOURS = 48
 CHALLENGE_SECONDS = 300
 DEVICE_IDLE_SECONDS = 30 * 86400
-BROWSER_SECONDS = 12 * 3600
+BROWSER_IDLE_SECONDS = 30 * 86400
 
 
 class DeviceSessionInterface(SecureCookieSessionInterface):
     def get_expiration_time(self, app, state):
         if not state.permanent:
             return None
-        lifetime = DEVICE_IDLE_SECONDS if state.get('device_name') else BROWSER_SECONDS
-        return datetime.now(timezone.utc) + timedelta(seconds=lifetime)
+        lifetime = DEVICE_IDLE_SECONDS if state.get('device_name') else BROWSER_IDLE_SECONDS
+        return datetime.fromtimestamp(clock() + lifetime, timezone.utc)
 
 
 def clock():
@@ -110,16 +110,17 @@ def session_valid(kind='auth'):
               (hashlib.sha256(token.encode()).hexdigest(), uid, kind, now))
     if not row:
         return False
-    if kind == 'auth' and row['device_name']:
-        if row['user_version'] != session.get('version'):
+    if kind == 'auth':
+        if row['device_name'] and row['user_version'] != session.get('version'):
             return False
         session['device_name'] = row['device_name']
+        lifetime = DEVICE_IDLE_SECONDS if row['device_name'] else BROWSER_IDLE_SECONDS
         # Only authenticated client activity renews this deadline. The push worker
-        # merely reads it, so sending alerts cannot keep an unused device signed in.
+        # merely reads it, so sending alerts cannot keep an unused login signed in.
         changed = db().execute('UPDATE login_sessions SET expires=?,last_used=? WHERE token_hash=? AND expires>?',
-                               (now + DEVICE_IDLE_SECONDS, now, row['token_hash'], now)).rowcount
+                               (now + lifetime, now, row['token_hash'], now)).rowcount
         db().execute('UPDATE notification_devices SET expires=? WHERE session_hash=?',
-                     (now + DEVICE_IDLE_SECONDS, row['token_hash']))
+                     (now + lifetime, row['token_hash']))
         db().commit()
         return bool(changed)
     return True
@@ -131,7 +132,7 @@ def start_session(user, pending=False, device_name=None):
     revoke_session()
     token = secrets.token_urlsafe(32)
     now = clock()
-    expiry = now + (CHALLENGE_SECONDS if pending else DEVICE_IDLE_SECONDS if device_name else BROWSER_SECONDS)
+    expiry = now + (CHALLENGE_SECONDS if pending else DEVICE_IDLE_SECONDS if device_name else BROWSER_IDLE_SECONDS)
     db().execute('DELETE FROM login_sessions WHERE expires<=?', (clock(),))
     db().execute('INSERT INTO login_sessions(token_hash,user_id,kind,expires,device_name,created_at,last_used,user_version) VALUES (?,?,?,?,?,?,?,?)',
                  (hashlib.sha256(token.encode()).hexdigest(), user['id'], 'mfa' if pending else 'auth', expiry,
