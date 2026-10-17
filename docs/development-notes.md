@@ -1,6 +1,6 @@
 # Historical development notes
 
-Archived from earlier README updates. These notes describe changes at the time; use the [current guide](guide.md), [beta setup](public-release.md) and [release channels](releases.md) for present instructions. The iPhone app remains in testing.
+Archived from earlier README updates. These notes describe changes at the time; use the [current guide](guide.md), [installation and setup](public-release.md) and [release channels](releases.md) for present instructions. The iPhone app remains in testing.
 
 ## Public-release preparation
 

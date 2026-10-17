@@ -12,7 +12,7 @@ Security fixes target the current stable release. Beta builds are for testing an
 
 ## Operating your server
 
-- Complete first-owner setup on a trusted network. Stable 1.0.1 requires its setup token; beta accepts a blank token only when the operator deliberately leaves it unset.
+- Complete first-owner setup on a trusted network. Stable v1.0.2 and the current beta allow token-free setup when SETUP_TOKEN is blank/unset. If a token is configured, it is enforced. Create the owner account before exposing a new installation remotely.
 - Use HTTPS with `COOKIE_SECURE=true`, or a trusted VPN, for remote access. Do not expose the HTTP port directly to the internet.
 - Keep `/data`, its `session.key`, deployment settings and backups private. Receipt originals and the database are not encrypted at rest by the application; stored integration credentials require both the database and key for recovery.
 - Treat the owner and Docker host administrator as trusted. Tax agents can read the workspace's financial records, including personal records and unfiled receipts; read/write access is an additional permission, not per-record sharing.

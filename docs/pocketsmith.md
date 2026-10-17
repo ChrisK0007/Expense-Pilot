@@ -1,10 +1,10 @@
 # PocketSmith bank feeds
 
-Available in stable Expense Pilot **1.0.1** and the beta channel. Initially introduced in v1.0.1-beta.2.
+Available in stable Expense Pilot **1.0.2** and the beta channel. First included in stable v1.0.1.
 
 ## Connect
 
-1. Update within your chosen channel: beta uses `ghcr.io/chrisk0007/expense-pilot:beta` (or pin `:1.0.2-beta.13`); existing stable uses `:latest` (or `:1.0.1`). Keep that instance’s own `/data` directory and back it up first. Do not downgrade a beta database to stable by changing only the image tag; restore a matching backup and image for rollback.
+1. Update within your chosen channel: beta uses `ghcr.io/chrisk0007/expense-pilot:beta` (or pin `:1.0.2-beta.13`); stable uses `:latest` (or `:1.0.2`). Keep that instance’s own `/data` directory and back it up first. Do not downgrade to an older database schema by changing only the image tag; restore a matching backup and image for rollback.
 2. Connect your banks and check their transactions in [PocketSmith](https://my.pocketsmith.com/). Your PocketSmith account needs access to the feeds you want to use.
 3. In PocketSmith, open **Settings → Security** and create a developer key for this installation.
 4. Sign in as the Expense Pilot owner, open **Settings → Bank feeds → Configure PocketSmith**, enter the key and select **Connect PocketSmith**.
@@ -37,7 +37,7 @@ Each sync fetches the selected accounts from the configured start date through t
 
 A linked transaction whose date, payee, amount, account, currency, pending status or transfer classification changes is flagged **Source changed**. Your expense stays unchanged. Open the linked expense to compare it, edit it if appropriate, and acknowledge the change. A transaction omitted from a complete sync is marked **Not returned**; it may have been removed or replaced upstream. Linked expenses are retained.
 
-- **Unsupported transaction status on beta.2/beta.3:** update to stable v1.0.1 or beta.4 or later and run Sync now after any displayed retry time. Older versions incorrectly used this error for a null transfer marker, even on a posted transaction. Unset markers now use the category transfer flag when supplied, otherwise remain unmarked. Explicit true/false transaction markers take precedence. Pending transactions and transfers remain blocked from expense creation, and genuinely invalid statuses or transfer flags still stop the sync without changing previous imports. No reconnection or new developer key is needed.
+- **Unsupported transaction status on beta.2/beta.3:** update within your channel to stable v1.0.2 or the current beta and run Sync now after any displayed retry time. Older versions incorrectly used this error for a null transfer marker, even on a posted transaction. Unset markers now use the category transfer flag when supplied, otherwise remain unmarked. Explicit true/false transaction markers take precedence. Pending transactions and transfers remain blocked from expense creation, and genuinely invalid statuses or transfer flags still stop the sync without changing previous imports. No reconnection or new developer key is needed.
 - **Access denied:** replace the key in connection settings and refresh the account list.
 - **Unavailable account:** refresh accounts in settings, check PocketSmith, and deselect accounts you no longer want synced.
 - **Rate limit / connection error:** the previous successful import is retained. Settings show the error and retry time. Automatic sync retries after the delay; repeated manual requests respect the same delay.
