@@ -4,7 +4,7 @@ This repository owns the Docker server and web interface. The iPhone companion i
 
 ## Discuss the change
 
-Use an issue to describe a bug or proposed feature, with synthetic examples. Report security problems through [SECURITY.md](SECURITY.md). The project's source licence is still being selected; see [licensing](docs/licensing.md) before preparing an external contribution.
+Use an issue to describe a bug or proposed feature, with synthetic examples. Report security problems through [SECURITY.md](SECURITY.md). This repository uses [AGPL-3.0-only](LICENSE). Submit contributions under the same licence and only include material you have permission to contribute. Preserve third-party notices; see [licensing](docs/licensing.md).
 
 ## Branches and releases
 

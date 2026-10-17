@@ -48,7 +48,7 @@ The web port is `8788`; persistent records are under `/data`, including `rounded
 - [Security reporting](SECURITY.md)
 - [Development and contributions](CONTRIBUTING.md)
 - [Docker public-release checklist](docs/release-checklist.md)
-- [Licence decision and third-party notices](docs/licensing.md)
+- [Licence and third-party notices](docs/licensing.md)
 
 The iPhone companion is developed separately and remains in testing. Docker releases do not depend on an App Store release; server notifications can be read when the app connects, without a shared push relay.
 
@@ -62,4 +62,4 @@ The iPhone companion is developed separately and remains in testing. Docker rele
 | `scripts/` | Setup, backup and release helpers |
 | `docs/` | Installation, operations and release documentation |
 
-A project licence has not yet been selected. Public availability and source licensing are separate release decisions; do not assume the bundled suburb-data licence covers the application.
+Licensed under the [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`). Copyright (C) 2026 Christopher Kahwati. Third-party components retain their own licences; see [licensing and notices](docs/licensing.md). The separately maintained iPhone app is outside this repository licence.
