@@ -9,7 +9,7 @@ The Docker container and browser interface will be released first. The iPhone ap
 | Existing stable | `1.0.2` on `main` / `:latest` |
 | Development candidate | `1.0.2-beta.13` on `beta` / `:beta` |
 | Public availability | Pending owner decision and access verification |
-| Project licence | Pending owner choice |
+| Project licence | AGPL-3.0-only; third-party notices retained |
 | Container architectures | Linux AMD64; ARM uses emulation |
 | iPhone | Separate repository; remains in testing |
 
@@ -19,7 +19,9 @@ The Docker container and browser interface will be released first. The iPhone ap
 - [x] Add installation, bug and feature issue forms, a pull-request template, support guidance and a security policy.
 - [x] Separate current instructions from historical development notes.
 - [x] Document the licence decision and retain bundled dataset attribution.
-- [ ] Select a project licence/distribution terms and complete the runtime dependency licence review.
+- [x] Select and add the project licence: AGPL-3.0-only, with application copyright notice.
+- [ ] Complete the runtime dependency licence review.
+- [ ] Include the licence/copyright notice in the next Docker image, provide accessible version-matched Corresponding Source and a source/licence link in the web interface, and verify package contents before public distribution. Existing numbered images are not rebuilt by the repository licence change.
 - [ ] Review the complete remote Git history, tags, old branches, releases, attachments and CI artifacts for secrets or personal data before changing visibility. A current-tree scan alone is insufficient.
 - [ ] Enable a private vulnerability-reporting channel and verify it works before the public announcement.
 - [ ] Set the GitHub About description and topics. Suggested description: **Self-hosted expense tracking and invoicing for Australian sole traders and employment expenses.** Suggested topics: `self-hosted`, `docker`, `unraid`, `expense-tracker`, `invoicing`, `australia`.
