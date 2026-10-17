@@ -10,3 +10,17 @@ __pycache__/
 *.tar.gz
 *.zip
 .venv/
+
+# Local credentials, logs, exports and workstation files
+.DS_Store
+Thumbs.db
+*.log
+*.key
+*.pem
+*.p12
+*.pfx
+*.p8
+credentials/
+uploads/
+receipts/
+exports/
