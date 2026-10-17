@@ -2,24 +2,22 @@
 
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
-| Existing stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.1` |
+| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.2` |
 | Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.2-beta.13` |
 
-The Docker public release is being prepared separately from iPhone testing. No stable promotion is performed by this documentation cleanup. See the [release checklist](release-checklist.md) for remaining verification and publication work.
+The Docker public release is being prepared separately from iPhone testing. Stable 1.0.2 promotes the features tested through beta.13. See the [release checklist](release-checklist.md) for remaining verification and publication work.
 
 ## Choose a matching image and guide
 
-Stable 1.0.1 includes PocketSmith feeds, shared billing navigation, invoice reminder controls and permanent deletion of an accepted expense with its receipt. It still requires the original setup token and uses Ollama environment settings. Use the [main-branch guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) and main-branch Unraid template.
+Stable 1.0.2 includes PocketSmith feeds, invoice/service controls, budgets and vehicle comparisons, overnight spending, in-app AI modes, portable setup, full backup/account controls, workspace timezone, saved-address sync, mobile session/notification support and split-allocation badges. Setup tokens are optional and AI is configured in the application. Use the [stable setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) and main-branch Unraid template. Beta remains available separately at 1.0.2-beta.13. Its prerelease history is in the [beta changelog](beta-changelog.md). See the [changelog](CHANGELOG.md) for the release history.
 
-Beta 1.0.2-beta.13 includes the later invoice/service controls, budgets and vehicle comparisons, overnight spending, in-app AI modes, portable setup, backup/account controls, workspace timezone, saved-address sync, mobile session/notification support and split-allocation badges. Use the [beta setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) and beta Unraid template. See the [beta changelog](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/CHANGELOG.md) for the sequence.
-
-`latest` means the existing stable image, not the newest beta feature set. A numbered tag pins a published release. Each published image also has a commit-derived `sha-` tag. Do not change the contents of a numbered release tag after publication.
+`latest` follows approved stable releases. Stable v1.0.2 currently contains the features tested through beta.13. A numbered tag pins a published release. Each published image also has a commit-derived `sha-` tag. Do not change the contents of a numbered release tag after publication.
 
 ## Run stable and beta separately
 
-For normal existing stable use, keep `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.1`). On Unraid use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. Preserve the `/data` mapping and deployment settings.
+For normal existing stable use, keep `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.2`). On Unraid use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. Preserve the `/data` mapping and deployment settings.
 
-For testing, use the beta image with a different container name, host port and data directory. For example, use container `expense-pilot-beta`, host port `8787` mapped to container `8788`, and `/mnt/user/appdata/expense-pilot-beta/data` mapped to `/data`. Beta's first-run token is optional; stable 1.0.1's is required. Keep test email/reminders disabled unless deliberately testing delivery to addresses you control.
+For testing, use the beta image with a different container name, host port and data directory. For example, use container `expense-pilot-beta`, host port `8787` mapped to container `8788`, and `/mnt/user/appdata/expense-pilot-beta/data` mapped to `/data`. First-run tokens are optional in stable 1.0.2 and the current beta. Keep test email/reminders disabled unless deliberately testing delivery to addresses you control.
 
 Never mount the same data directory into two running installations. Do not point a beta installation at your live stable data just to try it. A copied backup should be restored into a separate volume with email and integrations reviewed before startup.
 
@@ -27,7 +25,7 @@ Never mount the same data directory into two running installations. Do not point
 
 Back up each instance before upgrading. Startup runs numbered migrations; existing records and receipt paths are retained. An older image refuses a database containing newer migrations. Rollback therefore means restoring the matching older backup and image together, not only changing the image tag. Keep the current data volume intact until recovery is verified.
 
-Stable 1.0.0 → 1.0.1 adds migration m008 for PocketSmith. Later beta versions add further migrations; do not downgrade their database directly to stable 1.0.1. Check [backup architecture](architecture.md#backups) and the beta full-backup guide when that feature is available.
+Stable 1.0.0 → 1.0.1 adds migration m008 for PocketSmith. Stable 1.0.2 adds migrations m009–m019 from the beta series; do not downgrade its database directly to stable 1.0.1. Check [backup architecture](architecture.md#backups) and the [full-backup guide](public-release.md#backup-and-restore).
 
 ## Development and promotion
 

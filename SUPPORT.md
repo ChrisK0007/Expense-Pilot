@@ -5,7 +5,7 @@ Expense Pilot is a self-hosted Docker application. The iPhone companion is still
 ## Before reporting a problem
 
 1. Record the version in Settings and the container image tag. State whether you use stable or beta.
-2. Read the [guide](docs/guide.md) for that branch and [release notes](docs/CHANGELOG.md). A beta-only feature will not appear in stable 1.0.1.
+2. Read the [guide](docs/guide.md) for that branch and [release notes](docs/CHANGELOG.md). Stable v1.0.2 includes the features tested through v1.0.2-beta.13; later beta features may differ.
 3. Describe the smallest set of steps that reproduces the problem, the expected result and what happened instead.
 4. For an upgrade problem, include the previous version and whether the original `/data` mount was retained.
 
@@ -32,6 +32,6 @@ Use the [security policy](SECURITY.md). Do not describe an exploitable vulnerabi
 
 - [Account recovery and permissions](docs/guide.md#access)
 - [Host backups and restoration](docs/architecture.md#backups)
-- [Beta full backup and restore guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md#backup-and-restore)
+- [Full backup and restore guide](docs/public-release.md#backup-and-restore)
 
 Keep the original data volume when testing a restore. The maintainer does not hold a copy of your self-hosted records, passwords or encryption key.
