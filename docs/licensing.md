@@ -2,7 +2,7 @@
 
 ## Expense Pilot application
 
-Copyright (C) 2026 Christopher Kahwati.
+Copyright (C) 2026 ChrisK0007.
 
 Expense Pilot's server and web interface are licensed under the **GNU Affero General Public License, version 3 only** (`AGPL-3.0-only`). The complete, unmodified licence text is in [LICENSE](../LICENSE); the application notice is in [COPYRIGHT](../COPYRIGHT).
 
