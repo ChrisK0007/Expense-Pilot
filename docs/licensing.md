@@ -1,21 +1,26 @@
 # Licensing and third-party notices
 
-## Project licence decision
+## Expense Pilot application
 
-A licence for the Expense Pilot application has not yet been selected. The plan is a free, self-hosted Docker release; that does not by itself specify permission to modify or redistribute its source.
+Copyright (C) 2026 Christopher Kahwati.
 
-Before publishing the source or container for general use, the owner needs to select and add the intended project licence. Two possible open-source approaches are:
+Expense Pilot's server and web interface are licensed under the **GNU Affero General Public License, version 3 only** (`AGPL-3.0-only`). The complete, unmodified licence text is in [LICENSE](../LICENSE); the application notice is in [COPYRIGHT](../COPYRIGHT).
 
-| Option | Intended approach |
-| --- | --- |
-| MIT | Broad reuse, modification and commercial redistribution with the copyright and licence notice retained. |
-| AGPL-3.0 | Copyleft, including source-availability obligations for modified software offered over a network. |
+This applies to the original project material in this repository unless a file or component states a different licence. Third-party components retain their own terms. The separately maintained iOS repository is not relicensed by this change.
 
-These are alternatives for review, not licences applied by this document. See GitHub's [licensing guide](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository), the [MIT text](https://choosealicense.com/licenses/mit/) and [AGPL-3.0 text](https://choosealicense.com/licenses/agpl-3.0/) before choosing. A free binary/container release with retained source rights is a separate option and needs suitable distribution terms.
+You may use, modify and redistribute the application under the licence. Distribution of covered versions carries source and notice obligations. If you modify it and let users interact with that version remotely over a network, section 13 requires a prominent offer of its Corresponding Source to those users. Commercial use and paid hosting are permitted. These obligations concern program source, not users' receipts, account credentials or financial records. The licence text governs; this paragraph is a summary.
+
+The application is provided without warranty, subject to applicable law. Use the repository's [support guidance](../SUPPORT.md) and [security policy](../SECURITY.md) for reports.
+
+## Distribution and source access
+
+Include the licence and application notice in distributed packages and provide the Corresponding Source required for the actual version supplied, including relevant build/install scripts. A link to a different version or an inaccessible private repository is not sufficient source access for recipients.
+
+The existing 1.0.2 container predates this repository licensing change and has not been rebuilt by it. Before the next public image is published, include `LICENSE` and `COPYRIGHT` in the Docker build context/image, provide accessible version-matched source and a source/licence link in the web interface, and verify the packaged notices. Keep numbered image tags immutable. The [release checklist](release-checklist.md) tracks these tasks separately from selecting the licence.
 
 ## Bundled Australian suburb data
 
-The lookup is derived from `michalsn/australian-suburbs`, copyright 2019 Michal Sniatala, under MIT. The original licence is retained in [LICENSE-au-suburbs.txt](../server/datasets/LICENSE-au-suburbs.txt). The [dataset README](../server/datasets/README.md) records the source blob, retrieval date, transformations and limitations. This licence applies to that dataset, not automatically to Expense Pilot's application code.
+The lookup is derived from `michalsn/australian-suburbs`, copyright 2019 Michal Sniatala, under MIT. The original licence is retained in [LICENSE-au-suburbs.txt](../server/datasets/LICENSE-au-suburbs.txt). The [dataset README](../server/datasets/README.md) records the source blob, retrieval date, transformations and limitations. This third-party notice remains in force.
 
 ## Runtime dependencies and assets
 
