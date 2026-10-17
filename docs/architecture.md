@@ -22,7 +22,7 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -r server/requirements.txt
 PYTHONPATH=server python -m unittest discover -s tests/server -v
-# Use disposable data. Stable 1.0.1 needs SETUP_TOKEN; beta allows it to be unset.
+# Use disposable data. Stable 1.0.2 and the current beta allow SETUP_TOKEN to be unset.
 # Configure a token if protecting first-owner setup, and keep test access local.
 DATA_DIR=/tmp/expense-pilot-dev python server/app.py
 ```

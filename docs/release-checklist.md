@@ -13,6 +13,13 @@ The Docker container and browser interface will be released first. The iPhone ap
 | Container architectures | Linux AMD64; ARM uses emulation |
 | iPhone | Separate repository; remains in testing |
 
+## Verified v1.0.2 publication
+
+- Published on 17 October 2026 from commit `a48c284d7b3c55bf15412191c818bc1b1f97c9d8` via [release PR #38](https://github.com/ChrisK0007/Expense-Pilot/pull/38).
+- [Publishing workflow 38993632918](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/38993632918) passed dependency audit, 8 release-channel checks, 295 server tests, 3 legacy relay tests, production startup and browser workflows.
+- Tags `1.0.2`, `latest` and `sha-a48c284` were pushed with digest `sha256:a7405e917ef05ea432fbb57ad42ff4cdb980e9298d338d9841e86688d7c8daba`.
+- Repository-only AGPL licensing and AI-development disclosure followed this build; they have not rebuilt the image. Public access, image licence packaging and host/live-service checks remain separate tasks below.
+
 ## Repository preparation
 
 - [x] Provide a Docker-first README with explicit stable/beta boundaries.
@@ -39,16 +46,16 @@ Use a disposable installation and synthetic records. Record image tag/digest, pl
 - [ ] Check real SMTP delivery/copies/reminders and a live PocketSmith connection with operator-owned test accounts. Automated mocks do not establish live-service delivery.
 - [ ] Verify upload limits, receipt review/deletion, invoice totals, refunds, export and account/workspace deletion.
 - [ ] Review Australian tax/allowance estimates and explain their scope. A different timezone does not change currency, financial-year or tax rules.
-- [ ] Run the existing Docker dependency audit, integration, production startup and browser gates on the exact candidate commit.
+- [x] Run the Docker dependency audit, integration, production startup and browser gates on the exact v1.0.2 release commit; evidence is recorded above. Repeat for any new image candidate.
 
-## Publishing the Docker release — later, after candidate approval
+## Stable publication and public launch
 
-- [ ] Select the stable version and prepare its changelog and upgrade notes. Do not reuse a published numbered tag for changed code.
+- [x] Select stable v1.0.2 and prepare its changelog and upgrade notes. Do not reuse a published numbered tag for changed code.
 - [x] Update the Unraid template and portable Compose defaults to the approved stable image; align setup fields with that release. Stable 1.0.2 now includes optional setup tokens and in-app AI settings.
 - [ ] Make the approved repository/install files and GHCR package publicly accessible. Package visibility and repository visibility are separate settings.
 - [ ] From a logged-out environment, verify anonymous image pull and installation-file access. Do not publish using a tester's cached registry login as the only evidence.
-- [ ] Promote through a release PR to `main`, then verify the published digest, version and `latest` tag. Follow [release channels](releases.md).
-- [ ] Publish matching release notes, supported platforms, upgrade/restore instructions and support links. Remove preparation-only notices and replace the baseline above.
-- [ ] Reconcile release documentation back into `beta` before further development.
+- [x] Promote v1.0.2 through a release PR to `main` and verify the published digest, version and `latest` tag. Follow [release channels](releases.md).
+- [ ] Publish the public-launch announcement after access and platform verification. Release notes, upgrade/restore instructions and support links are prepared; remove remaining preparation notices only when those checks are complete.
+- [x] Reconcile stable release history and shared documentation into `beta` while retaining its prerelease installation defaults.
 
 Public iPhone distribution, CarPlay approval and a central push service are not requirements for this Docker release. The existing source includes legacy optional relay tooling; it is not part of the standard installation or current iPhone notification path.

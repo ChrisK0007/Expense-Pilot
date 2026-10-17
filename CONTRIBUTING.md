@@ -10,6 +10,7 @@ Use an issue to describe a bug or proposed feature, with synthetic examples. Rep
 
 - Start application changes from `beta` and target `beta` in a pull request.
 - `main` is stable. A merge that changes Docker-triggering files can publish `latest`; do not use it for unfinished feature work.
+- Keep the stable changelog in release order, starting with v1.0. Record prerelease details in docs/beta-changelog.md and retain earlier internal history only in the labelled archives.
 - Documentation can be updated without a container build. Keep stable instructions accurate for the shipped stable version and beta instructions accurate for beta.
 - Never edit an already-released migration. Add a new numbered migration, preserve existing data and cover upgrade behaviour.
 - Do not bump versions, create release tags, change repository/package visibility or trigger publishing as part of a routine documentation change.
