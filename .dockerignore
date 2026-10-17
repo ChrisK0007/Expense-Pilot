@@ -1,5 +1,7 @@
 **
 !Dockerfile
+!LICENSE
+!COPYRIGHT
 !server/
 !server/**
 **/__pycache__/
