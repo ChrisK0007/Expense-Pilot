@@ -4,7 +4,7 @@ title: "[Setup] "
 body:
   - type: markdown
     attributes:
-      value: "Use the guide matching your image's branch. Stable 1.0.1 and beta have different setup/AI settings. Do not attach your data directory or backup."
+      value: "Use the guide matching your image's branch. Stable v1.0.2 and the current beta configure AI in the app and allow an optional setup token. Do not attach your data directory or backup."
   - type: input
     id: version
     attributes:

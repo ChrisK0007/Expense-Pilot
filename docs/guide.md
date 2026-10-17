@@ -29,16 +29,16 @@ The native iPhone app is developed separately and remains in testing. It is opti
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
 
-Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`, keeping its own `/data` mount. Use `:latest` only for the existing stable channel. Refresh the browser after updating.
+Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
 
 ---
 
 ## Invitations, authenticator 2FA and receipt entry
 
 - Typed dates automatically become **DD/MM/YYYY** when you leave the field. Accepted examples: `8/10/2026`, `8-10-26`, `08.10.2026`, `081026`, `08102026` and `2026-10-08`. Two-digit years mean 2000–2099. Impossible dates and missing years are rejected; month/day order is never guessed.
-- **Settings → Home base & receipt sorting:** search a suburb, city, area or postcode and select a suggestion. Nearby suburbs are recognised from the bundled Australian location list using an adjustable **50 km default local radius**. A preview shows the number of included suburbs and examples. Keep extra local names only for exceptions. Existing recognised bases such as Sunshine Coast work without re-entering every suburb. Coordinates are approximate suburb or area centres; choose a suburb for a more precise base. Unknown, ambiguous or unrecognised overseas locations stay in the inbox for manual review. Foreign currency alone does not prove a foreign location. All suggested overnight trips still require review and acceptance.
-- **Settings → Account invitations:** save the URL people use to access Expense Pilot. Configure **Email delivery & templates** with SMTP. Then **Tax agent access → Invite tax agent** sends an invitation with a generated temporary password, valid for **48 hours**. No manually entered initial password is required. The new person must replace it before accessing records. Failed or uncertain email delivery is shown against the person; **Resend invitation** generates a replacement and invalidates the old password. Existing accounts keep their passwords.
-- **Settings → Two-factor authentication:** enter your current password, scan the QR code with a TOTP authenticator (for example Microsoft Authenticator, Google Authenticator or 1Password), then enter its six-digit code. Save the ten recovery codes shown once after setup. Every code works once. Future sign-ins require the password and an authenticator or recovery code. Each account enables 2FA individually, including read-only tax agents; the owner can see 2FA status under Tax agent access.
+- **Settings → Receipts & AI → Home base & receipt sorting:** search a suburb, city, area or postcode and select a suggestion. Nearby suburbs are recognised from the bundled Australian location list using an adjustable **50 km default local radius**. A preview shows the number of included suburbs and examples. Keep extra local names only for exceptions. Existing recognised bases such as Sunshine Coast work without re-entering every suburb. Coordinates are approximate suburb or area centres; choose a suburb for a more precise base. Unknown, ambiguous or unrecognised overseas locations stay in the inbox for manual review. Foreign currency alone does not prove a foreign location. All suggested overnight trips still require review and acceptance.
+- **Settings → Access & security → Account invitations:** save the URL people use to access Expense Pilot. Configure **Email delivery** with SMTP under **Business & email**. Then **Tax agent access → Invite tax agent** sends an invitation with a generated temporary password, valid for **48 hours**. No manually entered initial password is required. The new person must replace it before accessing records. Failed or uncertain email delivery is shown against the person; **Resend invitation** generates a replacement and invalidates the old password. Existing accounts keep their passwords.
+- **Settings → Access & security → Two-factor authentication:** enter your current password, scan the QR code with a TOTP authenticator (for example Microsoft Authenticator, Google Authenticator or 1Password), then enter its six-digit code. Save the ten recovery codes shown once after setup. Every code works once. Future sign-ins require the password and an authenticator or recovery code. Each account enables 2FA individually, including read-only tax agents; the owner can see 2FA status under Tax agent access.
 - QR codes are generated locally. Authenticator secrets are encrypted using the persisted `session.key`; recovery codes are stored only as hashes. Enabling/disabling 2FA and changing passwords revoke other sessions. Reused authenticator codes are rejected and failed attempts are limited. Keep the server clock accurate and retain `session.key` in backups.
 - Lost phone: use an unused recovery code to sign in. To replace your authenticator, disable 2FA with your password and a fresh recovery/authenticator code, then set it up again. If all recovery methods are lost, use the existing terminal recovery command (`python reset_password.py` inside the container); it now offers an explicit 2FA reset. It also clears a pending temporary-password requirement. Disabled accounts stay disabled.
 
@@ -93,7 +93,7 @@ cd /mnt/user/appdata/expense-pilot
 bash prepare.sh
 ```
 
-This creates `.env` with an optional random first-run setup token and a `data` folder owned by UID 99/GID 100. Existing configuration is preserved. On 1.0.2, keep the token for protected setup or clear it for token-free setup.
+This creates `.env` with an optional random first-run setup token and a `data` folder owned by UID 99/GID 100. Existing configuration is preserved. Keep the token for protected setup or clear it for token-free setup.
 
 ### Unraid Docker page
 
@@ -169,7 +169,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Beta also provides an owner-only full backup download under **Settings → Data & privacy** and a [verified restore guide](public-release.md#backup-and-restore). A download is optional and does not schedule backups.
+An owner-only full backup is available as a download under **Settings → Data & privacy** and a [verified restore guide](public-release.md#backup-and-restore). A download is optional and does not schedule backups.
 
 The host script discovers the container’s actual `/data` mount, stops it if running, backs up the database, receipts, signing key and `.env` (when present), then restores its previous running state. SMTP passwords are encrypted using the backed-up session key; financial records and receipt files are not encrypted at rest; keep the appdata share and backups private. When using the Unraid template, its environment fields are stored in the Unraid template, so back up the boot-device configuration too. A generated `.env` does not automatically update those GUI fields.
 
@@ -206,7 +206,7 @@ Each outgoing document has a delivery history. **Sent / mail server accepted** m
 - Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued line items and business/client details are locked, so changing a client address or business name does not rewrite old invoices. Stable v1.0.2 allows the invoice number to be amended separately.
 - Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
 - Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
-- Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. **Delete invoice** permanently removes the invoice and its payment, wording and email history after confirmation. Payment totals and income reports update, linked time is released, the original quote returns to Accepted, and recurring schedules continue. Stable v1.0.1 does not reuse invoice numbers. In v1.0.2, permanent deletion makes that number available for the next automatically numbered invoice; when several are available the most recently deleted is used first. Voiding does not release the number. This applies to deletions made after upgrading to 1.0.2. Pending or uncertain email delivery must be resolved first. Credit notes and actual refund processing are not yet implemented.
+- Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. **Delete invoice** permanently removes the invoice and its payment, wording and email history after confirmation. Payment totals and income reports update, linked time is released, the original quote returns to Accepted, and recurring schedules continue. In v1.0.2, permanent deletion makes that number available for the next automatically numbered invoice; when several are available the most recently deleted is used first. Voiding does not release the number. This applies to deletions made after upgrading to 1.0.2. Pending or uncertain email delivery must be resolved first. Credit notes and actual refund processing are not yet implemented.
 - **Services & prices** keeps common line items ready to use. In v1.0.2, choose **Edit** to update a saved description, unit price or GST treatment. Changes apply when the service is next added to an invoice or quote; existing lines retain their saved values.
 - **Billable time** records client, date, work, hours and rate. Select unbilled entries for one client to create an invoice. Linked entries cannot be billed twice. Deleting or voiding an invoice releases linked time.
 - **Make recurring** creates weekly, fortnightly, monthly, quarterly or yearly schedules. The container checks once per minute and generates drafts only, never emails. Missed dates are caught up after a restart, at most 24 occurrences per schedule per pass. Month-end dates retain their original day where possible. Paused schedules require a current/future date when resumed. Changing the original invoice does not change the saved schedule; pause it and create a replacement to change its contents.
@@ -229,7 +229,7 @@ New database tables are created automatically on startup. Existing users, expens
 
 The billing workflows were informed by [Rounded's feature list](https://rounded.com.au/features) and [invoicing overview](https://rounded.com.au/features/invoicing), with an original interface and implementation. This version adds the core client, quote, invoice, payment and email workflows, not every Rounded feature.
 
-Not yet provided: Stripe/PayPal card checkout and fee surcharges, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations. Bank imports and AI receipt reading continue to work as in v0.1.0.
+Not yet provided: Stripe/PayPal card checkout and fee surcharges, automatic recurring sending, multi-currency billing, client portals/online quote acceptance, credit notes, expense rebilling, a running time stopwatch, recurring expenses, BAS preparation or automatic HELP/Medicare surcharge calculations.
 
 ## Verification
 
@@ -285,7 +285,7 @@ See [architecture and backups](architecture.md) for development commands, number
 
 ## Billing navigation, reminders and deleting expenses
 
-Invoices, Quotes, Clients and Recurring invoices share a top navigation bar. Stable v1.0.2 also standardises Services & prices and includes Billable time in that menu. Choose Invoices or Quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
+Invoices, Quotes, Clients and Recurring invoices share a top navigation bar. Services & prices and Billable time also use that menu. Choose Invoices or Quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
 
 The owner can switch automatic reminders on or off while creating an invoice or directly in any invoice’s details. The preference is saved for drafts, issued invoices and recurring-generated invoices. Editing or duplicating a draft preserves it. When making a recurring schedule, select whether its generated invoices allow reminders; each generated invoice can then be changed individually.
 
@@ -294,7 +294,7 @@ Settings → Automatic invoice reminders controls the shared sending switch and 
 Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Receipt inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
 
 
-## Beta invoice numbers and custom reminders
+## Invoice numbers and custom reminders
 
 In v1.0.2, leave **Invoice number (optional)** blank when creating an invoice to assign it automatically, or enter a unique number. For an existing invoice, use **Edit invoice number** in its details; draft editing also includes the number. Use up to 50 letters, numbers, spaces, full stops, underscores or hyphens. Numbers cannot duplicate an existing invoice or quote, even with different capitalisation. Payments and line items stay linked. Already sent emails and downloaded PDFs retain their old number; new previews and downloads use the new one. Resolve any pending or uncertain email before renumbering.
 

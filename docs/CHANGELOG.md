@@ -1,5 +1,29 @@
 # Changelog
 
+Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.2**. The iPhone app is versioned separately and remains in testing.
+
+Detailed beta changes are retained in the [beta development history](beta-changelog.md). Earlier internal development notes are archived separately and are not part of this stable release history.
+
+## v1.0 — Initial stable release
+
+Published version and image tag: `1.0.0`.
+
+- Establish the stable Docker channel on `main` with `latest` and numbered images, plus a separate `beta` channel for testing.
+- Track Employment, Business and Personal expenses, split allocations, receipt originals and reviewed receipt drafts.
+- Manage clients, quotes, invoices, payments, recurring drafts, saved services, email templates and automatic reminders.
+- Organise overnight trips and meals, import bank CSVs and export records for review.
+- Provide owner and tax-agent access, authenticator 2FA, account recovery and host backup tools.
+- Gate published images with server and browser checks; preserve the existing data directory and database format.
+- Maintain the optional iPhone companion in its own repository with independent versions.
+
+## v1.0.1
+
+- Promote all changes tested through v1.0.1-beta.4 to the stable channel. Publish `1.0.1` and update `latest`.
+- Add PocketSmith bank feeds with encrypted credentials, manual/hourly sync, transaction review, expense matching and duplicate protection, including the nullable transfer flag fix.
+- Keep shared navigation across Invoices, Quotes, Clients, Recurring invoices and Line item templates; provide Email settings and clearer automatic reminder controls, including a switch on each invoice.
+- Permanently remove accepted expenses and their attached receipts together so deleted records cannot return to the draft inbox.
+- Upgrade existing v1.0.0 databases with migration m008 while preserving existing records and settings. PocketSmith stays disconnected until configured. Back up the existing `/data` directory before upgrading; returning to v1.0.0 requires its matching backup.
+
 ## v1.0.2 — Stable Docker release (2026-10-17)
 
 Promotes the tested 1.0.2-beta.1–beta.13 server changes to stable. The iPhone app remains independently versioned and in testing.
@@ -12,173 +36,3 @@ Promotes the tested 1.0.2-beta.1–beta.13 server changes to stable. The iPhone 
 - Docker-first documentation, support forms and installation defaults now target stable.
 
 Back up the complete data directory before upgrading from 1.0.1. Startup applies migrations m009–m019. Keep the existing `/data` mount; legacy AI environment settings remain supported. Rollback requires the matching old backup and image. No iOS build is released by this update.
-
-## 1.0.2-beta.13
-
-- Show split expense allocations as separate purple Employment and green Business badges, with capitalised labels, in expense tables and recent expenses.
-
-## 1.0.2-beta.12
-
-- Add revocable persistent iPhone sessions with a rolling 30-day inactivity deadline. Browser sessions retain their existing lifetime.
-- Preserve explicit sign-out, password/2FA revocation and account/server isolation.
-
-## 1.0.2-beta.11
-
-- Add per-device notification preferences and server event/review support for the iPhone test app.
-- Current iPhone builds read server alerts directly while connected; a shared push relay is not part of the standard self-hosted setup.
-
-## 1.0.2-beta.10
-
-- Sync saved drive addresses between iPhones signed in to the same server account.
-- Version each address, retain deletion tombstones and acknowledge repeated changes safely; concurrent edits require an explicit choice.
-- Keep address collections private to each login, including tax agents, and preserve them in server backups.
-
-## 1.0.2-beta.9
-
-- Simplify Settings into fixed topic groups with clear email, receipt AI, security and data controls, consistent spacing and mobile navigation.
-- Remove Ollama fields from the beta Unraid template; configure AI in the app while retaining existing environment compatibility.
-- Make SETUP_TOKEN optional. A configured token remains enforced, and first-owner creation still closes after setup. Hide the token field when not required.
-- Remove backups from the workspace setup checklist. Optional downloads remain under Data & privacy.
-
-## 1.0.2-beta.8
-
-- Add an owner-managed workspace timezone in setup and Settings; suggest the browser's timezone on new installs and retain Brisbane on upgrades.
-- Apply regional dates and daylight saving to invoices, reminders, recurring drafts, budgets, bank-sync date windows, tax-period progress and vehicle logs.
-- Share the timezone with native iOS and retain each recorded trip's timezone for safe offline upload after a setting change.
-- Use workspace time for odometer entry and bank-feed timestamps; reject daylight-saving gaps and explicitly resolve repeated clock times.
-- Preserve saved calendar dates and UTC timestamps. AUD, Australian financial years and tax rules are unchanged.
-
-## 1.0.2-beta.7
-
-- Add No AI, local Ollama, existing/remote Ollama and cloud API modes with encrypted keys, connection testing and explicit cloud consent. Preserve legacy Ollama configuration.
-- Add client-email BCC copies and consistent dashboard invoice status labels.
-- Add portable Docker deployment, setup checklist, public server discovery/API compatibility and privacy/account controls.
-- Add authenticated full backup download and verified restore into an empty volume.
-- Make mobile expense/receipt uploads idempotent with deletion tombstones.
-
-
-## 1.0.2-beta.6
-
-- Retain reviewed iPhone route maps on the server and acknowledge exact retry-safe uploads before phone cleanup.
-- Preserve deletion receipts so delayed retries cannot recreate deleted journeys; alphabetise expense categories.
-
-## 1.0.2-beta.5
-
-- Support native invoice creation and separate overnight spending/allowance comparisons for the iPhone test app.
-- Keep overnight spending separate from the ordinary expense forecast.
-
-## 1.0.2-beta.4
-
-- Give web pages bookmarkable URLs; preserve the page through refresh/sign-in and support browser Back/Forward, including shared billing pages and tax agent settings.
-- Add monthly, quarterly and yearly category budgets with a selectable starting month, full-period spending totals, date ranges, duration editing and copying of the previous period.
-- Preserve existing monthly budgets and API compatibility with iPhone 0.5.0. Add migration, financial-period and desktop/mobile navigation regressions.
-
-## 1.0.2-beta.3
-
-- Add category budgets and comparison estimates for vehicle cents-per-kilometre and logbook methods.
-- Retain vehicle cost receipts and representative logbook inputs for review.
-
-## 1.0.2-beta.2
-
-- Add dated vehicle odometer readings and estimates based on recorded journey distances, with account and retry protection.
-
-## 1.0.2-beta.1
-
-- Edit saved service descriptions, prices and GST treatment from Services & prices. Existing invoice and quote line items keep their saved values.
-- Reuse the most recently permanently deleted invoice number for the next automatically numbered invoice, then any other available deleted numbers. Voiding keeps the number reserved. Add a custom number when creating an invoice or change a saved invoice number, with duplicate and concurrent-edit protection.
-- Customise automatic reminder dates and due-date, overdue and manual reminder email wording per invoice. Preview messages using the invoice's details, inherit shared settings when overrides are off, and carry preferences into duplicates and recurring drafts. The shared automatic sending switch remains the master control.
-- Standardise service labels and shared business navigation, including Billable time. Improve settings spacing, dialog layout, mobile buttons, theme colours and keyboard focus.
-- Migration m009 preserves existing records and reminder delivery claims when numbers change. Number reuse applies to invoices deleted after this upgrade. Back up beta data before updating; rollback requires its matching pre-upgrade backup. Stable remains v1.0.1.
-
-## 1.0.1
-
-- Promote all changes tested through v1.0.1-beta.4 to the stable channel. Publish `1.0.1` and update `latest`.
-- Add PocketSmith bank feeds with encrypted credentials, manual/hourly sync, transaction review, expense matching and duplicate protection, including the nullable transfer flag fix.
-- Keep shared navigation across Invoices, Quotes, Clients, Recurring invoices and Line item templates; provide Email settings and clearer automatic reminder controls, including a switch on each invoice.
-- Permanently remove accepted expenses and their attached receipts together so deleted records cannot return to the draft inbox.
-- Upgrade existing v1.0.0 databases with migration m008 while preserving existing records and settings. PocketSmith stays disconnected until configured. Back up the existing `/data` directory before upgrading; returning to v1.0.0 requires its matching backup.
-
-
-## 1.0.1-beta.4
-
-- Add Clients to the shared business page navigation and retain that menu on the Clients page. Shorten All invoices and All quotes to Invoices and Quotes.
-- Fix PocketSmith sync rejecting null transfer markers as an unsupported transaction status. Treat unset markers consistently, retaining category transfer protection, while preserving explicit transaction flags and pending-transaction checks. Give invalid status and transfer fields separate errors; failed syncs still leave prior imports intact.
-- Cover nullable feed data and client navigation in backend and desktop/mobile browser regressions. Beta only; stable remains v1.0.0.
-
-## 1.0.1-beta.3
-
-- Keep the billing navigation on invoices, quotes, recurring invoices and line item templates, with direct routes back to both document lists. Replace the Wording defaults tab with an Email settings menu for templates, signature, SMTP delivery and reminders.
-- Add reminder switches when creating or viewing any invoice, including drafts and invoices generated by recurring schedules. Preserve each preference through draft edits and duplication, and let a new recurring schedule choose the preference for its generated invoices. Global sending settings still apply.
-- Make automatic reminder settings clearer with separate before-due, due-date and overdue controls, individual follow-up day fields, a live schedule summary, sender details and links to reminder wording and delivery settings.
-- Permanently delete an expense’s attached receipt, draft, extraction details, original file and cached previews. Deleted receipts no longer return to the inbox, and in-flight AI or PDF rendering cannot recreate them. Update the deletion confirmation to describe the removal.
-- Add backend and browser regression coverage. Beta only; stable remains v1.0.0.
-
-## 1.0.1-beta.2
-
-- Add an owner-configured PocketSmith bank feed with an encrypted developer key, account discovery and mapping, manual sync and optional hourly syncing. Bank authorisation remains in PocketSmith.
-- Add a bank transaction review queue with receipt/CSV expense suggestions, explicit matching, new expenses and expense refunds, ignore/restore controls and links to accepted expenses. New expenses default to Personal / To review.
-- Preserve source transaction identities across repeated syncs, block pending transactions and transfers from becoming expenses, and flag changed or missing source transactions without overwriting linked expenses. Failed syncs leave the ledger unchanged.
-- Add migration m008, bank-feed integration tests and desktop/mobile browser coverage. Beta only; stable remains v1.0.0.
-
-## 1.0.1-beta.1
-
-- Start the beta development channel from the v1.0.0 feature set, with a prerelease version and isolated `beta` Docker tag.
-
-## 1.0.0
-
-- Establish the stable release channel on `main`, publishing `latest` and `1.0.0`, with ongoing development on `beta` and separate prerelease image tags.
-- Gate both channels with the same backend and browser checks. Reject versions assigned to the wrong channel and prevent beta, pull-request and topic-branch builds from replacing `latest`.
-- Move the iPhone app 0.1.1, Xcode project, icon, tests and simulator workflow into [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios). Preserve its bundle identifier and independent app version; earlier history remains in this repository.
-- Carry forward all v0.8.6 features with the same server paths and data format.
-
-## 0.8.6
-
-- Add the supplied invoice, quote, due/overdue/manual reminder, partial/full payment receipt and statement email defaults. Provide separate template tabs, insertable fields, sample previews and a formatted signature with links and embedded images. Preserve custom wording and offer a reset to the reference defaults.
-- Add payment receipt PDFs and emails, client statements with opening/running balances or outstanding invoices, and statement PDF/email delivery history.
-- Add owner-controlled automatic reminders with before-due, due-date and overdue dates, per-invoice pause controls, and durable duplicate protection. Automatic sending is off by default; failed or uncertain deliveries require review instead of automatic retries.
-- Add Delete invoice alongside Void, including issued, paid and voided invoices, with a permanent-deletion confirmation. Remove associated payment and document history, update income totals, release linked time entries and restore the original quote to Accepted. Keep recurring schedules and invoice numbering intact, and block deletion while email delivery is pending or uncertain.
-
-## 0.8.5
-
-- Combine receipt city/suburb and address/state inputs into one Location field. Use detected suburb, state and postcode where available, preserve the full extracted address, and let reviewed locations override AI evidence when matching trips.
-- Move Tax agent access from the side menu into Settings, retaining owner-only invitation and permission controls.
-
-## 0.8.4
-
-- Remove the redundant Workspace selector from adding and editing expenses and meals; employment and business percentages determine the allocation.
-- Remove Trip workspace from receipt trip review. The proposed trip inherits the receipt allocation, and each meal percentage is labelled Employment or Business.
-
-## 0.8.3
-
-- Keep Receipt inbox for unfiled drafts only. Accepted receipts are available through Expenses, including trip meals.
-- Remove the redundant receipt Workspace selector; the entered allocation percentages determine the expense workspace.
-- Open possible matching expenses in a separate detail view, preserving unsaved receipt edits. Already-attached receipts show a status instead of a disabled button with a waiting cursor.
-- Remove the tax-agent-assessment footer from Expenses.
-- Review and create a new overnight trip directly from a meal receipt. Saving a meal without a selected trip now opens trip review instead of a dead-end error.
-- Carry edited receipt values into the review and group matching consecutive-day meal receipts. Reuse matching trips in the same person's workspace and date range.
-- Permit explicit trip review when a home base is missing or a suburb is ambiguous, while leaving automatic away-from-home suggestions evidence-based. The trip and expenses are created only after the user accepts the overnight dates, location, purpose and meal details.
-- Show the receipt address/state for correction and use location evidence to distinguish identically named suburbs.
-
-## 0.8.2
-
-- Organise the backend under `server/`, test suites under `tests/server/` and `tests/browser/`, deployment templates under `deploy/`, and documentation under `docs/`.
-- Extract receipt, finance and billing-document routes into focused modules.
-- Introduce numbered transactional database migrations and an applied-migration ledger.
-- Read the server/API and Docker release version from `server/VERSION`.
-- Exclude iOS, documentation and test files from Docker build context; skip Docker builds for iOS-only and documentation-only changes.
-- Back up the actual configured container data mount and preserve whether the container was running.
-- Preserve container paths, database name, host appdata mounts and root deployment commands. Keep iOS in the same repository.
-
-## 0.8.1
-
-- Retire employee account access while retaining historical financial records.
-- Add server-side session revocation and strengthen login rate limits.
-- Bound PDF inspection resources and restrict receipt image types and size.
-- Update dependencies and verify dependency, backend and browser checks.
-
-## iOS 0.1.0
-
-- Initial SwiftUI app with a server-connected web workspace and native receipt scanning.
-- Support installation through Xcode using a free Personal Team.
-
-See [earlier release notes](legacy-release-notes.md) for the original 0.3–0.6 feature history.
