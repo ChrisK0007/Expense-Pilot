@@ -6,7 +6,7 @@ The Docker container and browser interface will be released first. The iPhone ap
 
 | Item | State |
 | --- | --- |
-| Existing stable | `1.0.1` on `main` / `:latest` |
+| Existing stable | `1.0.2` on `main` / `:latest` |
 | Development candidate | `1.0.2-beta.13` on `beta` / `:beta` |
 | Public availability | Pending owner decision and access verification |
 | Project licence | Pending owner choice |
@@ -42,7 +42,7 @@ Use a disposable installation and synthetic records. Record image tag/digest, pl
 ## Publishing the Docker release — later, after candidate approval
 
 - [ ] Select the stable version and prepare its changelog and upgrade notes. Do not reuse a published numbered tag for changed code.
-- [ ] Update the Unraid template and portable Compose defaults to the approved stable image; align setup fields with that release. The beta template must remain distinct from stable 1.0.1 requirements until promotion.
+- [x] Update the Unraid template and portable Compose defaults to the approved stable image; align setup fields with that release. Stable 1.0.2 now includes optional setup tokens and in-app AI settings.
 - [ ] Make the approved repository/install files and GHCR package publicly accessible. Package visibility and repository visibility are separate settings.
 - [ ] From a logged-out environment, verify anonymous image pull and installation-file access. Do not publish using a tester's cached registry login as the only evidence.
 - [ ] Promote through a release PR to `main`, then verify the published digest, version and `latest` tag. Follow [release channels](releases.md).

@@ -12,6 +12,7 @@ from pdf_safety import inspect_pdf
 from werkzeug.exceptions import HTTPException
 from expense_core import split_values, percentages, allocations
 import features
+import workspace_time
 from version import VERSION
 
 DATA=Path(os.environ.get('DATA_DIR','./data')); DATA.mkdir(parents=True,exist_ok=True)
@@ -32,7 +33,7 @@ if not key.exists():
         key.chmod(0o600)
     except FileExistsError: pass
 app=Flask(__name__,static_folder='static')
-app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(hours=12))
+app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(days=30))
 CATEGORIES=['Uncategorised','Meals','Accommodation','Transport','Vehicle expenses','Bank fees','Phone & internet','Equipment','Uniform','Training','Insurance','Subscriptions','Other']
 
 def db():
@@ -73,7 +74,7 @@ def guard():
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/security/device-session','/api/security/devices'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -116,16 +117,21 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),categories=category_names() if g.user else CATEGORIES,ai_configured=bool(os.environ.get('OLLAMA_URL') and os.environ.get('OLLAMA_MODEL')),business_name=billing_business()['name'] if g.user else '',version=VERSION,features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
-    if len(token)<24 or not secrets.compare_digest(textval(d.get('token')),token): fail('Invalid setup token. Use the token from your .env file.',403)
     db().execute('BEGIN IMMEDIATE')
     if one('SELECT id FROM users LIMIT 1'): fail('Setup already complete.',409)
+    if token and (len(token)<24 or not secrets.compare_digest(textval(d.get('token')).encode(),token.encode())):
+        fail('Invalid setup token. Use the token from your Docker configuration or .env file. Configured tokens must contain at least 24 characters.',403)
     name=textval(d.get('name'),100);email=textval(d.get('email'),200).lower()
     if not name or '@' not in email: fail('Name and email are required.')
-    db().execute('INSERT INTO users(name,email,password,role) VALUES (?,?,?,?)',(name,email,newpass(d.get('password')),'owner'));db().commit()
+    from billing import settings, save_settings
+    selected_timezone = workspace_time.validate(d.get('timezone', workspace_time.DEFAULT))
+    save_settings('workspace', {'timezone': selected_timezone})
+    uid = settings('instance', {}).get('owner_id_floor', 1)
+    db().execute('INSERT INTO users(id,name,email,password,role) VALUES (?,?,?,?,?)',(uid,name,email,newpass(d.get('password')),'owner'));db().commit()
     return jsonify(ok=True)
 @app.post('/api/login')
 def login(): return security.login_response()
@@ -207,13 +213,19 @@ def expenses():
     if not can_write(): fail('Read-only access.',403)
     db().execute('BEGIN IMMEDIATE')
     d=request.get_json();uid=record_user_id();existing=None
+    import mobile_uploads
+    ref=mobile_uploads.reference(d.get('client_ref'))
+    digest=mobile_uploads.fingerprint(d) if ref else ''
+    prior=mobile_uploads.previous(uid,'expense',ref,digest)
+    if prior:
+        db().commit();return jsonify(mobile_uploads.ack(prior['id'],ref))
     if d.get('meal') and d.get('trip_id'):
         t=one('SELECT * FROM trips WHERE id=?',(d['trip_id'],))
         if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
         uid=t['user_id'];existing={'user_id':uid,'account_id':None}
     if not existing and d.get('vehicle_id'):
         v=tracking_vehicle(d['vehicle_id']);uid=v['user_id'];existing={'user_id':uid,'account_id':None}
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -249,8 +261,11 @@ def update_trip(tid):
         if scope not in ('work','business') or (g.user['role']=='employee' and scope!='business'): fail('Invalid scope.')
         if any((e['scope']!=scope and not (e['scope']=='split' and percentages(e)[0 if scope=='work' else 1]>0)) or not start<=e['date']<=end for e in linked): fail('This change would exclude linked expenses. Update or unlink those expenses first.',409)
         if not textval(d.get('location')) or not textval(d.get('purpose')): fail('Location and purpose are required.')
-        db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=? WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
+        db().execute('UPDATE trips SET scope=?,location=?,start=?,end=?,purpose=?,allowance_cents=?,comparison_version=comparison_version+1 WHERE id=?',(scope,textval(d['location'],100),start,end,textval(d['purpose']),money(d.get('allowance',0)),tid));audit('trip updated',tid)
     db().commit();return jsonify(ok=True)
+
+import overnights
+overnights.register(app, auth)
 
 # Employment ledger and one resident/sole-trader tax forecast for the owner's workspace.
 
@@ -261,13 +276,14 @@ from receipt_routes import upload, receipt, download, receipt_info, preview_rece
 
 from finance_routes import csv_rows, import_preview, bank_import, export, employment_income, employment_values, edit_employment, tax_forecast
 
-from tracking import register as register_tracking, category_names, draft_for, link_vehicle, profile as receipt_profile, vehicle as tracking_vehicle
+from tracking import body as tracking_body, register as register_tracking, category_names, draft_for, link_vehicle, profile as receipt_profile, vehicle as tracking_vehicle
 register_tracking(app, db=db, one=one, rows=rows, fail=fail, audit=audit, can_write=can_write, record_user_id=record_user_id, textval=textval, money=money, day=day, receipt=receipt, payload=payload, BASE_CATEGORIES=CATEGORIES)
 
 from billing import register as register_billing, business as billing_business
 register_billing(app, db, one, rows, fail, audit, DATA)
 
 import security
+app.session_interface=security.DeviceSessionInterface()
 security.register(app, db=db, one=one, fail=fail, audit=audit, newpass=newpass, textval=textval, DATA=DATA)
 
 features.register(app, db=db, one=one, fail=fail)
@@ -275,4 +291,17 @@ features.register(app, db=db, one=one, fail=fail)
 import pocketsmith
 pocketsmith.register(app, db=db, one=one, rows=rows, fail=fail, audit=audit, auth=auth, can_write=can_write, day=day, DATA=DATA)
 
+
+import planning
+planning.register(app, db=db, rows=rows, one=one, fail=fail, audit=audit, body=tracking_body, category_names=category_names, money=money, day=day, textval=textval, vehicle=tracking_vehicle, expense=expense)
+
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)
+
+import ai_providers
+ai_providers.register(app, auth)
+import public_release
+public_release.register(app, auth)
+workspace_time.register(app, auth)
+
+import notifications
+notifications.register(app, auth)

@@ -62,11 +62,11 @@ class FinanceTest(unittest.TestCase):
     def test_combined_forecast_review_filters_refunds_and_annual_replacement(self):
         self.call(self.owner,'employment',{'date':'2026-10-08','employer':'Employer','gross':100000,'withheld':20000})
         self.call(self.owner,'employment',{'date':'2026-06-30','employer':'Old year','gross':20000,'withheld':0})
-        self.expense(self.owner,scope='work',category='Equipment',amount=1000,percent=50,status='ready')
-        self.expense(self.owner,scope='work',amount=-100,percent=50,status='ready')
-        self.expense(self.owner,scope='work',amount=999,status='review')
-        self.expense(self.owner,scope='personal',amount=999,status='ready')
-        self.expense(self.owner,scope='work',amount=999,status='ready',reimbursed=True)
+        self.expense(self.owner,category='Equipment',scope='work',amount=1000,percent=50,status='ready')
+        self.expense(self.owner,category='Equipment',scope='work',amount=-100,percent=50,status='ready')
+        self.expense(self.owner,category='Equipment',scope='work',amount=999,status='review')
+        self.expense(self.owner,category='Equipment',scope='personal',amount=999,status='ready')
+        self.expense(self.owner,category='Equipment',scope='work',amount=999,status='ready',reimbursed=True)
         d=self.owner.get('/api/tax/2026').json
         self.assertEqual(d['recorded']['salary_cents'],10000000)
         self.assertEqual(d['recorded']['work_deductions_cents'],45000)

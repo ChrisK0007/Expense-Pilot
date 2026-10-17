@@ -27,6 +27,49 @@ def reminder_settings():
     return settings('reminders', DEFAULT_REMINDERS)
 
 
+REMINDER_KINDS = ('reminder_due', 'reminder_overdue', 'reminder_manual')
+
+
+def validate_schedule(payload):
+    from billing import integer
+    if not isinstance(payload, dict) or set(payload) != {'before_days', 'on_due_date', 'after_days'}:
+        raise ValueError('Provide before-due, due-date and overdue reminder settings.')
+    if not isinstance(payload['on_due_date'], bool):
+        raise ValueError('Choose whether to send a reminder on the due date.')
+    after = payload['after_days']
+    if not isinstance(after, list) or len(after) > 6:
+        raise ValueError('Choose up to six overdue reminder dates.')
+    # Avoid treating JSON booleans as numeric day counts.
+    days = [payload['before_days'], *after]
+    if any(isinstance(value, bool) for value in days):
+        raise ValueError('Reminder days must be whole numbers.')
+    return dict(before_days=integer(payload['before_days'], 'days before due', 0, 30),
+                on_due_date=payload['on_due_date'],
+                after_days=sorted(set(integer(n, 'days overdue', 1, 365) for n in after)))
+
+
+def validate_reminder_options(options):
+    if not isinstance(options, dict) or set(options) - {'schedule', 'templates'}:
+        raise ValueError('Choose valid invoice reminder settings.')
+    result = {}
+    if options.get('schedule') is not None:
+        schedule = validate_schedule(options['schedule'])
+        if not (schedule['before_days'] or schedule['on_due_date'] or schedule['after_days']):
+            raise ValueError('Choose at least one custom reminder date, or use the shared schedule.')
+        result['schedule'] = schedule
+    templates = options.get('templates', {})
+    if not isinstance(templates, dict) or set(templates) - set(REMINDER_KINDS):
+        raise ValueError('Only reminder email templates can be customised for an invoice.')
+    if templates:
+        result['templates'] = {key: validate_template(key, value) for key, value in templates.items()}
+    return result
+
+
+def effective_reminder_schedule(doc, shared=None):
+    shared = shared if shared is not None else reminder_settings()
+    return {**shared, **doc.get('reminder_options', {}).get('schedule', {})}
+
+
 @bp.route('/email-templates', methods=['GET', 'PUT'])
 @owner
 def configure_templates():
@@ -76,13 +119,9 @@ def configure_reminders():
         payload = body()
         if set(payload) != set(DEFAULT_REMINDERS):
             fail('Provide the automatic reminder settings.')
-        if not isinstance(payload['enabled'], bool) or not isinstance(payload['on_due_date'], bool):
-            fail('Choose whether reminders are enabled and whether to send on the due date.')
-        after = payload['after_days']
-        if not isinstance(after, list) or len(after) > 6:
-            fail('Choose up to six overdue reminder dates.')
-        values = dict(enabled=payload['enabled'], before_days=integer(payload['before_days'], 'days before due', 0, 30),
-                      on_due_date=payload['on_due_date'], after_days=sorted(set(integer(n, 'days overdue', 1, 365) for n in after)))
+        if not isinstance(payload['enabled'], bool):
+            fail('Choose whether automatic reminders are enabled.')
+        values = dict(enabled=payload['enabled'], **validate_schedule({k: payload[k] for k in ('before_days', 'on_due_date', 'after_days')}))
         if values['enabled'] and not (values['before_days'] or values['on_due_date'] or values['after_days']):
             fail('Choose at least one reminder date.')
         config = mail_settings()
@@ -94,19 +133,35 @@ def configure_reminders():
     return jsonify(values)
 
 
-@bp.put('/documents/<int:did>/reminders')
+@bp.route('/documents/<int:did>/reminders', methods=['GET', 'PUT'])
 @owner
 def invoice_reminders(did):
-    from billing import audit, body, db, document, fail, jsonify, revision
+    from billing import audit, body, db, document, fail, json, jsonify, request, revision
+    if request.method == 'GET':
+        doc = document(did)
+        if doc['kind'] != 'invoice':
+            fail('Reminders are available for invoices only.')
+        templates = email_templates()['templates']
+        return jsonify(enabled=bool(doc['reminders_enabled']), version=doc['version'], options=doc['reminder_options'],
+                       shared_schedule=reminder_settings(), effective_schedule=effective_reminder_schedule(doc),
+                       shared_templates={key: templates[key] for key in REMINDER_KINDS},
+                       fields=FIELD_LABELS, template_fields={key: sorted(TEMPLATE_FIELDS[key]) for key in REMINDER_KINDS},
+                       preview_values=document_email_values(doc))
     payload = body()
+    if set(payload) - {'enabled', 'version', 'options'}:
+        fail('Unknown invoice reminder setting.')
     if not isinstance(payload.get('enabled'), bool):
         fail('Choose whether this invoice receives automatic reminders.')
+    options = validate_reminder_options(payload['options']) if 'options' in payload else None
     db().execute('BEGIN IMMEDIATE')
     doc = document(did)
     revision(doc, payload)
     if doc['kind'] != 'invoice':
         fail('Reminders are available for invoices only.')
-    db().execute('UPDATE billing_documents SET reminders_enabled=?,version=version+1 WHERE id=?', (int(payload['enabled']), did))
+    if options is None:
+        options = doc['reminder_options']
+    db().execute('UPDATE billing_documents SET reminders_enabled=?,reminder_options=?,version=version+1 WHERE id=?',
+                 (int(payload['enabled']), json.dumps(options), did))
     audit('invoice reminders updated', did)
     db().commit()
     return jsonify(ok=True)
@@ -144,7 +199,7 @@ def document_message(doc, kind='document'):
     validate_message_kind(doc, kind)
     key = doc['kind'] if kind == 'document' else ('receipt_full' if doc['balance_cents'] == 0 else 'receipt_partial') if kind == 'receipt' else kind
     templates = email_templates()
-    template = dict(templates['templates'][key])
+    template = dict(doc.get('reminder_options', {}).get('templates', {}).get(key, templates['templates'][key]))
     # The supplied manual default says "overdue". Do not make that claim before it is true.
     if kind == 'reminder_manual' and doc['due_date'] >= local_today() and template == DEFAULT_TEMPLATES['reminder_manual']:
         template['subject'] = 'Invoice from {business} is due {due_date}'
@@ -193,7 +248,7 @@ def queue_document_email(doc, recipient, subject, message, key, kind='document',
 
 def deliver_queued(oid, recipient, subject, message, attachment, filename, signature):
     from billing import audit, db, deliver
-    state, error = deliver(recipient, subject, message, attachment, filename, signature_html=signature)
+    state, error = deliver(recipient, subject, message, attachment, filename, signature_html=signature, copy=True)
     db().execute('UPDATE billing_outbox SET state=?,error=? WHERE id=?', (state, error, oid))
     audit('client email ' + state, oid)
     db().commit()
@@ -218,12 +273,13 @@ def run_reminders(today=None):
                 db().rollback()
                 continue
             doc = document(item['id'])
+            schedule = effective_reminder_schedule(doc, config)
             difference = (date.fromisoformat(today) - date.fromisoformat(doc['due_date'])).days
-            scheduled = (config['before_days'] > 0 and difference == -config['before_days']) or (config['on_due_date'] and difference == 0) or difference in config['after_days']
+            scheduled = (schedule['before_days'] > 0 and difference == -schedule['before_days']) or (schedule['on_due_date'] and difference == 0) or difference in schedule['after_days']
             if not scheduled or not doc['reminders_enabled'] or doc['state'] != 'issued' or doc['balance_cents'] <= 0 or not doc['client']['email']:
                 db().rollback()
                 continue
-            key = f"{doc['number']}:{doc['due_date']}:{today}"
+            key = f"invoice:{doc['id']}:{doc['due_date']}:{today}"
             # Claim once per scheduled date across workers/restarts, including failed/unknown sends.
             if one('SELECT id FROM billing_outbox WHERE automation_key=?', (key,)):
                 db().rollback()

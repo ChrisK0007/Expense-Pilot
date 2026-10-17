@@ -10,9 +10,11 @@ import sqlite3
 import struct
 import time
 from functools import wraps
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlsplit
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, g, request, jsonify, session, current_app
+from flask.sessions import SecureCookieSessionInterface
 from PIL import Image, ImageDraw
 from reportlab.graphics.barcode.qr import QrCodeWidget
 from werkzeug.security import check_password_hash
@@ -21,6 +23,16 @@ import billing
 bp = Blueprint('security', __name__, url_prefix='/api')
 INVITE_HOURS = 48
 CHALLENGE_SECONDS = 300
+DEVICE_IDLE_SECONDS = 30 * 86400
+BROWSER_SECONDS = 12 * 3600
+
+
+class DeviceSessionInterface(SecureCookieSessionInterface):
+    def get_expiration_time(self, app, state):
+        if not state.permanent:
+            return None
+        lifetime = DEVICE_IDLE_SECONDS if state.get('device_name') else BROWSER_SECONDS
+        return datetime.now(timezone.utc) + timedelta(seconds=lifetime)
 
 
 def clock():
@@ -82,7 +94,9 @@ def clear_rate(key):
 def revoke_session():
     token = session.get('sid')
     if isinstance(token, str):
-        db().execute('DELETE FROM login_sessions WHERE token_hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        db().execute('DELETE FROM notification_devices WHERE session_hash=?', (digest,))
+        db().execute('DELETE FROM login_sessions WHERE token_hash=?', (digest,))
     session.clear()
 
 
@@ -91,23 +105,43 @@ def session_valid(kind='auth'):
     uid = session.get('uid' if kind == 'auth' else 'mfa_uid')
     if not isinstance(token, str) or not uid:
         return False
-    return bool(one('SELECT 1 FROM login_sessions WHERE token_hash=? AND user_id=? AND kind=? AND expires>?',
-                    (hashlib.sha256(token.encode()).hexdigest(), uid, kind, clock())))
+    now = clock()
+    row = one('SELECT * FROM login_sessions WHERE token_hash=? AND user_id=? AND kind=? AND expires>?',
+              (hashlib.sha256(token.encode()).hexdigest(), uid, kind, now))
+    if not row:
+        return False
+    if kind == 'auth' and row['device_name']:
+        if row['user_version'] != session.get('version'):
+            return False
+        session['device_name'] = row['device_name']
+        # Only authenticated client activity renews this deadline. The push worker
+        # merely reads it, so sending alerts cannot keep an unused device signed in.
+        changed = db().execute('UPDATE login_sessions SET expires=?,last_used=? WHERE token_hash=? AND expires>?',
+                               (now + DEVICE_IDLE_SECONDS, now, row['token_hash'], now)).rowcount
+        db().execute('UPDATE notification_devices SET expires=? WHERE session_hash=?',
+                     (now + DEVICE_IDLE_SECONDS, row['token_hash']))
+        db().commit()
+        return bool(changed)
+    return True
 
 
-def start_session(user, pending=False):
+def start_session(user, pending=False, device_name=None):
+    if device_name is None:
+        device_name = session.get('device_name', session.get('mfa_device_name', ''))
     revoke_session()
     token = secrets.token_urlsafe(32)
-    expiry = clock() + (CHALLENGE_SECONDS if pending else 12 * 3600)
+    now = clock()
+    expiry = now + (CHALLENGE_SECONDS if pending else DEVICE_IDLE_SECONDS if device_name else BROWSER_SECONDS)
     db().execute('DELETE FROM login_sessions WHERE expires<=?', (clock(),))
-    db().execute('INSERT INTO login_sessions VALUES (?,?,?,?)',
-                 (hashlib.sha256(token.encode()).hexdigest(), user['id'], 'mfa' if pending else 'auth', expiry))
+    db().execute('INSERT INTO login_sessions(token_hash,user_id,kind,expires,device_name,created_at,last_used,user_version) VALUES (?,?,?,?,?,?,?,?)',
+                 (hashlib.sha256(token.encode()).hexdigest(), user['id'], 'mfa' if pending else 'auth', expiry,
+                  '' if pending else device_name, now, now, user['version']))
     db().commit()
     session.update(sid=token, csrf=secrets.token_hex(24))
     if pending:
-        session.update(mfa_uid=user['id'], mfa_version=user['version'], mfa_until=expiry)
+        session.update(mfa_uid=user['id'], mfa_version=user['version'], mfa_until=expiry, mfa_device_name=device_name)
     else:
-        session.update(uid=user['id'], version=user['version'])
+        session.update(uid=user['id'], version=user['version'], device_name=device_name)
         session.permanent = True
 
 
@@ -131,6 +165,7 @@ def reserve_password_attempt(email):
 
 def login_response():
     data = request.get_json() or {}
+    device_name = device_label(data.get('device_name', ''))
     email = str(data.get('email') or '').strip().lower()[:200]
     account_key = reserve_password_attempt(email)
     user = one('SELECT * FROM users WHERE email=?', (email,))
@@ -139,7 +174,7 @@ def login_response():
     if user['must_change_password'] and user['invite_expires'] <= clock():
         fail('This temporary password has expired. Ask the owner to resend your invitation.', 401)
     clear_rate(account_key); db().commit()
-    start_session(user, pending=bool(user['totp_enabled']))
+    start_session(user, pending=bool(user['totp_enabled']), device_name=device_name)
     if user['totp_enabled']:
         return jsonify(mfa_required=True)
     return jsonify(ok=True, password_change_required=bool(user['must_change_password']))
@@ -214,6 +249,47 @@ def signed_in(fn):
             fail('Please sign in.', 401)
         return fn(*args, **kwargs)
     return wrapped
+
+
+def device_label(value):
+    if not isinstance(value, str) or len(value) > 80 or any(ord(c) < 32 for c in value):
+        fail('Invalid device name.')
+    return value.strip()
+
+
+@bp.post('/security/device-session')
+@signed_in
+def remember_device():
+    name = device_label((request.get_json() or {}).get('device_name', ''))
+    if not name:
+        fail('Device name is required.')
+    # Upgrade an existing, fully authenticated app login once. Rotate its token
+    # so a copied old browser cookie does not acquire the longer lifetime.
+    if not session.get('device_name'):
+        start_session(current_user(), device_name=name)
+    return jsonify(ok=True)
+
+
+@bp.route('/security/devices', methods=['GET', 'DELETE'])
+@signed_in
+def devices():
+    digest = hashlib.sha256(session['sid'].encode()).hexdigest()
+    if request.method == 'DELETE':
+        target = (request.get_json() or {}).get('id')
+        if not isinstance(target, str) or not re.fullmatch('[0-9a-f]{64}', target):
+            fail('Invalid device.')
+        row = one("SELECT 1 FROM login_sessions WHERE token_hash=? AND user_id=? AND device_name!=''", (target, g.user['id']))
+        if not row:
+            fail('Device not found.', 404)
+        db().execute('DELETE FROM notification_devices WHERE session_hash=? AND user_id=?', (target, g.user['id']))
+        db().execute('DELETE FROM login_sessions WHERE token_hash=? AND user_id=?', (target, g.user['id']))
+        audit('device signed out', target[:12]); db().commit()
+        if target == digest:
+            session.clear()
+        return jsonify(ok=True)
+    records = db().execute("SELECT token_hash,device_name,created_at,last_used,expires FROM login_sessions WHERE user_id=? AND user_version=? AND kind='auth' AND device_name!='' AND expires>? ORDER BY last_used DESC",
+                           (g.user['id'], g.user['version'], clock())).fetchall()
+    return jsonify([dict(id=r['token_hash'],name=r['device_name'],created_at=r['created_at'],last_used=r['last_used'],expires=r['expires'],current=r['token_hash']==digest) for r in records])
 
 
 @bp.get('/security')

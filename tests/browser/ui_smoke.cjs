@@ -248,6 +248,15 @@ async function main() {
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
     await page.getByText('1 meal records',{exact:true}).waitFor();
     await page.screenshot({path:output+'/trips-meals.png',fullPage:true});
+    await page.getByRole('button',{name:'Spending & allowances',exact:true}).click();
+    await page.getByLabel('Annual salary excluding allowances (AUD)').fill('100000');
+    await page.getByLabel('2026-10-08 Dinner',{exact:true}).check();
+    await page.getByRole('button',{name:'Save comparison',exact:true}).click();
+    await page.getByText('ATO amount for selected meals/days:',{exact:false}).waitFor();
+    assert.match(await page.locator('#modal').innerText(),/69\.00/);
+    await page.screenshot({path:output+'/overnight-comparison.png',fullPage:true});
+    await page.keyboard.press('Escape');
+
     assert.match(await page.locator('.trip .dates').innerText(),/07\/10\/2026/);
     await page.getByLabel('Search trips & meals').fill('overnight dinner');
     assert.equal(await page.locator('.trip').count(),1);
@@ -268,7 +277,7 @@ async function main() {
     await page.setViewportSize({width:1440,height:1050});
 
     await navigate(page,'expenses');
-    assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),1,'Accepted meals are available in Expenses');
+    assert.equal(await page.getByText('Overnight dinner',{exact:true}).count(),0,'Overnight meals stay separate from ordinary Expenses');
     await navigate(page,'employment');
     await page.getByRole('button',{name:'Add employment income',exact:false}).click();
     await page.getByLabel('Employer',{exact:true}).fill('Example Employer');
@@ -379,6 +388,9 @@ async function main() {
     await page.locator('#theme-choice').selectOption('dark');
     await page.screenshot({path:output+'/invoices-dark.png',fullPage:true});
     await page.reload();
+    await page.locator('#billing-table table').waitFor();
+    assert.equal(new URL(page.url()).hash,'#/invoices');
+    await navigate(page,'dashboard');
     await page.locator('.comparison-chart').waitFor();
     assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
     assert.match(await page.locator('.financial-summary').innerText(),/10,000\.00/);
@@ -400,12 +412,11 @@ async function main() {
     await page.emulateMedia({colorScheme:'light'});
     await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');
     await navigate(page,'services');
-    await page.getByRole('button',{name:'Manage line items'}).click();
+    await page.getByRole('button',{name:'+ Add service'}).click();
     await page.getByLabel('Service / item description').fill('Reusable flight test');
     await page.getByLabel('Unit price (AUD)',{exact:true}).fill('600');
     await page.getByRole('button',{name:'Add service',exact:true}).click();
-    await page.locator('#modal').getByText('Reusable flight test',{exact:true}).waitFor();
-    await page.locator('#close-modal').click();
+    await page.locator('#content').getByText('Reusable flight test',{exact:true}).waitFor();
     await navigate(page,'reports');
     await page.locator('.report-donut').waitFor();
     await page.getByLabel('Group by',{exact:true}).selectOption('scope');
@@ -430,7 +441,7 @@ async function main() {
     await page.screenshot({path:output+'/invoice-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Mobile page overflows horizontally');
     assert.deepEqual(errors,[],'Browser JavaScript errors');
-    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, invoice deletion and cancellation, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, trip meals in Expenses, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
+    console.log('PASS: setup, login, business profile, client, invoice/GST, issue, partial payment, invoice deletion and cancellation, PDF, PDF inbox thumbnails, saved currency correction, inline two-page receipt preview, separate overnight meals and allowance comparison, employment income, tax forecast, agent permission changes, income, quote conversion, recurrence, SMTP secret retention, desktop/mobile. No real email sent.');
   } catch(error) {
     await page.screenshot({path:output+'/failure.png',fullPage:true});
     throw error;

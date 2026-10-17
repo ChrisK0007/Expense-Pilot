@@ -131,7 +131,7 @@ def send_statement(cid):
                        (cid, recipient, subject, message, signature, key, now(), json.dumps(statement))).lastrowid
     audit('statement email queued', cid)
     db().commit()
-    state, error = deliver(recipient, subject, message, attachment, statement_filename(statement), signature_html=signature)
+    state, error = deliver(recipient, subject, message, attachment, statement_filename(statement), signature_html=signature, copy=True)
     db().execute('UPDATE billing_statement_outbox SET state=?,error=? WHERE id=?', (state, error, oid))
     audit('statement email ' + state, cid)
     db().commit()

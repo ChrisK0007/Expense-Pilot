@@ -4,6 +4,7 @@ import io
 import json
 import re
 import location_core
+import journey_routes
 from expense_core import split_values
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -30,7 +31,7 @@ def norm(value):
     return re.sub(r'[^a-z0-9]+', ' ', str(value).casefold()).strip()
 
 def category_names():
-    return BASE_CATEGORIES + [r['name'] for r in rows('SELECT name FROM custom_categories ORDER BY name COLLATE NOCASE')]
+    return sorted(BASE_CATEGORIES + [r['name'] for r in rows('SELECT name FROM custom_categories')], key=lambda name: (name.casefold(), name))
 
 @bp.route('/categories', methods=['GET', 'POST'])
 @access
@@ -262,7 +263,10 @@ def link_vehicle(eid,uid,d,existing=None):
 def vehicles_api():
     if request.method=='GET':
         where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
-        return jsonify(rows(f'SELECT v.*,u.name AS owner,u.role AS owner_role FROM vehicles v JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY v.name',args))
+        data=rows(f'SELECT v.*,u.name AS owner,u.role AS owner_role FROM vehicles v JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY v.name',args)
+        for v in data:
+            log=vehicle_logbook.logbook(v['id']);v['odometer_estimate_m']=log['estimate_m'];v['odometer_ambiguous_trips']=log['ambiguous_trips']
+        return jsonify(data)
     d=body();name=textval(d.get('name'),100)
     if not name: fail('Enter a vehicle name.')
     vid=db().execute('INSERT INTO vehicles(user_id,name,registration,notes) VALUES (?,?,?,?)',(record_user_id(),name,textval(d.get('registration'),30),textval(d.get('notes'),1000))).lastrowid
@@ -273,7 +277,7 @@ def vehicles_api():
 def vehicle_api(vid):
     vehicle(vid)
     if request.method=='DELETE':
-        if one('SELECT id FROM expenses WHERE vehicle_id=?',(vid,)) or one('SELECT id FROM vehicle_journeys WHERE vehicle_id=?',(vid,)): fail('Remove or unlink this vehicle’s records before deleting it.',409)
+        if one('SELECT id FROM expenses WHERE vehicle_id=?',(vid,)) or one('SELECT id FROM vehicle_journeys WHERE vehicle_id=?',(vid,)) or one('SELECT id FROM vehicle_odometer WHERE vehicle_id=?',(vid,)): fail('Remove or unlink this vehicle’s records before deleting it.',409)
         db().execute('DELETE FROM vehicles WHERE id=?',(vid,))
     else:
         d=body();name=textval(d.get('name'),100)
@@ -291,7 +295,7 @@ def meters(value):
 def journey_values(d):
     v=vehicle(d.get('vehicle_id'));scope=d.get('scope','business');purpose=textval(d.get('purpose'),1000)
     if scope not in ('work','business','personal') or one('SELECT role FROM users WHERE id=?',(v['user_id'],))['role']=='employee' and scope!='business': fail('Invalid journey workspace.')
-    if not purpose: fail('Enter the journey purpose.')
+    if not purpose and scope!='personal': fail('Enter the journey purpose for employment or business travel.')
     a,b=d.get('odometer_start'),d.get('odometer_end')
     if (a in ('',None))!=(b in ('',None)): fail('Enter both odometer readings, or a distance instead.')
     a,b=(None,None) if a in ('',None) else (meters(a),meters(b))
@@ -304,8 +308,30 @@ def journey_values(d):
 @access
 def journeys_api():
     if request.method=='POST':
-        values=journey_values(body());jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent) VALUES (?,?,?,?,?,?,?,?,?,?)',values).lastrowid
-        audit('vehicle journey created',jid);db().commit();return jsonify(id=jid)
+        d=body(); values=journey_values(d); meta=vehicle_logbook.metadata(d); route=journey_routes.archive(d.get('route'))
+        fingerprint=journey_routes.fingerprint(values,meta,route)
+        db().execute('BEGIN IMMEDIATE')
+        if meta[2]:
+            receipt=one('SELECT * FROM journey_upload_receipts WHERE client_ref=?',(meta[2],))
+            if receipt:
+                if receipt['fingerprint']!=fingerprint: fail('This upload reference has different reviewed details. Check saved journeys.',409)
+                saved=one('SELECT * FROM vehicle_journeys WHERE id=?',(receipt['journey_id'],))
+                if not saved: fail('This journey was uploaded and then deleted. A delayed retry cannot recreate it.',409)
+                vehicle(saved['vehicle_id'])
+                if journey_routes.fingerprint(tuple(saved[k] for k in ('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent')),tuple(saved[k] for k in ('started_at','ended_at','client_ref')),saved['route_json'])!=fingerprint:
+                    fail('This journey was changed on the server. Check it before removing the local copy.',409)
+                db().commit();return jsonify(journey_routes.acknowledgement(saved['id'],meta[2],saved['route_json']))
+            old=one('SELECT * FROM vehicle_journeys WHERE client_ref=?',(meta[2],))
+            if old:
+                vehicle(old['vehicle_id'])
+                keys=('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent','started_at','ended_at','client_ref')
+                if tuple(old[k] for k in keys)!=values+meta or old['route_json']!=route: fail('This journey was already uploaded with different details. Check Vehicles before uploading again.',409)
+                db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],old['id'],fingerprint))
+                db().commit();return jsonify(journey_routes.acknowledgement(old['id'],meta[2],route))
+        jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent,started_at,ended_at,client_ref,route_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',values+meta+(route,)).lastrowid
+        db().execute('UPDATE vehicle_journeys SET date_timezone=? WHERE id=?', (vehicle_logbook.date_timezone(d), jid))
+        if meta[2]: db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],jid,fingerprint))
+        audit('vehicle journey created',jid);db().commit();return jsonify(journey_routes.acknowledgement(jid,meta[2],route))
     where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
     data=rows(f'SELECT j.*,v.name AS vehicle,v.registration,v.user_id,u.name AS owner FROM vehicle_journeys j JOIN vehicles v ON v.id=j.vehicle_id JOIN users u ON u.id=v.user_id WHERE {where} ORDER BY j.date DESC,j.id DESC',args)
     if request.args.get('format')=='csv':
@@ -313,21 +339,39 @@ def journeys_api():
         def safe(s): return "'"+s if str(s).lstrip().startswith(('=','+','-','@')) else s
         for x in data: writer.writerow([date.fromisoformat(x['date']).strftime('%d/%m/%Y'),*[safe(x[k]) for k in ('vehicle','registration','owner','origin','destination','purpose')],x['scope'],'' if x['odometer_start'] is None else x['odometer_start']/1000,'' if x['odometer_end'] is None else x['odometer_end']/1000,x['distance_m']/1000,x['percent'],x['distance_m']*x['percent']/100000])
         return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-vehicle-journeys.csv')
+    for item in data: item['has_route']=item.pop('route_json') is not None
     return jsonify(data)
 
-@bp.route('/vehicle-journeys/<int:jid>',methods=['PUT','DELETE'])
+@bp.route('/vehicle-journeys/<int:jid>',methods=['GET','PUT','DELETE'])
 @access
 def journey_api(jid):
     j=one('SELECT * FROM vehicle_journeys WHERE id=?',(jid,))
     if not j: fail('Journey not found.',404)
     old=vehicle(j['vehicle_id'])
-    if request.method=='DELETE': db().execute('DELETE FROM vehicle_journeys WHERE id=?',(jid,))
+    if request.method=='GET':
+        j['route']=json.loads(j.pop('route_json')) if j['route_json'] else None
+        j.pop('route_json',None)
+        return jsonify(j)
+    if request.method=='DELETE':
+        if j['client_ref']:
+            values=tuple(j[k] for k in ('vehicle_id','date','origin','destination','purpose','scope','odometer_start','odometer_end','distance_m','percent'))
+            meta=tuple(j[k] for k in ('started_at','ended_at','client_ref'))
+            db().execute('INSERT OR IGNORE INTO journey_upload_receipts VALUES (?,?,?)',(j['client_ref'],jid,journey_routes.fingerprint(values,meta,j['route_json'])))
+        db().execute('DELETE FROM vehicle_journeys WHERE id=?',(jid,))
     else:
         d=body();values=journey_values(d)
         vehicle(values[0],old['user_id'])
-        db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=? WHERE id=?',values+(jid,))
+        meta=vehicle_logbook.metadata(d,j)
+        route=journey_routes.archive(d['route']) if 'route' in d else j['route_json']
+        db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=?,started_at=?,ended_at=?,client_ref=?,route_json=? WHERE id=?',values+meta+(route,jid))
+        db().execute('UPDATE vehicle_journeys SET date_timezone=? WHERE id=?', (vehicle_logbook.date_timezone(d,j), jid))
     audit('vehicle journey updated',jid);db().commit();return jsonify(ok=True)
 
 def register(app, **deps):
     globals().update(deps)
+    vehicle_logbook.register()
+    journey_places.register()
     app.register_blueprint(bp)
+
+import vehicle_logbook
+import journey_places

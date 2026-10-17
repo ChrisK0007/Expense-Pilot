@@ -59,6 +59,12 @@ def export():
     if start: w+=' AND e.date>=?';a.append(day(start))
     if end: w+=' AND e.date<=?';a.append(day(end))
     data=rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY date',a)
+    from overnights import is_overnight
+    ledger=request.args.get('ledger','all')
+    if ledger not in ('all','ordinary','overnight'):
+        from app import fail
+        fail('Choose a valid expense ledger.')
+    if ledger!='all': data=[e for e in data if is_overnight(e)==(ledger=='overnight')]
     out=io.StringIO();writer=csv.writer(out);writer.writerow(['ID','Date','Person','Merchant','Scope','Category','Amount AUD','Use %','Reimbursed','Allocated amount AUD (not tax determination)','Status','Overnight location','Meal','Receipt ID','Notes','Vehicle','Vehicle registration','Employment %','Business %','Personal %','Employment allocation AUD','Business allocation AUD'])
     def safe(v):
         s=str(v or '')
@@ -123,10 +129,14 @@ def tax_forecast(year):
         gst=rounded(Decimal(payment['gst_cents'])*after/payment['total_cents'])-rounded(Decimal(payment['gst_cents'])*before/payment['total_cents'])
         if start<=payment['date']<=end: business_income+=payment['amount_cents']-gst
     expenses=rows("SELECT e.* FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.date BETWEEN ? AND ? AND e.status='ready' AND e.scope!='personal' AND e.reimbursed=0 AND (e.scope='business' OR u.role='owner')",(start,end))
+    from overnights import is_overnight
+    overnight_expenses=[e for e in expenses if is_overnight(e)]
+    expenses=[e for e in expenses if not is_overnight(e)]
     business_deductions=sum(allocations(e)[1] for e in expenses)
     work_deductions=sum(allocations(e)[0] for e in expenses)
-    unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review'",(start,end))['n']
-    current=datetime.now(timezone(timedelta(hours=10))).date();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
+    unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review' AND trip_id IS NULL AND meal='' AND category!='Meals'",(start,end))['n']
+    import workspace_time
+    current=workspace_time.today();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
     elapsed=max(1,min((current-begin).days+1,(finish-begin).days+1));factor=Decimal((finish-begin).days+1)/elapsed if settings.get('annualise') and begin<=current<=finish else Decimal(1)
     def value(key,recorded=0):
         v=settings.get(key)
@@ -136,4 +146,4 @@ def tax_forecast(year):
     profit=forecast['business_income_cents']-forecast['business_deductions_cents']+(settings.get('gst_credits') or 0)
     taxable=forecast['salary_cents']+max(0,profit)-forecast['work_deductions_cents']+(settings.get('other_income') or 0)-(settings.get('other_deductions') or 0)
     result=estimate(taxable,year,forecast['withheld_cents'],settings.get('instalments') or 0,settings.get('medicare_override'),settings.get('other_tax') or 0,settings.get('set_aside') or 0)
-    return jsonify(year=year,start=start,end=end,settings=settings,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat())
+    return jsonify(year=year,start=start,end=end,settings=settings,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions,overnight_work_cents=sum(allocations(e)[0] for e in overnight_expenses),overnight_business_cents=sum(allocations(e)[1] for e in overnight_expenses)),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat())

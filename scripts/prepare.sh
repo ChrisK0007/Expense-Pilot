@@ -6,11 +6,10 @@ if [ ! -f .env ]; then
   umask 077
   cat > .env <<EOF
 SETUP_TOKEN=${setup_token}
-OLLAMA_URL=
-OLLAMA_MODEL=
+# Configure receipt AI in the app's Settings → Receipts & AI.
 COOKIE_SECURE=false
 EOF
-  echo 'Created .env with a unique setup token.'
+  echo 'Created .env with an optional setup token. Keep it for protected owner setup, or clear SETUP_TOKEN for token-free setup.'
 else
   echo 'Keeping existing .env.'
 fi

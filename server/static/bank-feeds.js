@@ -1,11 +1,11 @@
 'use strict';
 const BankFeeds=(()=>{
  let filter='review',offset=0;
- const stamp=v=>v?new Date(v).toLocaleString('en-AU'):'Not synced yet';
+ const stamp=v=>v?WorkspaceTime.stamp(v):'Not synced yet';
  const amount=t=>new Intl.NumberFormat('en-AU',{style:'currency',currency:t.currency}).format(t.amount_cents/100);
  const busy=async(button,fn)=>{button.disabled=true;try{await fn();}catch(e){toast(e.message);}finally{button.disabled=false;}};
  function settingsCard(){
-  $('#content .heading').insertAdjacentHTML('afterend','<section class="card"><h2>Bank feeds</h2><p class="muted">Connect your PocketSmith accounts and review bank transactions before adding them to expenses.</p><button class="secondary" id="settings-bank-feeds">Configure PocketSmith →</button></section>');
+  $('#settings-connections-cards').insertAdjacentHTML('beforeend','<section class="card"><h3>PocketSmith</h3><p class="muted">Connect your PocketSmith accounts and review bank transactions before adding them to expenses.</p><button class="secondary" id="settings-bank-feeds">Configure PocketSmith →</button></section>');
   bind('#settings-bank-feeds',()=>settings().catch(e=>toast(e.message)));
  }
  async function settings(){

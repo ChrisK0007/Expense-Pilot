@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from cryptography.fernet import Fernet, InvalidToken
 from flask import jsonify, request
 from pocketsmith_client import Client, FeedError
+import workspace_time
 
 
 def connection():
@@ -77,7 +78,7 @@ def account_data(client):
 def public_connection():
     c = connection()
     return dict(connected=bool(c['key_encrypted']), display_name=c['display_name'],
-                start_date=c['start_date'] or date.today().replace(day=1).isoformat(),
+                start_date=c['start_date'] or workspace_time.today().replace(day=1).isoformat(),
                 auto_sync=bool(c['auto_sync']), last_sync=c['last_sync'], last_error=c['last_error'],
                 syncing=c['lock_until'] > time.time(), retry_after=c['retry_after'], next_sync=c['next_sync'],
                 version=c['version'], accounts=rows('SELECT * FROM pocketsmith_accounts WHERE remote_user_id=? ORDER BY name', (c['remote_user_id'],)))
@@ -149,7 +150,7 @@ def sync(manual=False):
     db().commit()
     try:
         client = Client(key_for(c))
-        end = date.today().isoformat()
+        end = workspace_time.today().isoformat()
         fetched, seen = [], set()
         for a in accounts:
             for raw in client.collection(f"/transaction_accounts/{a['remote_id']}/transactions", {'start_date': c['start_date'], 'end_date': end}):
@@ -273,7 +274,7 @@ def register(app, **helpers):
             db().execute('UPDATE pocketsmith_accounts SET available=0,enabled=CASE WHEN remote_user_id=? THEN enabled ELSE 0 END', (uid,))
             for a in accounts:
                 db().execute('INSERT INTO pocketsmith_accounts(remote_user_id,remote_id,name,institution,currency) VALUES (?,?,?,?,?) ON CONFLICT(remote_user_id,remote_id) DO UPDATE SET name=excluded.name,institution=excluded.institution,currency=excluded.currency,available=1', a)
-            start = c['start_date'] if uid==c['remote_user_id'] and c['start_date'] else date.today().replace(day=1).isoformat()
+            start = c['start_date'] if uid==c['remote_user_id'] and c['start_date'] else workspace_time.today().replace(day=1).isoformat()
             db().execute("UPDATE pocketsmith_connection SET key_encrypted=?,remote_user_id=?,display_name=?,start_date=?,version=version+1,lock_token='',lock_until=0,last_error='',retry_after=0,next_sync=0,last_sync=CASE WHEN remote_user_id=? THEN last_sync ELSE '' END,auto_sync=CASE WHEN remote_user_id=? THEN auto_sync ELSE 0 END WHERE id=1", (box().encrypt(key.encode()).decode(), uid, name, start, uid, uid))
         else:
             db().execute('BEGIN IMMEDIATE')
@@ -286,7 +287,7 @@ def register(app, **helpers):
                 if not c['key_encrypted']:
                     fail('Connect PocketSmith first.')
                 start = day(d.get('start_date'))
-                if not start or start > date.today().isoformat():
+                if not start or start > workspace_time.today().isoformat():
                     fail('Choose a sync start date on or before today.')
                 selected = d.get('accounts')
                 if not isinstance(selected, list) or not selected or len(selected)>100:
