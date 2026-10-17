@@ -1,0 +1,33 @@
+# Portable installation: Docker Desktop on Windows/macOS, Linux and other Docker hosts.
+# Optional: set SETUP_TOKEN in .env for protected owner setup. Start: docker compose -f compose.public.yaml up -d
+services:
+  expense-pilot:
+    image: ${IMAGE:-ghcr.io/chrisk0007/expense-pilot:latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8788}:8788"
+    environment:
+      DATA_DIR: /data
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      - expense-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1g
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [local-ai]
+    restart: unless-stopped
+    environment:
+      OLLAMA_NO_CLOUD: "1"
+    volumes:
+      - ollama-data:/root/.ollama
+    # No host port is published; Expense Pilot reaches it on the Compose network.
+volumes:
+  expense-data:
+  ollama-data:

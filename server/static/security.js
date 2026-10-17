@@ -14,11 +14,17 @@ const Security=(()=>{
  }
  async function settings(){
   const data=await api('security');if(page!=='settings')return;
-  $('#security-settings').innerHTML=`<h2>Two-factor authentication</h2>${!data.secure_cookies?'<p class="notice">Secure-only cookies are disabled. When using HTTPS, set COOKIE_SECURE=true on your server.</p>':''}<p>${data.enabled?'Enabled — sign-in requires a code from your authenticator.':'Add an authenticator code to protect your account.'}</p>${data.enabled?`<p class="footnote">${data.recovery_remaining} unused recovery codes remaining.</p><button class="secondary" id="disable-2fa">Turn off 2FA</button>`:'<button id="enable-2fa">Set up authenticator</button>'}`;
+  $('#security-settings').innerHTML=`<h3>Two-factor authentication</h3>${!data.secure_cookies?'<p class="notice">Secure-only cookies are disabled. When using HTTPS, set COOKIE_SECURE=true on your server.</p>':''}<p>${data.enabled?'Enabled — sign-in requires a code from your authenticator.':'Add an authenticator code to protect your account.'}</p>${data.enabled?`<p class="footnote">${data.recovery_remaining} unused recovery codes remaining.</p><button class="secondary" id="disable-2fa">Turn off 2FA</button>`:'<button id="enable-2fa">Set up authenticator</button>'}`;
   bind('#enable-2fa',setup);bind('#disable-2fa',disable);
+  const devices=await api('security/devices');if(page!=='settings')return;
+  $('#security-settings').insertAdjacentHTML('beforeend',`<h3>Signed-in devices</h3><p class="footnote">App logins expire after 30 days without use.</p>${devices.length?devices.map(d=>`<div class="card"><strong>${esc(d.name)}</strong>${d.current?' · This device':''}<p class="footnote">Last used ${esc(new Date(d.last_used*1000).toLocaleString())}</p><button class="danger" data-signout-device="${esc(d.id)}">Sign out device</button></div>`).join(''):'<p class="muted">No remembered devices.</p>'}`);
+  document.querySelectorAll('[data-signout-device]').forEach(button=>button.addEventListener('click',async()=>{
+   if(!confirm('Sign out this device? It will need to sign in again.'))return;
+   try{await api('security/devices',{id:button.dataset.signoutDevice},'DELETE');await boot();}catch(e){toast(e.message);}
+  }));
   if(owner()){
    const config=await api('security/invitations');if(page!=='settings')return;
-   $('#invitation-settings').innerHTML=`<h2>Account invitations</h2><p>Invited tax agents receive an email with an automatically generated password. They must replace it on their first sign-in.</p><form id="invitation-config">${field('Expense Pilot login address','login_url','url',config.login_url,'required placeholder="https://expenses.example.com"')}<p class="footnote">Use the address your invited people can reach. ${config.smtp_configured?'Email delivery is configured.':'Configure Email delivery & templates below before inviting people.'}</p><button type="submit">Save invitation settings</button></form>`;
+   $('#invitation-settings').innerHTML=`<h3>Invitation login address</h3><p>Invited tax agents receive an email with an automatically generated password. They must replace it on their first sign-in.</p><form id="invitation-config">${field('Expense Pilot login address','login_url','url',config.login_url,'required placeholder="https://expenses.example.com"')}<p class="footnote">Use the address your invited people can reach. ${config.smtp_configured?'Email delivery is configured.':'Configure email delivery under Business & email before inviting people.'}</p><button type="submit">Save invitation settings</button></form>`;
    formHandler('#invitation-config',async d=>{await api('security/invitations',d,'PUT');toast('Invitation settings saved.');});
   }
  }

@@ -9,7 +9,7 @@ async function main(){
   await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();await page.locator('[data-page=dashboard]').waitFor();
   await navigate(page,'invoices');
   const nav=page.getByRole('navigation',{name:'Billing pages',exact:true});
-  for(const [label,key] of [['Clients','clients'],['Recurring invoices','recurring'],['Line item templates','services'],['Quotes','quotes'],['Invoices','invoices']]){
+  for(const [label,key] of [['Clients','clients'],['Recurring invoices','recurring'],['Services & prices','services'],['Quotes','quotes'],['Invoices','invoices']]){
    await nav.getByRole('button',{name:label,exact:true}).click();await page.locator(`[data-billing-page=${key}][aria-current=page]`).waitFor();
    assert.equal(await nav.getByRole('button',{name:'Invoices',exact:true}).count(),1);
    assert.equal(await nav.getByRole('button',{name:'Quotes',exact:true}).count(),1);

@@ -158,13 +158,13 @@ class BillingTest(unittest.TestCase):
         data = dict(client_id=self.cid, issue_date=self.today, due_date='not-a-date', lines=[])
         self.assertEqual(self.call(self.owner, 'billing/documents', data).status_code, 400)
 
-    def test_numbering_unique_and_no_reuse(self):
+    def test_numbering_unique_and_reuses_deleted_invoice(self):
         first = self.create()
         second = self.create(kind='quote')
         self.assertEqual(first['number'], 'INV-0001')
         self.assertEqual(second['number'], 'QUO-0001')
         self.assertEqual(self.call(self.owner, f"billing/documents/{first['id']}", {'version':first['version']}, 'DELETE').status_code, 200)
-        self.assertEqual(self.create()['number'], 'INV-0002')
+        self.assertEqual(self.create()['number'], 'INV-0001')
 
     def test_issued_snapshot_is_immutable(self):
         doc = self.issue(self.create())
@@ -175,7 +175,7 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(saved['client']['name'], 'Example Client')
         self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {**saved,'version':saved['version']}, 'PUT').status_code, 409)
 
-    def test_delete_issued_and_void_invoices_without_reusing_numbers(self):
+    def test_deleted_issued_and_void_invoice_numbers_become_reusable(self):
         for state in ('issued', 'void'):
             with self.subTest(state=state):
                 doc = self.issue(self.create())
@@ -190,7 +190,7 @@ class BillingTest(unittest.TestCase):
                 with app.app_context():
                     record = db().execute("SELECT entity FROM audit WHERE action='invoice deleted' ORDER BY id DESC LIMIT 1").fetchone()
                     self.assertIn(doc['number'], record['entity'])
-        self.assertEqual(self.create()['number'], 'INV-0003')
+        self.assertEqual(self.create()['number'], 'INV-0001')
 
     @patch('billing.smtplib.SMTP_SSL')
     def test_delete_paid_invoice_cleans_history_and_updates_income(self, smtp):

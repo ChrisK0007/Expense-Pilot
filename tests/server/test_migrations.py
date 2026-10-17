@@ -20,7 +20,7 @@ class MigrationTest(unittest.TestCase):
         c.execute("INSERT INTO users(id,name,email,password,role,version) VALUES (1,'Owner','owner@test','hash','owner',3),(2,'Legacy','old@test','hash','employee',7)")
         c.execute("INSERT INTO receipts VALUES ('receipt',2,'kept.png','image/png')")
         c.execute("INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,work_percent,business_percent,receipt_id) VALUES (2,'2026-01-01','Kept',12345,'split','Other',50,30,20,'receipt')")
-        c.execute("INSERT INTO login_sessions VALUES ('kept-session',1,'full',9999999999)")
+        c.execute("INSERT INTO login_sessions(token_hash,user_id,kind,expires) VALUES ('kept-session',1,'full',9999999999)")
         c.execute('DROP TABLE schema_migrations')  # 0.8.1 has no ledger.
         c.commit()
         apply(c)
@@ -29,7 +29,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),8)
+        self.assertEqual(len(ledger),19)
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
         self.assertEqual(c.execute('SELECT version FROM users WHERE id=2').fetchone()[0],8)
@@ -50,7 +50,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],19)
 
     def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
         c = self.connection
@@ -67,18 +67,19 @@ class MigrationTest(unittest.TestCase):
         c.execute("INSERT INTO billing_settings VALUES ('custom-setting','keep this value')")
         c.commit()
         tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
-        before = {table:c.execute('SELECT * FROM "'+table+'"').fetchall() for table in tables}
+        columns = {table:','.join('"'+r[1]+'"' for r in c.execute('PRAGMA table_info("'+table+'")')) for table in tables}
+        before = {table:c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall() for table in tables}
         apply(c)
         for table, records in before.items():
             with self.subTest(table=table):
-                current = c.execute('SELECT * FROM "'+table+'"').fetchall()
+                current = c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall()
                 self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],19)
         self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
         self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],8)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],19)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)
@@ -87,6 +88,22 @@ class MigrationTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'modified'):
             apply(self.connection)
         self.assertFalse(self.connection.in_transaction)
+
+    def test_budget_duration_upgrade_preserves_ids_amounts_versions_and_sequence(self):
+        c = self.connection
+        old_files = sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name < 'm012_')
+        with patch('migrations.Path.glob', return_value=old_files):
+            apply(c)
+        c.execute("INSERT INTO category_budgets(id,month,category,scope,amount_cents,version) VALUES (42,'2026-10','Other','all',120000,7),(99,'2026-11','Other','all',100,1)")
+        c.execute('DELETE FROM category_budgets WHERE id=99')
+        c.commit()
+        apply(c)
+        self.assertEqual(c.execute('SELECT id,month,category,scope,amount_cents,version,period FROM category_budgets').fetchall(),[(42,'2026-10','Other','all',120000,7,'monthly')])
+        new_id=c.execute("INSERT INTO category_budgets(month,period,category,scope,amount_cents) VALUES ('2026-10','yearly','Other','all',120000)").lastrowid
+        self.assertGreater(new_id,99)
+        c.commit()
+        apply(c)
+        self.assertEqual(c.execute('SELECT count(*) FROM category_budgets').fetchone()[0],2)
 
     def test_future_database_is_rejected(self):
         apply(self.connection)

@@ -1,4 +1,94 @@
-# Release history
+# Changelog
+
+## v1.0.2 — Stable Docker release (2026-10-17)
+
+Promotes the tested 1.0.2-beta.1–beta.13 server changes to stable. The iPhone app remains independently versioned and in testing.
+
+- Editable saved services and invoice numbers, reuse of permanently deleted invoice numbers, per-invoice reminder wording and email copies.
+- Monthly, quarterly and yearly budgets; vehicle logbook and cents-per-kilometre comparison; separate overnight spending.
+- Browser page URLs, clearer settings, consistent allocation labels and colours.
+- Optional setup token, in-app AI modes, workspace timezone, full backups, restore and account privacy controls.
+- Saved-address sync, drive timing/route support, longer-lived mobile sessions and server notification polling support.
+- Docker-first documentation, support forms and installation defaults now target stable.
+
+Back up the complete data directory before upgrading from 1.0.1. Startup applies migrations m009–m019. Keep the existing `/data` mount; legacy AI environment settings remain supported. Rollback requires the matching old backup and image. No iOS build is released by this update.
+
+## 1.0.2-beta.13
+
+- Show split expense allocations as separate purple Employment and green Business badges, with capitalised labels, in expense tables and recent expenses.
+
+## 1.0.2-beta.12
+
+- Add revocable persistent iPhone sessions with a rolling 30-day inactivity deadline. Browser sessions retain their existing lifetime.
+- Preserve explicit sign-out, password/2FA revocation and account/server isolation.
+
+## 1.0.2-beta.11
+
+- Add per-device notification preferences and server event/review support for the iPhone test app.
+- Current iPhone builds read server alerts directly while connected; a shared push relay is not part of the standard self-hosted setup.
+
+## 1.0.2-beta.10
+
+- Sync saved drive addresses between iPhones signed in to the same server account.
+- Version each address, retain deletion tombstones and acknowledge repeated changes safely; concurrent edits require an explicit choice.
+- Keep address collections private to each login, including tax agents, and preserve them in server backups.
+
+## 1.0.2-beta.9
+
+- Simplify Settings into fixed topic groups with clear email, receipt AI, security and data controls, consistent spacing and mobile navigation.
+- Remove Ollama fields from the beta Unraid template; configure AI in the app while retaining existing environment compatibility.
+- Make SETUP_TOKEN optional. A configured token remains enforced, and first-owner creation still closes after setup. Hide the token field when not required.
+- Remove backups from the workspace setup checklist. Optional downloads remain under Data & privacy.
+
+## 1.0.2-beta.8
+
+- Add an owner-managed workspace timezone in setup and Settings; suggest the browser's timezone on new installs and retain Brisbane on upgrades.
+- Apply regional dates and daylight saving to invoices, reminders, recurring drafts, budgets, bank-sync date windows, tax-period progress and vehicle logs.
+- Share the timezone with native iOS and retain each recorded trip's timezone for safe offline upload after a setting change.
+- Use workspace time for odometer entry and bank-feed timestamps; reject daylight-saving gaps and explicitly resolve repeated clock times.
+- Preserve saved calendar dates and UTC timestamps. AUD, Australian financial years and tax rules are unchanged.
+
+## 1.0.2-beta.7
+
+- Add No AI, local Ollama, existing/remote Ollama and cloud API modes with encrypted keys, connection testing and explicit cloud consent. Preserve legacy Ollama configuration.
+- Add client-email BCC copies and consistent dashboard invoice status labels.
+- Add portable Docker deployment, setup checklist, public server discovery/API compatibility and privacy/account controls.
+- Add authenticated full backup download and verified restore into an empty volume.
+- Make mobile expense/receipt uploads idempotent with deletion tombstones.
+
+
+## 1.0.2-beta.6
+
+- Retain reviewed iPhone route maps on the server and acknowledge exact retry-safe uploads before phone cleanup.
+- Preserve deletion receipts so delayed retries cannot recreate deleted journeys; alphabetise expense categories.
+
+## 1.0.2-beta.5
+
+- Support native invoice creation and separate overnight spending/allowance comparisons for the iPhone test app.
+- Keep overnight spending separate from the ordinary expense forecast.
+
+## 1.0.2-beta.4
+
+- Give web pages bookmarkable URLs; preserve the page through refresh/sign-in and support browser Back/Forward, including shared billing pages and tax agent settings.
+- Add monthly, quarterly and yearly category budgets with a selectable starting month, full-period spending totals, date ranges, duration editing and copying of the previous period.
+- Preserve existing monthly budgets and API compatibility with iPhone 0.5.0. Add migration, financial-period and desktop/mobile navigation regressions.
+
+## 1.0.2-beta.3
+
+- Add category budgets and comparison estimates for vehicle cents-per-kilometre and logbook methods.
+- Retain vehicle cost receipts and representative logbook inputs for review.
+
+## 1.0.2-beta.2
+
+- Add dated vehicle odometer readings and estimates based on recorded journey distances, with account and retry protection.
+
+## 1.0.2-beta.1
+
+- Edit saved service descriptions, prices and GST treatment from Services & prices. Existing invoice and quote line items keep their saved values.
+- Reuse the most recently permanently deleted invoice number for the next automatically numbered invoice, then any other available deleted numbers. Voiding keeps the number reserved. Add a custom number when creating an invoice or change a saved invoice number, with duplicate and concurrent-edit protection.
+- Customise automatic reminder dates and due-date, overdue and manual reminder email wording per invoice. Preview messages using the invoice's details, inherit shared settings when overrides are off, and carry preferences into duplicates and recurring drafts. The shared automatic sending switch remains the master control.
+- Standardise service labels and shared business navigation, including Billable time. Improve settings spacing, dialog layout, mobile buttons, theme colours and keyboard focus.
+- Migration m009 preserves existing records and reminder delivery claims when numbers change. Number reuse applies to invoices deleted after this upgrade. Back up beta data before updating; rollback requires its matching pre-upgrade backup. Stable remains v1.0.1.
 
 ## 1.0.1
 

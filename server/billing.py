@@ -14,7 +14,6 @@ from decimal import Decimal
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 from functools import wraps
-from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, g, jsonify, request, send_file
@@ -25,7 +24,7 @@ DEFAULT_BUSINESS = dict(name='', abn='', address='', email='', phone='', gst_reg
                         payment_details='', notes='Thank you for your business.', terms=14,
                         invoice_prefix='INV-', quote_prefix='QUO-', accent='#355c46', logo='')
 DEFAULT_MAIL = dict(host='', port=587, security='starttls', username='', from_email='',
-                    from_name='', reply_to='', password_encrypted='',
+                    from_name='', reply_to='', password_encrypted='', copy_self=False, copy_email='',
                     subject='{kind} {number} from {business}',
                     body='Hi {client},\n\nPlease find your {kind} {number} attached.\nTotal: {total}\nDue / valid until: {due_date}\n\nThank you,\n{business}')
 
@@ -35,7 +34,8 @@ def now():
 
 
 def local_today():
-    return datetime.now(ZoneInfo('Australia/Brisbane')).date().isoformat()
+    from workspace_time import today
+    return today().isoformat()
 
 
 def owner(fn):
@@ -178,7 +178,7 @@ def revision(doc, payload):
 
 def hydrate(row):
     doc = dict(row)
-    for key in ('client', 'business', 'lines'):
+    for key in ('client', 'business', 'lines', 'reminder_options'):
         doc[key] = json.loads(doc[key])
     doc['paid_cents'] = one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['n']
     doc['paid_date'] = one('SELECT MAX(date) AS value FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['value'] if doc['paid_cents'] >= doc['total_cents'] and doc['paid_cents'] > 0 else None
@@ -212,25 +212,22 @@ def validate_document(payload):
     if type(reminders) not in (bool, int) or reminders not in (0, 1):
         raise ValueError('Choose whether automatic reminders are on or off for this invoice.')
     snapshot = {k: client[k] for k in ('id', 'name', 'contact', 'email', 'address', 'abn', 'terms')}
-    return dict(kind=kind, reminders_enabled=int(reminders), client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
+    from billing_emails import validate_reminder_options
+    options = validate_reminder_options(payload.get('reminder_options', {})) if kind == 'invoice' else {}
+    return dict(kind=kind, reminders_enabled=int(reminders), reminder_options=options, client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
                 issue_date=issued, due_date=due, notes=txt(payload.get('notes', document_defaults()[kind + '_notes']), 5000),
                 reference=txt(payload.get('reference'), 100),
                 payment_details=txt(payload.get('payment_details', document_defaults()['invoice_payment_details'] if kind == 'invoice' else ''), 2000), **amounts)
 
 
-def insert_document(values, source_quote=None, schedule_id=None, occurrence=None):
-    # Caller holds BEGIN IMMEDIATE: number allocation and creation are one transaction.
+def insert_document(values, source_quote=None, schedule_id=None, occurrence=None, custom_number=None):
+    # Caller holds BEGIN IMMEDIATE: allocation, reuse and creation are atomic.
+    from billing_numbers import allocate_number
     kind = values['kind']
-    n = one('SELECT next_number FROM billing_counters WHERE kind=?', (kind,))['next_number']
-    prefix = values['business'][kind + '_prefix']
-    number = f'{prefix}{n:04d}'
-    while one('SELECT id FROM billing_documents WHERE number=?', (number,)):
-        n += 1
-        number = f'{prefix}{n:04d}'
-    db().execute('UPDATE billing_counters SET next_number=? WHERE kind=?', (n + 1, kind))
+    number = allocate_number(values, custom_number)
     columns = ['kind', 'client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes',
-               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled']
-    data = [json.dumps(values[k]) if k in ('client', 'business', 'lines') else values[k] for k in columns]
+               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options']
+    data = [json.dumps(values[k]) if k in ('client', 'business', 'lines', 'reminder_options') else values[k] for k in columns]
     cur = db().execute('INSERT INTO billing_documents(' + ','.join(columns) + ',number,source_quote,schedule_id,occurrence,created_at) VALUES (' + ','.join('?' for _ in range(len(columns) + 5)) + ')',
                        data + [number, source_quote, schedule_id, occurrence, now()])
     audit(kind + ' draft created', cur.lastrowid)
@@ -317,7 +314,10 @@ def configure_email():
                   security=payload.get('security', 'starttls'), username=header(payload.get('username'), 254),
                   from_email=email(payload.get('from_email')), from_name=header(payload.get('from_name')),
                   reply_to=email(payload.get('reply_to')), subject=header(payload.get('subject', old['subject'])),
-                  body=txt(payload.get('body', old['body']), 10000), password_encrypted=old['password_encrypted'])
+                  body=txt(payload.get('body', old['body']), 10000), password_encrypted=old['password_encrypted'],
+                  copy_self=payload.get('copy_self', old['copy_self']) is True, copy_email=email(payload.get('copy_email', old['copy_email'])))
+    if config['copy_self'] and not config['copy_email']:
+        config['copy_email'] = email(one("SELECT email FROM users WHERE role='owner' ORDER BY id LIMIT 1")['email'], True)
     if config['host'] and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.:-]*', config['host']):
         fail('Enter the SMTP hostname without http:// or a path.')
     if config['security'] not in ('starttls', 'ssl'):
@@ -337,7 +337,7 @@ def configure_email():
     return jsonify(ok=True)
 
 
-def deliver(recipient, subject, message, attachment=None, filename=None, signature_html=''):
+def deliver(recipient, subject, message, attachment=None, filename=None, signature_html='', copy=False):
     config = mail_settings()
     if not config['host'] or not config['from_email']:
         raise ValueError('Configure your SMTP account in Email settings first.')
@@ -345,6 +345,8 @@ def deliver(recipient, subject, message, attachment=None, filename=None, signatu
     outgoing['From'] = formataddr((header(config['from_name']), email(config['from_email'], True)))
     outgoing['To'] = email(recipient, True)
     outgoing['Subject'] = header(subject)
+    if copy and config['copy_self'] and config['copy_email'] and config['copy_email'].lower() != recipient.lower():
+        outgoing['Bcc'] = email(config['copy_email'], True)
     outgoing['Date'] = formatdate(localtime=False)
     outgoing['Message-ID'] = make_msgid()
     if config['reply_to']:
@@ -368,7 +370,11 @@ def deliver(recipient, subject, message, attachment=None, filename=None, signatu
             password = secret_box().decrypt(config['password_encrypted'].encode()).decode() if config['password_encrypted'] else ''
             connection.login(config['username'], password)
         phase = 'send'
-        connection.send_message(outgoing)
+        refused = connection.send_message(outgoing)
+        if isinstance(refused, dict) and refused:
+            if any(address.lower() == recipient.lower() for address in refused):
+                return 'failed', 'The client address was rejected. Your copy may have been delivered.'
+            return 'sent', 'Client email sent, but the copy address was rejected. Check the copy address in Email settings.'
     except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError):
         return 'failed', 'The mail server rejected the message. Check the recipient and sender permissions.'
     except (smtplib.SMTPException, OSError, InvalidToken, ValueError):
@@ -429,12 +435,7 @@ def edit_client(cid):
     return jsonify(ok=True)
 
 
-@bp.route('/services', methods=['GET', 'POST'])
-@reader
-def services():
-    if request.method == 'GET':
-        return jsonify(rows('SELECT * FROM billing_services ORDER BY description'))
-    payload = body()
+def service_values(payload):
     description = txt(payload.get('description'), 1000)
     if not description:
         fail('Enter a service description.')
@@ -442,15 +443,39 @@ def services():
     tax = payload.get('tax', 'none')
     if tax not in ('gst', 'gst_free', 'none'):
         fail('Invalid GST treatment.')
-    cur = db().execute('INSERT INTO billing_services(description,unit_cents,tax) VALUES (?,?,?)', (description, rate, tax))
+    return description, rate, tax
+
+
+@bp.route('/services', methods=['GET', 'POST'])
+@reader
+def services():
+    if request.method == 'GET':
+        return jsonify(rows('SELECT * FROM billing_services ORDER BY description'))
+    values = service_values(body())
+    cur = db().execute('INSERT INTO billing_services(description,unit_cents,tax) VALUES (?,?,?)', values)
+    audit('service created', cur.lastrowid)
     db().commit()
     return jsonify(id=cur.lastrowid)
 
 
-@bp.delete('/services/<int:sid>')
+@bp.route('/services/<int:sid>', methods=['PUT', 'DELETE'])
 @reader
-def delete_service(sid):
-    db().execute('DELETE FROM billing_services WHERE id=?', (sid,))
+def service_detail(sid):
+    payload = body()
+    values = service_values(payload) if request.method == 'PUT' else None
+    db().execute('BEGIN IMMEDIATE')
+    service = one('SELECT * FROM billing_services WHERE id=?', (sid,))
+    if not service:
+        fail('Service not found.', 404)
+    if request.method == 'PUT' or 'version' in payload:
+        if payload.get('version') != service['version']:
+            fail('This service changed in another tab. Reload it before continuing.', 409)
+    if request.method == 'PUT':
+        db().execute('UPDATE billing_services SET description=?,unit_cents=?,tax=?,version=version+1 WHERE id=?', values + (sid,))
+        audit('service updated', sid)
+    else:
+        db().execute('DELETE FROM billing_services WHERE id=?', (sid,))
+        audit('service deleted', sid)
     db().commit()
     return jsonify(ok=True)
 
@@ -584,6 +609,7 @@ def schedules():
     terms = integer(payload.get('terms', 14), 'payment terms')
     template = {k: doc[k] for k in ('lines', 'tax_mode', 'notes', 'reference', 'payment_details')}
     template['reminders_enabled'] = bool(doc['reminders_enabled'])
+    template['reminder_options'] = doc['reminder_options']
     if 'reminders_enabled' in payload:
         if g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)

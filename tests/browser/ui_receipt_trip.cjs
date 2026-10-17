@@ -86,7 +86,7 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   assert.equal((await api('expenses')).find(e=>e.receipt_id===third).trip_id,trip.id);
   await page.setViewportSize({width:1280,height:1100});
   await navigate(page,'expenses');await page.getByLabel('Financial year').selectOption('all');await page.getByLabel('Search expenses').fill('Receipt trip cyan');
-  assert.match(await page.locator('#expense-table').innerText(),/Receipt trip cyan/,'Accepted meals are also available in Expenses');
+  assert.doesNotMatch(await page.locator('#expense-table').innerText(),/Receipt trip cyan/,'Accepted meals stay in the separate overnight ledger');
   assert.doesNotMatch(await page.locator('#count').innerText(),/tax agent/i);
   // Review both attached and unattached matches without losing unsaved edits.
   const attached=await upload('navy','2026-10-08',44.35),candidate=await upload('orange','2026-10-08',44.35);

@@ -136,22 +136,50 @@ const BillingMail=(()=>{
   function invoiceReminderStatus(doc,schedule){
     if(!doc.reminders_enabled)return 'Off for this invoice. You can still send a reminder manually.';
     if(!schedule.enabled)return 'On for this invoice, but automatic sending is off in Settings.';
-    if(doc.state==='draft')return 'On. Reminders begin after this draft is issued, using the shared schedule.';
+    if(doc.state==='draft')return 'On. Reminders begin after this draft is issued, using its saved reminder schedule.';
     if(doc.state==='void'||doc.balance_cents<=0)return 'On, but no reminders are sent while this invoice is paid or voided.';
     return 'On: '+reminderScheduleText(schedule)+'.';
   }
   function invoiceReminderSummary(doc){
-    return `<section class="invoice-reminder-summary">${check('invoice-reminders-enabled','Automatic reminders for this invoice',doc.reminders_enabled)}<p class="footnote" id="invoice-reminder-status">Uses your shared reminder schedule for issued, unpaid invoices.</p></section>`;
+    return `<section class="invoice-reminder-summary">${check('invoice-reminders-enabled','Automatic reminders for this invoice',doc.reminders_enabled)}<p class="footnote" id="invoice-reminder-status">Loading this invoice’s reminder settings…</p></section>`;
   }
   function bindInvoiceReminderSummary(doc){
     const input=$('#invoice-reminders-enabled'),status=$('#invoice-reminder-status');
-    run(async()=>{const schedule=await api('billing/reminder-settings');if(status.isConnected)status.textContent=invoiceReminderStatus(doc,schedule);});
+    run(async()=>{const data=await api(`billing/documents/${doc.id}/reminders`);if(status.isConnected)status.textContent=invoiceReminderStatus(doc,data.effective_schedule);});
     input.onchange=async()=>{input.disabled=true;try{await api(`billing/documents/${doc.id}/reminders`,{enabled:input.checked,version:doc.version},'PUT');await Billing.view(doc.id);toast('Invoice reminder preference saved.');}catch(error){input.checked=!!doc.reminders_enabled;toast(error.message);}finally{input.disabled=false;}};
   }
   async function invoiceReminders(doc){
-    const schedule=await api('billing/reminder-settings');
-    modal(`Reminder options · ${esc(doc.number)}`,`<form id="invoice-reminder-form"><p class="notice">${esc(invoiceReminderStatus(doc,schedule))}</p>${check('enabled','Allow automatic reminders for this invoice',doc.reminders_enabled)}<p class="footnote">Saved schedule: ${esc(reminderScheduleText(schedule))}. This switch affects only ${esc(doc.number)}. Draft, paid and voided invoices do not receive automatic reminders.</p><button type="submit">Save invoice reminder preference</button></form>`);
-    formHandler('#invoice-reminder-form',async(data,form)=>{await api(`billing/documents/${doc.id}/reminders`,{enabled:form.elements.enabled.checked,version:doc.version},'PUT');await Billing.view(doc.id);toast('Invoice reminder preference saved.');});
+    const d=await api(`billing/documents/${doc.id}/reminders`),schedule=d.options.schedule||d.shared_schedule;
+    const names={reminder_due:'Before / on due date',reminder_overdue:'Overdue',reminder_manual:'Manual reminder'};
+    modal(`Reminder options · ${esc(doc.number)}`,`<form id="invoice-reminder-form"><p class="notice">${esc(invoiceReminderStatus({...doc,reminders_enabled:d.enabled},d.effective_schedule))}</p>${check('invoice-reminder-enabled','Allow automatic reminders for this invoice',d.enabled)}<section class="invoice-reminder-section"><h3>Schedule</h3>${check('invoice-custom-schedule','Use a custom schedule for this invoice',!!d.options.schedule)}<p class="footnote">When off, this invoice follows the shared schedule in Settings.</p><fieldset id="invoice-schedule-fields" class="reminder-stages"><section>${check('ir-before-enabled','Before the due date',schedule.before_days>0)}${field('Days before the due date','ir-before-days','number',schedule.before_days||3,'required min="1" max="30"')}</section><section>${check('ir-on-due','On the due date',schedule.on_due_date)}</section><section>${check('ir-after-enabled','After the due date',schedule.after_days.length>0)}<div id="ir-overdue-days"></div><button type="button" class="secondary" id="ir-add-day">+ Add overdue reminder</button><p class="footnote">Up to six follow-ups, each 1–365 days after the due date.</p></section></fieldset><p class="reminder-preview" id="invoice-schedule-preview" aria-live="polite"></p></section><section class="invoice-reminder-section"><h3>Email wording</h3><p class="footnote">Custom wording applies only to this invoice. Unchecked emails use the latest shared template. Your shared email signature is included.</p>${Object.keys(names).map((key,i)=>{const custom=d.options.templates?.[key],t=custom||d.shared_templates[key];return `<details class="invoice-email-options" ${i===0?'open':''}><summary>${names[key]} email</summary>${check('custom-'+key,'Customise '+names[key].toLowerCase()+' email',!!custom)}<fieldset id="fields-${key}">${field('Subject',key+'-subject','text',t.subject,'required maxlength="200"')}${area('Message',key+'-body',t.body)}<div class="template-fields">${select('Insert field',key+'-insert',[['','Choose a field…'],...d.template_fields[key].map(f=>[f,d.fields[f]])])}</div><details class="template-example"><summary>Preview for ${esc(doc.number)}</summary><strong id="preview-${key}-subject"></strong><p class="preserve-lines" id="preview-${key}-body"></p></details></fieldset></details>`;}).join('')}</section><p class="footnote">Automatic sending must also be enabled in Settings. Draft, paid and voided invoices are skipped. Changing dates can make this invoice eligible today; a reminder already attempted today is not sent again.</p><div class="modal-footer"><button type="submit">Save invoice reminders</button><button type="button" class="secondary" id="cancel-invoice-reminders">Cancel</button></div></form>`);
+    $('#modal').classList.add('billing-dialog');
+    const list=$('#ir-overdue-days');let nextId=0,lastField=null;
+    const addDay=days=>{const row=document.createElement('div');row.className='overdue-reminder-row';row.innerHTML=field('Days after the due date','ir-day-'+(++nextId),'number',days,'required min="1" max="365"')+'<button type="button" class="ghost" aria-label="Remove overdue reminder">Remove</button>';row.querySelector('button').onclick=()=>{row.remove();update();};list.append(row);};
+    (schedule.after_days.length?schedule.after_days:[7,14]).forEach(addDay);
+    const scheduleValues=()=>({before_days:$('#ir-before-enabled').checked?Number($('#ir-before-days').value):0,on_due_date:$('#ir-on-due').checked,after_days:$('#ir-after-enabled').checked?[...list.querySelectorAll('input')].map(el=>Number(el.value)):[]});
+    function update(){
+      const custom=$('#invoice-custom-schedule').checked,after=$('#ir-after-enabled').checked;
+      $('#invoice-schedule-fields').disabled=!custom;$('#ir-before-days').disabled=!$('#ir-before-enabled').checked;
+      list.querySelectorAll('input,button').forEach(el=>el.disabled=!after);$('#ir-add-day').disabled=!after||list.children.length>=6;
+      $('#invoice-schedule-preview').textContent=(custom?'This invoice: ':'Shared schedule: ')+reminderScheduleText(custom?scheduleValues():d.shared_schedule)+(!d.shared_schedule.enabled?'. Automatic sending is off in Settings.':'');
+      for(const key of Object.keys(names)){
+        $('#fields-'+key).disabled=!$('#custom-'+key).checked;
+        for(const field of ['subject','body'])$('#preview-'+key+'-'+field).textContent=$('#'+key+'-'+field).value.replace(/\{([a-z_]+)\}/g,(tag,token)=>d.preview_values[token]??tag);
+      }
+    }
+    $('#invoice-reminder-form').addEventListener('input',update);$('#invoice-reminder-form').addEventListener('change',update);
+    $('#ir-add-day').onclick=()=>{if(list.children.length<6){addDay(Math.min(365,(Number(list.lastElementChild?.querySelector('input').value)||0)+7));update();}};
+    for(const key of Object.keys(names)){
+      for(const part of ['subject','body'])$('#'+key+'-'+part).onfocus=e=>lastField=e.target;
+      $('#'+key+'-insert').onchange=e=>{if(!e.target.value)return;const el=lastField?.id.startsWith(key+'-')?lastField:$('#'+key+'-body');el.setRangeText('{'+e.target.value+'}',el.selectionStart??el.value.length,el.selectionEnd??el.value.length,'end');e.target.value='';el.focus();update();};
+    }
+    on('#cancel-invoice-reminders',()=>Billing.view(doc.id));update();
+    formHandler('#invoice-reminder-form',async()=>{
+      const options={templates:{}};
+      if($('#invoice-custom-schedule').checked){options.schedule=scheduleValues();if(options.schedule.after_days.length!==new Set(options.schedule.after_days).size)throw Error('Use a different day for each overdue reminder.');if($('#ir-after-enabled').checked&&!options.schedule.after_days.length)throw Error('Add an overdue reminder or turn off After the due date.');}
+      for(const key of Object.keys(names))if($('#custom-'+key).checked)options.templates[key]={subject:$('#'+key+'-subject').value,body:$('#'+key+'-body').value};
+      await api(`billing/documents/${doc.id}/reminders`,{enabled:$('#invoice-reminder-enabled').checked,options,version:d.version},'PUT');await Billing.view(doc.id);toast('Invoice reminders saved.');
+    });
   }
   return {templates,reminders,compose,statement,invoiceReminders,invoiceReminderSummary,bindInvoiceReminderSummary};
 })();

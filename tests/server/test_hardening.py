@@ -65,7 +65,7 @@ class HardeningTest(unittest.TestCase):
             uid=db().execute("SELECT id FROM users WHERE role='employee'").fetchone()['id']
         token='synthetic-retired-session'
         with app.app_context():
-            db().execute('INSERT INTO login_sessions VALUES (?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid,'auth',security.clock()+3600));db().commit()
+            db().execute('INSERT INTO login_sessions(token_hash,user_id,kind,expires) VALUES (?,?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),uid,'auth',security.clock()+3600));db().commit()
         with self.staff2.session_transaction() as state:state.update(uid=uid,version=1,sid=token)
         self.assertEqual(self.staff2.get('/api/expenses').status_code,401)
 

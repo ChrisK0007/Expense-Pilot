@@ -139,7 +139,7 @@ class ExpenseRemovalTest(unittest.TestCase):
             (DATA/'receipts'/rid).unlink()
             return json.dumps({'message':{'content':'{"merchant":"Late result","currency":"AUD"}'}}).encode()
         response=MagicMock();response.__enter__.return_value.read.side_effect=finish_reading
-        with patch.dict(os.environ,{'OLLAMA_URL':'http://ollama.example.test:11434','OLLAMA_MODEL':'vision-test'}),patch('app.urllib.request.urlopen',return_value=response):
+        with patch.dict(os.environ,{'OLLAMA_URL':'http://ollama.example.test:11434','OLLAMA_MODEL':'vision-test'}),patch('ai_providers.urllib.request.OpenerDirector.open',return_value=response):
             result=self.call(self.owner,f'receipts/{rid}/extract',{})
         self.assertEqual(result.status_code,404,result.json)
         self.assertEqual(self.owner.get('/api/receipts?unfiled=1').json,[])
