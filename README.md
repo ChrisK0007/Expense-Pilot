@@ -91,10 +91,19 @@ The native app's invoice creation uses user-scoped request keys. A retry returns
 ## iPhone notifications (beta 1.0.2-beta.11)
 
 The native app has opt-in driving, review and upload-failure alerts. This server adds
-authenticated receipt, invoice, budget and bank-feed alert events. Without a push
-relay these update when the app connects. Optional remote delivery uses a separate
-[APNs relay](deploy/push-relay/README.md); Apple credentials never ship in this image.
-Quiet hours, per-category switches and private previews are configured on each phone.
+authenticated receipt, invoice, budget and bank-feed alert events. iPhone 0.8.6 (16)
+retrieves these directly from the user's server on opening/refresh and every 60
+seconds while active and unlocked. Checks stop in the background. Quiet hours,
+per-category switches and private previews are configured on each phone.
+
+No shared push service, Apple credentials or additional container is required.
+Server events are discovered while the app is open; local driving and scheduled
+reminders work independently. Existing beta.11 and newer containers already provide
+the required API, so this app update does not require a new container image.
+
+The [legacy APNs relay](deploy/push-relay/README.md) applies only to older iPhone
+0.8.4/0.8.5 clients that explicitly enabled remote delivery. iPhone 0.8.6 removes
+that option and cleans up an old device registration when it reconnects.
 
 ## Persistent iPhone sign-in (beta 1.0.2-beta.12)
 
