@@ -61,7 +61,7 @@ class PublicReleaseTest(unittest.TestCase):
     def test_ollama_url_and_redirect_validation(self):
         for bad in ('http://example.com', 'https://user:pass@example.com', 'file:///etc/passwd', 'http://ollama/api/chat', 'http://ollama/#secret'):
             with self.assertRaises(ai_providers.AIError): ai_providers.validate_url(bad)
-        self.assertEqual(ai_providers.validate_url('http://192.168.3.25:11434/'), 'http://192.168.3.25:11434')
+        self.assertEqual(ai_providers.validate_url('http://10.0.0.2:11434/'), 'http://10.0.0.2:11434')
         with self.assertRaises(ai_providers.AIError): ai_providers.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.example')
 
     def test_mobile_expense_retry_conflict_and_deletion(self):

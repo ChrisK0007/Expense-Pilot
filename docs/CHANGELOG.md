@@ -1,6 +1,6 @@
 # Changelog
 
-Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.3**. The iPhone app is versioned separately and remains in testing.
+Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.4**. The iPhone app is versioned separately and remains in testing.
 
 Detailed beta changes are retained in the [beta development history](beta-changelog.md). Earlier internal development notes are archived separately and are not part of this stable release history.
 
@@ -44,3 +44,10 @@ Back up the complete data directory before upgrading from 1.0.1. Startup applies
 - Include the AGPL licence and copyright notice in the container and label the image licence.
 
 No database migration is added. If your old website session has already expired, sign in once after updating. Private browsing, cleared cookies and external sign-in gateways can still end a browser session.
+
+## v1.0.4 — Public attribution and examples (2026-10-18)
+
+- Use the maintainer’s GitHub username in project copyright notices, including the notice packaged in the container. The AGPL-3.0-only licence is unchanged.
+- Use a generic private network address in the local Ollama URL test.
+
+No application behaviour or database schema changes are included.
