@@ -4,7 +4,7 @@ Historical prerelease notes, newest first. These changes were promoted into stab
 
 ## 1.0.4-beta.1
 
-- Use the maintainer’s GitHub username in project and container copyright notices, matching stable v1.0.4.
+- Use the maintainer’s GitHub username in project and container copyright notices.
 - Replace the local Ollama test address with a generic private network example. No application behaviour or database schema changes are included.
 
 ## 1.0.3-beta.1
