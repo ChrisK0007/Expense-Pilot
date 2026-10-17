@@ -1,11 +1,11 @@
-# Public-release preparation — beta 1.0.2-beta.9
+# Beta installation and configuration — 1.0.2-beta.13
 
-Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This beta prepares public distribution; it is not an App Store submission.
+Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes the beta candidate for the Docker-first public release. Stable remains 1.0.1. The iPhone app stays in testing; no App Store setup is needed to install the container.
 
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.9` to pin this beta.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.13` to pin this beta.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
@@ -20,9 +20,9 @@ The default port binds only to the host's loopback interface. For trusted LAN ac
 
 **No AI** is the default when no legacy Ollama environment is present. Manual entry, receipt storage, invoices and tracking continue to work. Existing `OLLAMA_URL`/`OLLAMA_MODEL` settings are preserved until the owner explicitly saves settings in the application.
 
-**Local Ollama:** start the optional companion with `docker compose -f compose.public.yaml --profile local-ai up -d`. Download a vision model explicitly, for example `docker compose -f compose.public.yaml exec ollama ollama pull gemma3:4b`. Choose Local Ollama and that model in Settings. The companion is reachable inside the Docker network at `http://ollama:11434`; it has no public host port. This generic profile uses CPU by default. Existing Intel/NVIDIA/Apple hardware setups can instead use the existing/remote mode. Model downloads need internet and adequate storage/memory. Choosing a model in Expense Pilot does not download it.
+**Local Ollama:** start the optional companion with `docker compose -f compose.public.yaml --profile local-ai up -d`. Download a vision model explicitly, for example `docker compose -f compose.public.yaml exec ollama ollama pull gemma3:4b`. Choose Local Ollama and that model in Settings. The companion is reachable inside the Docker network at `http://ollama:11434`; it has no public host port. This generic profile uses CPU by default. Existing hardware-accelerated Ollama services can instead use the existing/remote mode; GPU configuration remains with that service. Model downloads need internet and adequate storage/memory. Choosing a model in Expense Pilot does not download it.
 
-**Existing / remote Ollama:** enter the base URL of the existing service and an installed vision model. Your `ollama-intel-gpu` container remains supported. An optional bearer key supports authenticated proxies; use a direct endpoint without redirects. Public endpoints require HTTPS; trusted LAN/Docker endpoints can use HTTP.
+**Existing / remote Ollama:** enter the base URL of the existing service and an installed vision model. An existing `ollama-intel-gpu` container can be used through this mode. An optional bearer key supports authenticated proxies; use a direct endpoint without redirects. Public endpoints require HTTPS; trusted LAN/Docker endpoints can use HTTP.
 
 **Cloud AI:** choose OpenAI or Anthropic, enter your API key and exact vision-capable model ID, and explicitly agree to provider processing and charges. Keys are encrypted server-side and never returned to the client. Changing destination clears the saved key. API usage is billed by the provider; a consumer chat subscription is separate. No automatic provider fallback is performed. **Test saved connection & load models** lists available models without sending a receipt or generating a response; it does not prove image support. All AI output stays a draft for review. OpenAI requests disable response storage; the provider's other retention policies still apply.
 
@@ -37,7 +37,7 @@ In **Settings → Email delivery**, enable **Send me a copy of client emails** a
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.9 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.13 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
@@ -56,7 +56,7 @@ Account deletion requires a current password, 2FA when enabled and an exact conf
 
 New mobile expense and receipt uploads accept a UUID `client_ref`. Exact retries return a matching `id`, `client_ref` and `stored: true`. Changed payloads conflict; deleted records retain a tombstone so delayed retries cannot recreate them. Clients must keep local copies until the matching acknowledgement is received. Trips retain their existing route-preserving acknowledgement contract.
 
-Before App Store submission: enrol the Apple developer account, choose final app identifiers and support/privacy URLs, verify privacy disclosures against the actual shipped app, provide a reachable review/demo server with synthetic records, collect screenshots, test on physical devices through TestFlight, and submit via App Store Connect. Use a separate disposable server for review; never provide your personal workspace or financial records. CarPlay requires a separate Driving Task entitlement approval and signing; ordinary free development builds remain usable without it.
+The [Docker release checklist](release-checklist.md) tracks public image access, installation tests, upgrades, restore and repository settings. The iPhone app has its own testing and release schedule; its App Store submission and CarPlay entitlement do not block the Docker release. Server alerts in the current test app refresh directly when it connects; no shared push relay is required.
 
 ## Workspace timezone
 

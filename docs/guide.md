@@ -1,12 +1,14 @@
 # Installation and operation
 
-For release changes, see [the changelog](CHANGELOG.md).
+This branch documents **beta 1.0.2-beta.13**. For fresh beta installs and current setup/AI/backup controls, start with [beta installation and configuration](public-release.md). Stable 1.0.1 still needs its own main-branch guide and template.
+
+For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
 ## Security and supported accounts
 
 Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner and tax agent. Legacy role checks elsewhere in this repository support those historical records only.
 
-Sessions have server-side revocation on logout and an absolute 12-hour expiry. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
+Browser sessions have server-side revocation on logout and an absolute 12-hour expiry. Supported iPhone device sessions use a rolling 30-day inactivity expiry; explicit sign-out and security changes still revoke them. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
 
 Use HTTPS and set `COOKIE_SECURE=true` for secure-only cookies and HSTS. The existing local HTTP mode remains compatible with LAN setup, but it is unencrypted; the sign-in screen now warns about it. Do not port-forward 8788 directly to the internet. A VPN or HTTPS reverse proxy is required for remote use. Source address limits deliberately ignore untrusted forwarding headers; users behind the same proxy may share its limit.
 
@@ -14,9 +16,9 @@ Back up your appdata before updating the container. Existing expenses, receipts,
 
 ---
 
-## iPhone development app
+## iPhone companion — testing
 
-The optional free-account Xcode starter app is maintained in [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios). Download that repository, open `ExpensePilot.xcodeproj` at its root on a Mac and select your existing Personal Team to install it on your iPhone. It connects to this server and adds native receipt scanning. See the iPhone instructions for requirements and current limitations.
+The native iPhone app is developed separately and remains in testing. It is optional; the Docker server and browser interface can be installed and used without it. Follow the companion repository's current signing/TestFlight instructions if you already have testing access. A Docker update does not install or update the phone app.
 
 ## Expense allocations and feature preferences
 
@@ -27,7 +29,7 @@ The optional free-account Xcode starter app is maintained in [expense-pilot-ios]
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
 
-Update the existing Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`, keeping the same `/data` mount. Refresh the browser after updating.
+Update a beta Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use `:latest` only for the existing stable channel. Refresh the browser after updating.
 
 ---
 
@@ -43,9 +45,9 @@ Update the existing Unraid container using `ghcr.io/chrisk0007/expense-pilot:lat
 Australian location data attribution and age are recorded in `server/datasets/README.md` and `server/datasets/LICENSE-au-suburbs.txt`. No external geocoding account, API key or receipt-location upload is needed. This lookup helps organise receipts; it does not decide overnight eligibility or tax deductibility.
 
 
-A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
+A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Stable version: 1.0.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**This branch: 1.0.2-beta.13. Stable remains 1.0.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 
@@ -54,14 +56,15 @@ A self-hosted expense workspace with a clean, Rounded-inspired interface. Separa
 - Saved services, billable time and recurring invoice drafts.
 - Separate Employment, Business and Personal expenses, percentage allocation and reimbursements.
 - CommBank, Macquarie and American Express account labels; mapped CSV imports and duplicate detection.
-- Receipt photos and PDFs; optional Ollama extraction into a draft you review before saving.
-- Overnight trips, linked breakfast/lunch/dinner/incidentals and a separate allowance record.
+- Receipt photos and PDFs; optional configured AI extraction into a draft you review before saving.
+- Separate overnight spending with linked breakfast/lunch/dinner/incidentals, allowance records and comparison estimates.
+- Monthly, quarterly or yearly category budgets, vehicle odometer records and vehicle-method comparison estimates.
 - Owner and tax-agent logins, with per-agent Read only / Read & write permissions.
 - Automatic tax-agent access to all financial records, including personal expenses and unfiled receipts.
 - Financial-year CSV exports, activity history, password changes and account disabling.
 - Persistent SQLite database, Docker health check and backup helper.
 
-The app records actual expenses, allocations and invoice payments. It calculates invoice GST when you enable GST registration; it does not determine tax deductibility, automatically apply ATO meal rates, calculate expense GST/BAS, lodge returns or reconcile bank balances. Imported purchases and transfers start Personal / To review until you categorise them. Credits in bank CSVs are skipped; record expense refunds manually as negative amounts.
+The app records actual expenses, allocations and invoice payments. It calculates invoice GST when you enable GST registration; overnight and vehicle comparisons are estimates for review. It does not determine tax deductibility, calculate expense GST/BAS, lodge returns or reconcile bank balances. Allowance thresholds are not automatic deductions. Imported purchases and transfers start Personal / To review until you categorise them. Credits in bank CSVs are skipped; record expense refunds manually as negative amounts.
 
 ## GitHub and Docker updates
 
@@ -76,10 +79,10 @@ The numbered image tag comes from `server/VERSION`; a Git release tag must match
 The private repository does not make the application publicly accessible. GitHub Container Registry packages are private by default. To pull a private image, authenticate on Unraid with a GitHub personal access token (classic) that has `read:packages` access to this package:
 
 ```bash
-docker login ghcr.io -u ChrisK0007
+docker login ghcr.io -u YOUR_GITHUB_USERNAME
 ```
 
-Paste the token at the password prompt. Never put it in this repository or a chat message. Check registry login again after an Unraid reboot if private-image pulls fail. The container image can optionally be made public separately for unauthenticated pulls, but that exposes the bundled application code and is not done by this project automatically.
+Use your own GitHub username with package access and paste your token at the password prompt. Never put it in this repository or a chat message. Check registry login again after an Unraid reboot if private-image pulls fail. The container image can optionally be made public separately for unauthenticated pulls, but that exposes the bundled application code and is not done by this project automatically.
 
 ## First install on Unraid
 
@@ -114,7 +117,7 @@ When a tested image is published, use the normal Unraid Docker update controls t
 Do not run this at the same time as the Unraid template installation. Add this line to your generated `.env`:
 
 ```text
-IMAGE=ghcr.io/chrisk0007/expense-pilot:latest
+IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.2-beta.13
 ```
 
 Then:
@@ -124,11 +127,11 @@ docker compose -f compose.registry.yaml pull
 docker compose -f compose.registry.yaml up -d
 ```
 
-To update, run the same two commands. To roll back, change `IMAGE` to a previously published version or commit tag and run them again. Preserve the database and keep data compatibility in mind when rolling back.
+To update, run the same two commands. To roll back after a migration, stop the container and restore the backup made with the matching older image into a separate data directory. Changing only `IMAGE` does not undo migrations. Keep the current data intact until the restored installation is verified; see [backup architecture](architecture.md#backups).
 
 ### Build locally instead
 
-If no registry image is available yet:
+To build the checked-out beta source locally:
 
 ```bash
 docker compose up -d --build
@@ -138,9 +141,11 @@ docker compose up -d --build
 
 ## AI receipt reading
 
-On the beta, choose **Settings → Receipts & AI → Configure receipt AI → Existing / remote Ollama**. Enter an address reachable from inside the app container, such as your Unraid host's LAN IP and Ollama port, and an installed model. `localhost` means the expense container itself. Legacy `OLLAMA_URL` and `OLLAMA_MODEL` remain supported until settings are saved in the app. Text PDFs send extracted text; scanned PDFs are rendered into images, as are receipt photos. PDFs are limited to eight pages and uploads to 12 MB.
+Open **Settings → Receipts & AI → Configure receipt AI**. No AI keeps manual receipt entry available. Local Ollama uses an optional companion service; Existing / remote Ollama connects to an installed vision model on your own endpoint; Cloud AI uses your own OpenAI or Anthropic API key with explicit consent to provider processing and charges. There is no automatic fallback between providers. See [AI modes](public-release.md#receipt-ai-modes) for setup and model download commands.
 
-Nothing is sent to Ollama until you select **Read with AI** or enable **Read with AI after upload** during capture. Check all suggested values before saving. Foreign amounts need manual AUD conversion. This version supports Ollama, not OpenAI API connections. If using the Unraid template, edit its environment-variable fields and Apply; if using Compose, edit `.env` and recreate the container.
+The Ollama address must be reachable from inside the app container; `localhost` means that container itself. Legacy `OLLAMA_URL` / `OLLAMA_MODEL` values remain supported until you save in-app AI settings. New beta templates do not require these fields. Selecting a model does not download it.
+
+Extraction runs when you choose **Read with AI** or enable **Read with AI after upload** during capture. Text PDFs can supply extracted text; scanned PDFs and photos supply images. PDF processing is limited to eight pages and uploads to 12 MB. Review suggested amounts, currency, dates, allocation and any trip match before acceptance. Foreign amounts require the actual AUD amount paid. Read the server's **Privacy & data** page for the configured services' data handling.
 
 ## Access
 
@@ -164,7 +169,9 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-The script discovers the container’s actual `/data` mount, stops it if running, backs up the database, receipts, signing key and `.env` (when present), then restores its previous running state. SMTP passwords are encrypted using the backed-up session key; financial records and receipt files are not encrypted at rest; keep the appdata share and backups private. When using the Unraid template, its environment fields are stored in the Unraid template, so back up the boot-device configuration too. A generated `.env` does not automatically update those GUI fields.
+Beta also provides an owner-only full backup download under **Settings → Data & privacy** and a [verified restore guide](public-release.md#backup-and-restore). A download is optional and does not schedule backups.
+
+The host script discovers the container’s actual `/data` mount, stops it if running, backs up the database, receipts, signing key and `.env` (when present), then restores its previous running state. SMTP passwords are encrypted using the backed-up session key; financial records and receipt files are not encrypted at rest; keep the appdata share and backups private. When using the Unraid template, its environment fields are stored in the Unraid template, so back up the boot-device configuration too. A generated `.env` does not automatically update those GUI fields.
 
 ## Billing and your own email
 
@@ -188,7 +195,7 @@ Fields include `{kind}`, `{number}`, `{client}`, `{business}`, `{total}`, `{bala
 
 The signature supports bold, italic, underline, text size, colour, highlighting, links and up to three embedded images (no wider than 300 px, no taller than 600 px and under 100 KB). Images are included in the email rather than fetched from a remote server. A plain-text alternative is included. Signatures apply to client billing emails, not invitations or SMTP test messages. You can omit the signature in an individual send preview.
 
-**Settings → Automatic reminders** is off by default. The owner can enable reminders for a chosen number of days before due, on the due date, and up to six overdue dates. Only issued, unpaid invoices with a client email are eligible. **Reminder options** on an invoice allows an individual pause. Dates use Brisbane time; the container checks once per minute. Each scheduled date is claimed once across workers/restarts; missed days are not sent as a batch after downtime. Failed/uncertain sends are not automatically retried. Pause the schedule before changing templates if you do not want scheduled sends during editing.
+**Settings → Automatic reminders** is off by default. The owner can enable reminders for a chosen number of days before due, on the due date, and up to six overdue dates. Only issued, unpaid invoices with a client email are eligible. **Reminder options** on an invoice allows an individual pause. Dates use the workspace timezone; the container checks once per minute. Each scheduled date is claimed once across workers/restarts; missed days are not sent as a batch after downtime. Failed/uncertain sends are not automatically retried. Pause the schedule before changing templates if you do not want scheduled sends during editing.
 
 **Clients → Statement** offers all invoices and payments for a date range or all outstanding invoices as at today. The dated ledger includes opening balance, period invoices/payments, running balance and closing balance. Draft/void invoices and reversed payment records are excluded. Statements use the currently recorded information, so correcting/deleting past records can change a historical statement. Both forms can be downloaded as PDFs; the owner can preview and email them, with separate statement delivery history. Changes to statement data after the email preview require reloading before sending.
 
@@ -214,7 +221,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 1.0.1**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.2-beta.13**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -282,7 +289,7 @@ Invoices, Quotes, Clients and Recurring invoices share a top navigation bar. Bet
 
 The owner can switch automatic reminders on or off while creating an invoice or directly in any invoice’s details. The preference is saved for drafts, issued invoices and recurring-generated invoices. Editing or duplicating a draft preserves it. When making a recurring schedule, select whether its generated invoices allow reminders; each generated invoice can then be changed individually.
 
-Settings → Automatic invoice reminders controls the shared sending switch and dates. Choose a reminder before the due date, on the due date, and up to six separate days after it. The summary shows the schedule. Switching global sending off keeps the schedule saved. An invoice must also allow reminders, be issued, and have an unpaid balance and client email address. Dates use Brisbane time. Changing the schedule can make an existing invoice eligible to send today; drafts, paid invoices and voided invoices are skipped.
+Settings → Automatic invoice reminders controls the shared sending switch and dates. Choose a reminder before the due date, on the due date, and up to six separate days after it. The summary shows the schedule. Switching global sending off keeps the schedule saved. An invoice must also allow reminders, be issued, and have an unpaid balance and client email address. Dates use the workspace timezone. Changing the schedule can make an existing invoice eligible to send today; drafts, paid invoices and voided invoices are skipped.
 
 Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Receipt inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
 
