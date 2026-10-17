@@ -1,6 +1,18 @@
-# 1.0.2-beta.13
+# Changelog
+
+## 1.0.2-beta.13
 
 - Show split expense allocations as separate purple Employment and green Business badges, with capitalised labels, in expense tables and recent expenses.
+
+## 1.0.2-beta.12
+
+- Add revocable persistent iPhone sessions with a rolling 30-day inactivity deadline. Browser sessions retain their existing lifetime.
+- Preserve explicit sign-out, password/2FA revocation and account/server isolation.
+
+## 1.0.2-beta.11
+
+- Add per-device notification preferences and server event/review support for the iPhone test app.
+- Current iPhone builds read server alerts directly while connected; a shared push relay is not part of the standard self-hosted setup.
 
 ## 1.0.2-beta.10
 
@@ -31,13 +43,31 @@
 - Add authenticated full backup download and verified restore into an empty volume.
 - Make mobile expense/receipt uploads idempotent with deletion tombstones.
 
-# Release history
+
+## 1.0.2-beta.6
+
+- Retain reviewed iPhone route maps on the server and acknowledge exact retry-safe uploads before phone cleanup.
+- Preserve deletion receipts so delayed retries cannot recreate deleted journeys; alphabetise expense categories.
+
+## 1.0.2-beta.5
+
+- Support native invoice creation and separate overnight spending/allowance comparisons for the iPhone test app.
+- Keep overnight spending separate from the ordinary expense forecast.
 
 ## 1.0.2-beta.4
 
 - Give web pages bookmarkable URLs; preserve the page through refresh/sign-in and support browser Back/Forward, including shared billing pages and tax agent settings.
 - Add monthly, quarterly and yearly category budgets with a selectable starting month, full-period spending totals, date ranges, duration editing and copying of the previous period.
 - Preserve existing monthly budgets and API compatibility with iPhone 0.5.0. Add migration, financial-period and desktop/mobile navigation regressions.
+
+## 1.0.2-beta.3
+
+- Add category budgets and comparison estimates for vehicle cents-per-kilometre and logbook methods.
+- Retain vehicle cost receipts and representative logbook inputs for review.
+
+## 1.0.2-beta.2
+
+- Add dated vehicle odometer readings and estimates based on recorded journey distances, with account and retry protection.
 
 ## 1.0.2-beta.1
 
