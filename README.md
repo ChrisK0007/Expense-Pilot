@@ -8,6 +8,12 @@ Self-hosted expense tracking and invoicing for Australian sole traders and peopl
 
 **Stable Docker release: 1.0.2.** This release promotes the features tested through **1.0.2-beta.13**. The optional iPhone app remains in testing and is not required to use Expense Pilot.
 
+## Built with AI
+
+Expense Pilot is developed with substantial assistance from AI tools, including OpenAI’s ChatGPT and Codex. AI assists with writing code, debugging, tests and documentation. The project maintainer sets the direction and approves releases.
+
+Development use of AI is separate from the app’s optional receipt-reading features. You can use Expense Pilot without enabling receipt AI; any configured AI service is controlled through the app’s settings.
+
 ## What it does
 
 - Track Employment, Business and Personal expenses, including split allocations and retained receipt originals.
