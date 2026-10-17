@@ -6,8 +6,8 @@ The Docker container and browser interface will be released first. The iPhone ap
 
 | Item | State |
 | --- | --- |
-| Existing stable | `1.0.2` on `main` / `:latest` |
-| Development candidate | `1.0.2-beta.13` on `beta` / `:beta` |
+| Existing stable | `1.0.3` on `main` / `:latest` |
+| Development candidate | `1.0.3-beta.1` on `beta` / `:beta` |
 | Public availability | Pending owner decision and access verification |
 | Project licence | AGPL-3.0-only; third-party notices retained |
 | Container architectures | Linux AMD64; ARM uses emulation |
@@ -28,7 +28,8 @@ The Docker container and browser interface will be released first. The iPhone ap
 - [x] Document the licence decision and retain bundled dataset attribution.
 - [x] Select and add the project licence: AGPL-3.0-only, with application copyright notice.
 - [ ] Complete the runtime dependency licence review.
-- [ ] Include the licence/copyright notice in the next Docker image, provide accessible version-matched Corresponding Source and a source/licence link in the web interface, and verify package contents before public distribution. Existing numbered images are not rebuilt by the repository licence change.
+- [x] Include LICENSE/COPYRIGHT and AGPL image metadata in the v1.0.3 Docker build.
+- [ ] Provide accessible version-matched Corresponding Source and a source/licence link in the web interface, and complete the dependency notice review before public distribution.
 - [ ] Review the complete remote Git history, tags, old branches, releases, attachments and CI artifacts for secrets or personal data before changing visibility. A current-tree scan alone is insufficient.
 - [ ] Enable a private vulnerability-reporting channel and verify it works before the public announcement.
 - [ ] Set the GitHub About description and topics. Suggested description: **Self-hosted expense tracking and invoicing for Australian sole traders and employment expenses.** Suggested topics: `self-hosted`, `docker`, `unraid`, `expense-tracker`, `invoicing`, `australia`.

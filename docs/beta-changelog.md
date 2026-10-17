@@ -2,6 +2,12 @@
 
 Historical prerelease notes, newest first. These changes were promoted into stable v1.0.1 and v1.0.2. Statements about the stable version describe the time of each entry. Use the [stable changelog](CHANGELOG.md), [current guide](guide.md) and [release channels](releases.md) for current instructions.
 
+## 1.0.3-beta.1
+
+- Bring the website session fix from stable v1.0.3 into beta: authenticated activity renews the browser cookie and server session for 30 days of inactivity instead of forcing sign-in after 12 hours.
+- Preserve expiry, logout, password/2FA revocation and account permissions; no database migration is added.
+- Include the approved AGPL licence/copyright and licence image metadata.
+
 ## 1.0.2-beta.13
 
 - Show split expense allocations as separate purple Employment and green Business badges, with capitalised labels, in expense tables and recent expenses.

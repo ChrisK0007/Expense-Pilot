@@ -6,7 +6,7 @@
 
 Self-hosted expense tracking and invoicing for Australian sole traders and people tracking employment expenses. Run the Docker container on your own server and use it in a browser.
 
-**Stable Docker release: 1.0.2.** This release promotes the features tested through **1.0.2-beta.13**. The optional iPhone app remains in testing and is not required to use Expense Pilot.
+**Stable Docker release: 1.0.3.** This update fixes daily website sign-outs, following the features promoted in v1.0.2. The optional iPhone app remains in testing and is not required to use Expense Pilot.
 
 This checkout is the beta channel; use its [beta installation guide](docs/public-release.md) and a separate test data volume.
 
@@ -30,8 +30,8 @@ Records live in the Docker data volume. Optional AI, bank feeds and email use th
 
 | Channel | Image | Documentation |
 | --- | --- | --- |
-| Stable — 1.0.2 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.2` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
-| Beta — 1.0.2-beta.13 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.2-beta.13` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+| Stable — 1.0.3 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.3` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
+| Beta — 1.0.3-beta.1 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.3-beta.1` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
 
 Stable 1.0.2 includes in-app AI modes, an optional setup token, workspace timezones, budgets and full backup/account controls. Legacy Ollama environment settings remain supported until you save AI settings in the app. **Use the template and instructions from the same branch as your image.**
 

@@ -2,20 +2,20 @@
 
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
-| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.2` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.2-beta.13` |
+| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.3` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.3-beta.1` |
 
-The Docker public release is being prepared separately from iPhone testing. Stable 1.0.2 promotes the features tested through beta.13. See the [release checklist](release-checklist.md) for remaining verification and publication work.
+The Docker public release is being prepared separately from iPhone testing. Stable 1.0.3 adds rolling 30-day website sessions to the features promoted in v1.0.2. See the [release checklist](release-checklist.md) for remaining verification and publication work.
 
 ## Choose a matching image and guide
 
-Stable 1.0.2 includes PocketSmith feeds, invoice/service controls, budgets and vehicle comparisons, overnight spending, in-app AI modes, portable setup, full backup/account controls, workspace timezone, saved-address sync, mobile session/notification support and split-allocation badges. Setup tokens are optional and AI is configured in the application. Use the [stable setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) and main-branch Unraid template. Beta remains available separately at 1.0.2-beta.13. Its prerelease history is in the [beta changelog](beta-changelog.md). See the [changelog](CHANGELOG.md) for the release history.
+Stable 1.0.2 includes PocketSmith feeds, invoice/service controls, budgets and vehicle comparisons, overnight spending, in-app AI modes, portable setup, full backup/account controls, workspace timezone, saved-address sync, mobile session/notification support and split-allocation badges. Setup tokens are optional and AI is configured in the application. Use the [stable setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) and main-branch Unraid template. Beta remains available separately at 1.0.3-beta.1. Its prerelease history is in the [beta changelog](beta-changelog.md). See the [changelog](CHANGELOG.md) for the release history.
 
 `latest` follows approved stable releases. Stable v1.0.2 currently contains the features tested through beta.13. A numbered tag pins a published release. Each published image also has a commit-derived `sha-` tag. Do not change the contents of a numbered release tag after publication.
 
 ## Run stable and beta separately
 
-For normal existing stable use, keep `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.2`). On Unraid use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. Preserve the `/data` mapping and deployment settings.
+For normal existing stable use, keep `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.3`). On Unraid use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. Preserve the `/data` mapping and deployment settings.
 
 For testing, use the beta image with a different container name, host port and data directory. For example, use container `expense-pilot-beta`, host port `8787` mapped to container `8788`, and `/mnt/user/appdata/expense-pilot-beta/data` mapped to `/data`. First-run tokens are optional in stable 1.0.2 and the current beta. Keep test email/reminders disabled unless deliberately testing delivery to addresses you control.
 
