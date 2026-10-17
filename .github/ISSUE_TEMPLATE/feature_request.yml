@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an improvement to the Docker server or browser interface.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the task and who it helps, using invented examples.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested behaviour
+      description: Include alternatives or an existing workaround if useful.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation and updates
+        - Receipts and expenses
+        - Invoices and clients
+        - Bank feeds
+        - Trips and overnight spending
+        - Reports and exports
+        - Settings and accessibility
+        - Other
+    validations:
+      required: true

@@ -1,43 +1,65 @@
+<img src="server/static/expense-pilot-logo.png" alt="Expense Pilot logo" width="104">
+
 # Expense Pilot
 
-*a clearer view of every dollar*
+*A clearer view of every dollar.*
 
-Self-hosted expense tracking for sole traders and people tracking employment expenses, with receipt capture, split deductions, invoicing and optional tax-agent access.
+Self-hosted expense tracking and invoicing for Australian sole traders and people tracking employment expenses. Run the Docker container on your own server and use it in a browser.
 
-## Install and update
+**Docker public-release preparation is in progress.** Stable remains **1.0.1**; the newer features are being tested in **1.0.2-beta.13**. This repository cleanup does not publish a new container image. The optional iPhone app remains in testing and is not required to use Expense Pilot.
 
-- [Installation, Unraid, HTTPS, backups and account recovery](docs/guide.md)
-- [iPhone app and free Xcode installation](https://github.com/ChrisK0007/expense-pilot-ios)
+## What it does
+
+- Track Employment, Business and Personal expenses, including split allocations and retained receipt originals.
+- Review receipt drafts with optional AI assistance and organise overnight trip spending.
+- Manage clients, quotes, invoices, payments, recurring drafts and email reminders.
+- Import bank CSVs or connect your own PocketSmith account, then review and match transactions.
+- Give a tax agent read-only or read/write access to your workspace and export records for tax time.
+
+Records live in the Docker data volume. Optional AI, bank feeds and email use the services you configure. There is no required Expense Pilot cloud account or central relay. Expense Pilot records and estimates amounts; it does not lodge tax returns or decide which expenses are deductible.
+
+## Choose the right channel
+
+| Channel | Image | Documentation |
+| --- | --- | --- |
+| Existing stable — 1.0.1 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.1` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
+| Beta — 1.0.2-beta.13 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.2-beta.13` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+
+Stable 1.0.1 uses its original required setup token and Ollama environment settings. Beta adds in-app AI modes, an optional setup token, workspace timezones, budgets and newer backup/account controls. **Use the template and instructions from the same branch as your image.** Do not apply beta setup instructions to stable 1.0.1.
+
+Container images and installation files must be publicly accessible before the public launch. During preparation, private-image access may still require registry authentication. See [release channels](docs/releases.md).
+
+## Install or update
+
+- **Unraid:** follow the matching channel's guide and use its `deploy/unraid/expense-pilot.xml` template.
+- **Docker Desktop / Linux:** the beta [portable Compose guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md#new-portable-installation) uses a named volume. The current image is Linux AMD64; ARM hosts need emulation and platform testing remains on the release checklist.
+- **Existing installations:** preserve the `/data` mount and deployment settings, back up first, then update the same channel. Switching an image tag does not undo database migrations.
+- **Separate stable and beta:** use different data volumes and host ports. Never share a data directory between running containers.
+
+The web port is `8788`; persistent records are under `/data`, including `rounded.sqlite`, receipt files and `session.key`. The database filename is retained for upgrade compatibility. Remote access needs your own VPN or HTTPS reverse proxy. Complete owner setup on a trusted connection before exposing a fresh installation.
+
+## Documentation and help
+
+- [Installation and operation for this branch](docs/guide.md)
 - [PocketSmith bank feeds](docs/pocketsmith.md)
-- [Stable and beta release channels](docs/releases.md)
-- [Development and repository structure](docs/architecture.md)
+- [Stable/beta channels and upgrades](docs/releases.md)
 - [Release history](docs/CHANGELOG.md)
+- [Support and safe diagnostics](SUPPORT.md)
+- [Security reporting](SECURITY.md)
+- [Development and contributions](CONTRIBUTING.md)
+- [Docker public-release checklist](docs/release-checklist.md)
+- [Licence decision and third-party notices](docs/licensing.md)
 
-Stable Docker image: `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.1`). Beta development image: `ghcr.io/chrisk0007/expense-pilot:beta`.
-
-`main` is the stable release branch; `beta` is for ongoing development. Beta builds publish only the beta channel and their numbered prerelease tag. Run beta in a separate container with its own data directory; see the release-channel guide.
-
-Existing Unraid installations can update the image normally. Container paths remain `/app` and `/data`; the database remains `/data/rounded.sqlite`. Keep your current appdata mount and environment settings.
-
-For a new source installation, run these commands from the repository root:
-
-```sh
-bash prepare.sh
-docker compose up -d --build
-```
-
-Read the installation guide before exposing the application outside your local network.
+The iPhone companion is developed separately and remains in testing. Docker releases do not depend on an App Store release; server notifications can be read when the app connects, without a shared push relay.
 
 ## Repository layout
 
 | Path | Purpose |
 | --- | --- |
-| `server/` | Python backend, browser assets, suburb data and database migrations |
-| `tests/server/` | Backend integration and migration tests |
-| `tests/browser/` | Browser workflows and disposable test server |
-| `tests/release/` | Stable/beta publishing checks |
-| `deploy/unraid/` | Unraid container template |
-| `scripts/` | Preparation and backup utilities |
-| `docs/` | Installation guide, architecture and release history |
+| `server/` | Backend, browser interface, migrations and bundled data |
+| `tests/` | Server, browser and release checks |
+| `deploy/unraid/` | Channel-specific Unraid template |
+| `scripts/` | Setup, backup and release helpers |
+| `docs/` | Installation, operations and release documentation |
 
-The root Dockerfile and Compose files stay as stable deployment entry points. Root `prepare.sh` and `backup.sh` forward to `scripts/` so existing commands continue to work. The iPhone app has its own source, version and build workflow in [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios).
+A project licence has not yet been selected. Public availability and source licensing are separate release decisions; do not assume the bundled suburb-data licence covers the application.

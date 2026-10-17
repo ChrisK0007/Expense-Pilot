@@ -1,5 +1,9 @@
-Expense Pilot 0.2.0
+Expense Pilot verification
 
-Local checks: Python/JavaScript syntax; pure decimal billing calculations; rendered invoice PDF layout.
-CI gate: Docker build, expense and billing integration tests, database upgrade preservation, and real-browser desktop/mobile workflows. See GitHub Actions for results for each commit.
-SMTP tests use mocks and test data. Real SMTP delivery must be checked with the owner-configured account.
+The source of truth is the workflow result for the exact release commit, not this file.
+
+Docker releases are gated by dependency auditing, release-metadata checks, server integration tests, production startup and browser workflows in .github/workflows/docker.yml.
+
+Documentation-only changes do not rebuild or publish the Docker image. Review links, channel-specific instructions, example commands and GitHub template syntax for those changes.
+
+Live SMTP/AI/PocketSmith connections, host-specific installs and restore exercises need separate deployment evidence. See docs/release-checklist.md. Automated checks are not an independent security audit.

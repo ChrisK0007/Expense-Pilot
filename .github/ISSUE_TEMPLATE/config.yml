@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/ChrisK0007/Expense-Pilot/blob/main/SECURITY.md
+    about: Read the private reporting process; do not disclose vulnerabilities in public issues.
+  - name: Installation and operating guide
+    url: https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md
+    about: Stable instructions; use the beta guide for a beta image.

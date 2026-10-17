@@ -1,6 +1,8 @@
 # Installation and operation
 
-For release changes, see [the changelog](CHANGELOG.md).
+This branch documents **stable 1.0.1**. These are the existing stable instructions. Newer optional-token, in-app AI and backup features remain in beta; use the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) only with its beta image.
+
+For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
 ## Security and supported accounts
 
@@ -14,9 +16,9 @@ Back up your appdata before updating the container. Existing expenses, receipts,
 
 ---
 
-## iPhone development app
+## iPhone companion — testing
 
-The optional free-account Xcode starter app is maintained in [expense-pilot-ios](https://github.com/ChrisK0007/expense-pilot-ios). Download that repository, open `ExpensePilot.xcodeproj` at its root on a Mac and select your existing Personal Team to install it on your iPhone. It connects to this server and adds native receipt scanning. See the iPhone instructions for requirements and current limitations.
+The native iPhone app is developed separately and remains in testing. It is optional; the Docker server and browser interface can be installed and used without it. Follow the companion repository's current signing/TestFlight instructions if you already have testing access. A Docker update does not install or update the phone app.
 
 ## Expense allocations and feature preferences
 
@@ -43,9 +45,9 @@ Update the existing Unraid container using `ghcr.io/chrisk0007/expense-pilot:lat
 Australian location data attribution and age are recorded in `server/datasets/README.md` and `server/datasets/LICENSE-au-suburbs.txt`. No external geocoding account, API key or receipt-location upload is needed. This lookup helps organise receipts; it does not decide overnight eligibility or tax deductibility.
 
 
-A self-hosted expense workspace with a clean, Rounded-inspired interface. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
+A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**Stable version: 1.0.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. All financial records stay in your Unraid appdata folder; GitHub contains application code only.
+**Stable version: 1.0.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. AI receipt extraction requires a separately configured Ollama service. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 
@@ -76,10 +78,10 @@ The numbered image tag comes from `server/VERSION`; a Git release tag must match
 The private repository does not make the application publicly accessible. GitHub Container Registry packages are private by default. To pull a private image, authenticate on Unraid with a GitHub personal access token (classic) that has `read:packages` access to this package:
 
 ```bash
-docker login ghcr.io -u ChrisK0007
+docker login ghcr.io -u YOUR_GITHUB_USERNAME
 ```
 
-Paste the token at the password prompt. Never put it in this repository or a chat message. Check registry login again after an Unraid reboot if private-image pulls fail. The container image can optionally be made public separately for unauthenticated pulls, but that exposes the bundled application code and is not done by this project automatically.
+Use your own GitHub username with package access and paste your token at the password prompt. Never put it in this repository or a chat message. Check registry login again after an Unraid reboot if private-image pulls fail. The container image can optionally be made public separately for unauthenticated pulls, but that exposes the bundled application code and is not done by this project automatically.
 
 ## First install on Unraid
 
@@ -126,7 +128,7 @@ docker compose -f compose.registry.yaml pull
 docker compose -f compose.registry.yaml up -d
 ```
 
-To update, run the same two commands. To roll back, change `IMAGE` to a previously published version or commit tag and run them again. Preserve the database and keep data compatibility in mind when rolling back.
+To update, run the same two commands. To roll back after a migration, stop the container and restore the backup made with the matching older image into a separate data directory. Changing only `IMAGE` does not undo migrations. Keep the current data intact until the restored installation is verified; see [backup architecture](architecture.md#backups).
 
 ### Build locally instead
 
@@ -216,7 +218,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u ChrisK0007`. Refresh your browser after the update and confirm **Settings → Version 1.0.1**.
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm **Settings → Version 1.0.1**.
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
