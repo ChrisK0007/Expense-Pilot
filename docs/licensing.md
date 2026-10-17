@@ -16,7 +16,7 @@ The application is provided without warranty, subject to applicable law. Use the
 
 Include the licence and application notice in distributed packages and provide the Corresponding Source required for the actual version supplied, including relevant build/install scripts. A link to a different version or an inaccessible private repository is not sufficient source access for recipients.
 
-The existing 1.0.2 container predates this repository licensing change and has not been rebuilt by it. Before the next public image is published, include `LICENSE` and `COPYRIGHT` in the Docker build context/image, provide accessible version-matched source and a source/licence link in the web interface, and verify the packaged notices. Keep numbered image tags immutable. The [release checklist](release-checklist.md) tracks these tasks separately from selecting the licence.
+The existing 1.0.2 container predates this repository licensing change and has not been rebuilt by it. Starting with v1.0.3, the Docker image includes LICENSE and COPYRIGHT under /app and an AGPL-3.0-only image label. Before public distribution, provide accessible version-matched source and a source/licence link in the web interface, and complete the dependency licence review. Keep numbered image tags immutable. The [release checklist](release-checklist.md) tracks these tasks separately from selecting the licence.
 
 ## Bundled Australian suburb data
 

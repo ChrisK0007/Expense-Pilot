@@ -1,6 +1,6 @@
 # Changelog
 
-Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.2**. The iPhone app is versioned separately and remains in testing.
+Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.3**. The iPhone app is versioned separately and remains in testing.
 
 Detailed beta changes are retained in the [beta development history](beta-changelog.md). Earlier internal development notes are archived separately and are not part of this stable release history.
 
@@ -36,3 +36,11 @@ Promotes the tested 1.0.2-beta.1–beta.13 server changes to stable. The iPhone 
 - Docker-first documentation, support forms and installation defaults now target stable.
 
 Back up the complete data directory before upgrading from 1.0.1. Startup applies migrations m009–m019. Keep the existing `/data` mount; legacy AI environment settings remain supported. Rollback requires the matching old backup and image. No iOS build is released by this update.
+
+## v1.0.3 — Website sign-in persistence (2026-10-18)
+
+- Replace the website’s fixed 12-hour sign-in expiry with a rolling 30-day inactivity period, matching the iPhone session policy. Authenticated activity renews both the server deadline and browser cookie.
+- Preserve immediate sign-out, password/2FA revocation, account disabling, tax-agent permissions and the five-minute 2FA challenge. Expired or revoked sessions cannot be renewed.
+- Include the AGPL licence and copyright notice in the container and label the image licence.
+
+No database migration is added. If your old website session has already expired, sign in once after updating. Private browsing, cleared cookies and external sign-in gateways can still end a browser session.
