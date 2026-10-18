@@ -1,6 +1,6 @@
 # Installation and operation
 
-This branch documents **beta 1.0.4-beta.2**. Stable is **1.0.3**; see the [main-branch guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) for stable installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.4-beta.2**. Stable is **1.0.4**; see the [main-branch guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) for stable installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
@@ -47,7 +47,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**This branch: beta 1.0.4-beta.2; stable: 1.0.3.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
+**This branch: beta 1.0.4-beta.2; stable: 1.0.4.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 

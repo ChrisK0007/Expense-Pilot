@@ -2,13 +2,14 @@
 
 Release the Docker container and browser interface first. The separate iPhone
 app remains in testing. Preparing this checklist does not make the repository
-or package public or authorize a stable promotion.
+or package public or authorize a public launch. Stable 1.0.4 promotion has been approved separately.
 
 ## Current baseline
 
 | Item | State |
 | --- | --- |
-| Stable | `1.0.3` on `main` / `:latest`; unchanged by this beta work |
+| Verified stable | `1.0.4` on `main` / `:latest` |
+| Previous verified stable | `1.0.3` |
 | Verified beta | `1.0.4-beta.2` on `beta` / `:beta` |
 | Previous verified beta | `1.0.4-beta.1` |
 | Visibility | Repository and package remain private |
@@ -32,17 +33,24 @@ or package public or authorize a stable promotion.
   The audit, 11 release/source tests, 301 server tests, 3 relay tests, production
   startup and all browser workflows passed. Both `1.0.4-beta.2` and `beta` were
   pushed with this digest; `main` / stable 1.0.3 remained unchanged.
+- Stable 1.0.4: commit `cdbc884488bbc4048d50abc436414d33b6e5146e`,
+  [publishing run 39083800683](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39083800683),
+  image digest `sha256:0dfb95426bbe738b16220f5b026339539bb171fd7ed2789f9cb8a9f4f844e3d0`.
+  The audit, 11 release/source tests, 301 server tests, 3 relay tests, production
+  startup and all browser workflows passed. Tags `1.0.4`, `latest` and
+  `sha-cdbc884` were pushed with this digest. The beta image remains unchanged.
+  PR #52 supersedes the now-closed attribution-only PR #47.
 - Repeat these gates on every new image. Preserve the candidate's source,
   dependency inventory and exact image digest when recording its result.
 
 ## Privacy, source and licensing
 
 - [x] Add AGPL-3.0-only licence, copyright notice and image metadata.
-- [x] Use the maintainer's GitHub username and a generic network example in beta.
+- [x] Use the maintainer's GitHub username and a generic network example in stable 1.0.4.
 - [x] Review the current tree, accessible remote history/branches and PR text.
   Findings were old attribution and local-network examples; no real credentials
   or financial records were identified in the inspected material.
-- [x] Add beta source/licence links and build-time application source downloads
+- [x] Add source/licence links and build-time application source downloads
   with version/checksum metadata; no dependency on public GitHub access.
 - [x] Review direct Python/dataset/font licences and capture installed Python,
   native package and bundled component notices in the image build.
@@ -51,9 +59,9 @@ or package public or authorize a stable promotion.
 - [ ] Remove old Git history, obsolete refs/images, CI artifacts/caches and any
   retained PR/cache views. Deletion has **not** been performed. The administration
   connection does not expose these operations; see [the exact procedure](github-release-admin.md).
-- [ ] Promote the attribution cleanup to stable only after separate approval.
-  Current stable source/image still has the earlier copyright notice; keep it
-  private. Preserving that image is not complete privacy cleanup.
+- [x] Verify the approved 1.0.4 stable publication, including the attribution cleanup.
+  Retire old images only after the replacement is confirmed working. Old images
+  still contain their original notices; keep them private until deletion.
 
 ## Repository and documentation
 
