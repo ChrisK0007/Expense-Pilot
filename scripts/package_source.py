@@ -9,7 +9,7 @@ import zipfile
 ROOT_FILES = {'Dockerfile', '.dockerignore', '.env.example', 'LICENSE', 'COPYRIGHT',
               'THIRD_PARTY_NOTICES.md', 'README.md', 'CONTRIBUTING.md', 'SUPPORT.md',
               'SECURITY.md', 'prepare.sh', 'backup.sh', 'compose.yaml',
-              'compose.public.yaml', 'compose.registry.yaml'}
+              'compose.public.yaml', 'compose.registry.yaml', 'ca_profile.xml'}
 DIRECTORIES = {'server', 'scripts', 'tests', 'docs', 'deploy', '.github'}
 PRIVATE_PARTS = {'.git', '.env', '__pycache__', 'data', 'uploads', 'receipts', 'backups', 'node_modules'}
 PRIVATE_SUFFIXES = {'.pyc', '.db', '.sqlite', '.sqlite3', '.pem', '.key', '.log', '.zip'}

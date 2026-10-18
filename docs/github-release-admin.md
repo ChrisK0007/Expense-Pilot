@@ -1,3 +1,5 @@
+> Historical cleanup procedure. The maintainer completed the branch/history reset on 18 October 2026 and reported removal of obsolete images. Do not repeat the rewrite. Current launch, visibility, protection and Community Apps steps are in [public-launch.md](public-launch.md). Retained PR/cache views and Actions history are separate from reachable branch history.
+
 # GitHub administration before public release
 
 Stable 1.0.4 is published and verified. Update your running containers and

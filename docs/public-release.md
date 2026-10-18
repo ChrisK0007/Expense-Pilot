@@ -1,11 +1,27 @@
-# Stable installation and configuration — 1.0.4
+# Stable installation and configuration — 1.0.5
 
-Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes stable 1.0.4, including the source/licence downloads tested in beta. Use the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) only for a separate testing installation. The iPhone app stays in testing; no App Store setup is needed to install the container.
+Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes stable 1.0.5, including the source/licence downloads tested in beta. Use the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) only for a separate testing installation. The iPhone app stays in testing; no App Store setup is needed to install the container.
+
+## Unraid installation
+
+After Community Apps approval, search **Apps** for Expense Pilot and install it. Until the listing is approved, use the [manual template instructions](guide.md#first-install-on-unraid).
+
+Before installing, create the persistent folder from the Unraid terminal:
+
+```bash
+mkdir -p /mnt/user/appdata/expense-pilot/data
+chown 99:100 /mnt/user/appdata/expense-pilot/data
+chmod 770 /mnt/user/appdata/expense-pilot/data
+```
+
+Use image `ghcr.io/chrisk0007/expense-pilot:latest`, host port 8788, and map that folder to `/data`. Leave Setup token blank for token-free owner setup, or choose a random token of at least 24 characters. AI settings are configured in the app. Open `http://YOUR-SERVER-IP:8788` on your trusted network and create the owner account. Public images do not require a GitHub login. Enable Autostart after installation.
+
+For an additional installation, change the container name, host port and appdata folder together. Never share a data folder with another running container.
 
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4` to pin this stable release.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.5` to pin this stable release.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
@@ -37,7 +53,7 @@ In **Settings → Email delivery**, enable **Send me a copy of client emails** a
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.4 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.5 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
@@ -70,7 +86,7 @@ The app remains Australian-focused: AUD, DD/MM/YYYY input, July–June financial
 
 Settings is grouped into Workspace, Receipts & AI, Business & email, Bank feeds, Access & security, and Data & privacy. The topic buttons jump to each section. Features are personal preferences; timezone, AI and business configuration are shared owner-managed settings. Backup downloads are optional and are not setup checklist items. They do not schedule automatic backups.
 
-The stable v1.0.4 Unraid template uses `:latest` and has no Ollama fields; the beta branch keeps its own `:beta` template. Existing containers keep their saved Unraid configuration when the image is updated. Save your AI configuration in the app before removing legacy `OLLAMA_URL` / `OLLAMA_MODEL` variables. Existing environment settings remain supported until you save in-app AI settings. If you still run v1.0.1, upgrade the image before adopting the optional-token and in-app AI setup described here.
+The stable v1.0.5 Unraid template uses `:latest` and has no Ollama fields; the beta branch keeps its own `:beta` template. Existing containers keep their saved Unraid configuration when the image is updated. Save your AI configuration in the app before removing legacy `OLLAMA_URL` / `OLLAMA_MODEL` variables. Existing environment settings remain supported until you save in-app AI settings. If you still run v1.0.1, upgrade the image before adopting the optional-token and in-app AI setup described here.
 
 `SETUP_TOKEN` is optional in stable v1.0.2 and the current beta. If set, the exact value (at least 24 characters) is required; an invalid or short configured token does not bypass protection. If blank/unset, the first person to reach the setup page can create the owner. Complete setup on a trusted network before exposing the server remotely. Existing logins and records are unaffected by removing the token. Initial owner creation remains locked once any account exists. An intentional full workspace deletion makes first-run setup available again.
 
