@@ -2,11 +2,11 @@ name: Test and publish Docker image
 on:
   push:
     branches: [main, beta]
-    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
     tags: ['v*']
   pull_request:
     branches: [main, beta]
-    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -50,7 +50,7 @@ jobs:
           python -m pip install pip-audit
           pip-audit -r server/requirements.txt --progress-spinner off
       - name: Build image
-        run: docker build -t expense-pilot:test .
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -t expense-pilot:test .
       - name: Integration tests
         run: docker run --rm --entrypoint python -v "$PWD/tests/server:/app/tests/server:ro" -v "$PWD/scripts:/app/scripts:ro" expense-pilot:test -m unittest discover -s tests/server -v
       - name: Build and check optional push relay

@@ -1,6 +1,6 @@
 # Installation and operation
 
-This branch documents **stable 1.0.3**. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **stable 1.0.4**. Beta 1.0.4-beta.2 remains available separately; see the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/guide.md) for beta installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
@@ -8,7 +8,7 @@ For release changes, see [the changelog](CHANGELOG.md); for help, see [support](
 
 Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner and tax agent. Legacy role checks elsewhere in this repository support those historical records only.
 
-Website and supported iPhone sessions expire after 30 days without authenticated activity. Using the app renews the server session and persistent cookie. Explicit sign-out, password/security changes and account disabling still revoke access. Use Sign out on a shared computer. After upgrading from v1.0.2, an already-expired browser session needs one fresh sign-in. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
+Website and supported iPhone sessions expire after 30 days without authenticated activity. Using the app renews the server session and persistent cookie. Explicit sign-out, password/security changes and account disabling still revoke access. Use Sign out on a shared computer. After upgrading from a release with the old 12-hour browser expiry, an already-expired session needs one fresh sign-in. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
 
 Use HTTPS and set `COOKIE_SECURE=true` for secure-only cookies and HSTS. The existing local HTTP mode remains compatible with LAN setup, but it is unencrypted; the sign-in screen now warns about it. Do not port-forward 8788 directly to the internet. A VPN or HTTPS reverse proxy is required for remote use. Source address limits deliberately ignore untrusted forwarding headers; users behind the same proxy may share its limit.
 
@@ -47,7 +47,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**This branch: stable 1.0.3.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
+**This branch: stable 1.0.4; beta: 1.0.4-beta.2.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 
@@ -117,7 +117,7 @@ When a tested image is published, use the normal Unraid Docker update controls t
 Do not run this at the same time as the Unraid template installation. Add this line to your generated `.env`:
 
 ```text
-IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.3
+IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4
 ```
 
 Then:
@@ -221,7 +221,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm the version in Settings matches the selected stable image (currently **1.0.3**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm the version in Settings matches the selected stable image (currently **1.0.4**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
