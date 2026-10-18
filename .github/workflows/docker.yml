@@ -2,11 +2,10 @@ name: Test and publish Docker image
 on:
   push:
     branches: [main, beta]
-    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'ca_profile.xml', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
     tags: ['v*']
   pull_request:
     branches: [main, beta]
-    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,6 +15,10 @@ concurrency:
 jobs:
   test-and-publish:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      moving_tag: ${{ steps.release.outputs.moving_tag }}
+      digest: ${{ steps.publish.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -45,6 +48,9 @@ jobs:
         run: |
           python -m unittest discover -s tests/release -v
           python scripts/release_metadata.py
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            test -s "docs/release-notes/$(cat server/VERSION).md"
+          fi
       - name: Audit Python dependencies
         run: |
           python -m pip install pip-audit
@@ -61,7 +67,7 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          docker run -d --name expense-pilot-production -p 127.0.0.1:8789:8788 expense-pilot:test
+          docker run -d --name expense-pilot-production --user 99:100 --read-only --tmpfs /tmp:rw,size=256m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true --memory 1g -v expense-pilot-production-data:/data -p 127.0.0.1:8789:8788 expense-pilot:test
           trap 'docker logs expense-pilot-production; docker rm -f expense-pilot-production' EXIT
           python - <<'PYTHON'
           import json, os, time, urllib.request
@@ -137,14 +143,68 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish tested image
+        id: publish
         if: steps.release.outputs.publish == 'true'
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
           SOURCE: https://github.com/${{ github.repository }}
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
+          if docker manifest inspect "$IMAGE:$VERSION" > "$RUNNER_TEMP/existing-manifest.json" 2> "$RUNNER_TEMP/manifest-error.txt"; then
+            echo "Version $VERSION already exists. Publish a new version; numbered tags are immutable." >&2
+            exit 1
+          elif ! grep -Eq 'manifest unknown|no such manifest|MANIFEST_UNKNOWN' "$RUNNER_TEMP/manifest-error.txt"; then
+            cat "$RUNNER_TEMP/manifest-error.txt" >&2
+            exit 1
+          fi
+          docker image inspect expense-pilot:test > "$RUNNER_TEMP/image-inspect.json"
           while IFS= read -r tag; do
             if [ -n "$tag" ]; then
               docker tag expense-pilot:test "$tag"
               docker push "$tag"
             fi
           done <<< "$TAGS"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$VERSION")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Published $VERSION: $digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain stable release source assets
+        if: steps.release.outputs.moving_tag == 'latest'
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          container=$(docker create expense-pilot:test)
+          trap 'docker rm "$container"' EXIT
+          docker cp "$container:/app/legal/." "$RUNNER_TEMP/release-assets/"
+          cd "$RUNNER_TEMP/release-assets"
+          sha256sum *.zip *.json LICENSE COPYRIGHT THIRD_PARTY_NOTICES.md > SHA256SUMS
+      - name: Upload stable release source assets
+        if: steps.release.outputs.moving_tag == 'latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-source-assets
+          path: ${{ runner.temp }}/release-assets
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+  github-release:
+    needs: test-and-publish
+    if: needs.test-and-publish.outputs.moving_tag == 'latest'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-source-assets
+          path: release-assets
+      - name: Create versioned GitHub release with matching source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.test-and-publish.outputs.version }}
+          DIGEST: ${{ needs.test-and-publish.outputs.digest }}
+        run: |
+          cp "docs/release-notes/$VERSION.md" "$RUNNER_TEMP/release-notes.md"
+          printf '\nPublished image: `%s`\n' "$DIGEST" >> "$RUNNER_TEMP/release-notes.md"
+          gh release create "v$VERSION" release-assets/* --target "$GITHUB_SHA" --title "Expense Pilot v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --latest

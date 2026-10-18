@@ -1,6 +1,6 @@
 # Changelog
 
-Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.4**. The iPhone app is versioned separately and remains in testing.
+Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.5**. The iPhone app is versioned separately and remains in testing.
 
 Detailed beta changes are retained in the [beta development history](beta-changelog.md). Earlier internal development notes are archived separately and are not part of this stable release history.
 
@@ -54,3 +54,13 @@ No database migration is added. If your old website session has already expired,
 - Update release documentation and cleanup guidance. Repository/package visibility remains private; old Git history, images and the remaining dependency-source distribution checks are separate tasks.
 
 No database migration is added. Back up the existing data directory, update the image, keep the same `/data` mapping and refresh the browser. Existing settings, receipts and sessions are retained. The iPhone app remains in testing and is not updated by this release.
+
+## v1.0.5 — Public Docker release packaging (2026-10-18)
+
+- Build from the cleaned repository and synthetic test fixtures.
+- Retain and verify dependency source archives alongside application sources, notices and inventory; expose downloads without requiring GitHub access.
+- Refresh Debian runtime packages and stop builds if source collection or archive verification fails.
+- Prepare the Unraid Community Apps profile, public icon and installation metadata. Listing remains subject to Unraid review.
+- Attach source packages, inventories and checksums to numbered stable GitHub releases.
+
+No database migration is added. Preserve the existing data volume and back up before updating. The image is larger because dependency sources accompany it. The iPhone app remains in testing.
