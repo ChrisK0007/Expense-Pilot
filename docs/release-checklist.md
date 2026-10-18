@@ -10,7 +10,7 @@ testing. Use [public-launch.md](public-launch.md) for exact manual steps.
 | --- | --- |
 | Published stable | `1.0.5`, built from cleaned-history commit `d4c799d` |
 | Previous published stable | `1.0.4` |
-| Existing beta | `1.0.4-beta.2`; separate data and moving tag |
+| Published beta | `1.0.6-beta.1`; separate data and moving tag |
 | Licence | AGPL-3.0-only; component-specific notices retained |
 | Architecture | Linux AMD64; native ARM has not been published |
 | Visibility | Admin must verify repository and package separately |
@@ -60,6 +60,21 @@ testing. Use [public-launch.md](public-launch.md) for exact manual steps.
 - These are automated and publishing results, not an Unraid host acceptance test
   or Community Apps approval. Visibility and admin settings still require the
   maintainer's account.
+
+## Verified beta publication — 18 October 2026
+
+- [PR #56](https://github.com/ChrisK0007/Expense-Pilot/pull/56) brought the release
+  packaging into beta. The initial publishing attempt stopped on a browser-test
+  dialog-transition race before uploading an image. Commit `1600ad5` adds an
+  explicit wait for the returned invoice view without weakening assertions.
+- The [successful publishing run](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39089596737)
+  passed the dependency audit, 13 release tests, 301 server tests, 3 relay tests,
+  source checks, hardened startup and every browser workflow.
+- Runtime revision: `1600ad5132745634bff8e5c18aab36e8ce068795`.
+- Tags `1.0.6-beta.1`, `beta`, `sha-1600ad5` share digest
+  `sha256:708398312b6dabec90de4c171ef7dc4549af86f5955a787e936a6235b3c79d84`.
+- The beta run did not publish `latest` or a stable GitHub release. Source
+  archives are included in the beta container, using its own version/revision.
 
 ## Maintainer host and service checks
 

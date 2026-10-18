@@ -1,6 +1,6 @@
 # Installation and operation
 
-This branch documents **stable 1.0.5**. Beta 1.0.4-beta.2 remains available separately; see the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/guide.md) for beta installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **stable 1.0.5**. Beta 1.0.6-beta.1 remains available separately; see the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/guide.md) for beta installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
@@ -47,7 +47,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**This branch: stable 1.0.5; beta: 1.0.4-beta.2.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
+**This branch: stable 1.0.5; beta: 1.0.6-beta.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 
