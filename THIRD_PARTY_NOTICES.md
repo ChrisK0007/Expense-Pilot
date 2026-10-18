@@ -24,13 +24,14 @@ are retained in the image as well.
 
 `/legal/inventory` lists exact installed versions, included notice paths and
 upstream source references. `/source` contains the Expense Pilot application,
-its build/install scripts and the bundled dataset notice. These application
-sources do not include the third-party dependency sources.
+its build/install scripts and the bundled dataset notice. The separate `/legal/dependency-sources` archive retains the exact Debian source
+packages and their patches/build rules, Python source distributions, CPython
+source/configure arguments and the detected FriBiDi source when loaded by Pillow.
+`/legal/dependency-source-manifest` records versions and SHA-256 checksums. The
+build refuses incomplete source collection or an unreviewed libimagequant build.
 
-Before public binary distribution, the maintainer must verify the generated
-inventory and supply any required corresponding third-party source, including
-applicable patches and build instructions. In particular, a notices archive or
-an upstream homepage alone is not a complete source offer for GPL/LGPL binaries.
-The remaining distribution check is recorded in docs/licensing.md and the
-release checklist. This file is a component review, not a replacement for the
-individual licence texts.
+These sources accompany the image and are also attached to stable GitHub
+releases. Rebuilding with changed dependencies requires rechecking their terms,
+notices and any newly vendored native components. Keep each published image's
+source assets available for its recipients. See docs/licensing.md for scope and
+reconstruction instructions. Individual component licence texts govern.

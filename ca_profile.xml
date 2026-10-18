@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>Expense Pilot by ChrisK0007: self-hosted expense tracking and invoicing for Australian sole traders and employees. The Docker application stores records on your server. Report bugs and request features through GitHub Issues. The optional iPhone companion remains in testing.</Profile>
+  <Icon>https://raw.githubusercontent.com/ChrisK0007/Expense-Pilot/main/server/static/expense-pilot-logo.png</Icon>
+  <WebPage>https://github.com/ChrisK0007/Expense-Pilot</WebPage>
+</CommunityApplications>

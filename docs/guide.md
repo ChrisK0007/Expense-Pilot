@@ -1,6 +1,6 @@
 # Installation and operation
 
-This branch documents **beta 1.0.4-beta.2**. Stable is **1.0.4**; see the [main-branch guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) for stable installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.6-beta.1**. Stable is **1.0.5**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
@@ -29,7 +29,7 @@ The native iPhone app is developed separately and remains in testing. It is opti
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
 
-Update a beta Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
+Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
 
 ---
 
@@ -47,7 +47,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**This branch: beta 1.0.4-beta.2; stable: 1.0.4.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
+**This branch: beta 1.0.6-beta.1; stable: 1.0.5.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 
@@ -71,29 +71,24 @@ The app records actual expenses, allocations and invoice payments. It calculates
 The workflow in `.github/workflows/docker.yml` builds the image and runs integration tests and real-browser workflow checks before publishing. A passing push to `main` publishes:
 
 ```text
-ghcr.io/chrisk0007/expense-pilot:latest
+ghcr.io/chrisk0007/expense-pilot:beta
 ```
 
 The numbered image tag comes from `server/VERSION`; a Git release tag must match it (for example `v1.0.0`). A passing push to `beta` publishes `ghcr.io/chrisk0007/expense-pilot:beta` plus a prerelease tag such as `1.0.1-beta.1`, and never changes `latest`. Both channels have commit-derived image tags. Pull requests run checks without publishing. See [release channels](releases.md) for separate beta-container setup and the repository’s **Actions** tab for build status.
 
-The private repository does not make the application publicly accessible. GitHub Container Registry packages are private by default. To pull a private image, authenticate on Unraid with a GitHub personal access token (classic) that has `read:packages` access to this package:
-
-```bash
-docker login ghcr.io -u YOUR_GITHUB_USERNAME
-```
-
-Use your own GitHub username with package access and paste your token at the password prompt. Never put it in this repository or a chat message. Check registry login again after an Unraid reboot if private-image pulls fail. The container image can optionally be made public separately for unauthenticated pulls, but that exposes the bundled application code and is not done by this project automatically.
+Public images can be pulled without a GitHub account or registry token. Before the initial public launch, the maintainer's private installations still need their existing GHCR authentication.
 
 ## First install on Unraid
 
-Download the repository ZIP, extract its contents to `/mnt/user/appdata/expense-pilot`, then open the Unraid terminal:
+Prepare the data folder from the Unraid terminal (adjust the path if you use a different appdata share):
 
 ```bash
-cd /mnt/user/appdata/expense-pilot
-bash prepare.sh
+mkdir -p /mnt/user/appdata/expense-pilot-beta/data
+chown 99:100 /mnt/user/appdata/expense-pilot-beta/data
+chmod 770 /mnt/user/appdata/expense-pilot-beta/data
 ```
 
-This creates `.env` with an optional random first-run setup token and a `data` folder owned by UID 99/GID 100. Existing configuration is preserved. Keep the token for protected setup or clear it for token-free setup.
+After Community Apps approval, search Apps for Expense Pilot and install it. Until then, use the manual template instructions below. You do not need to download the application source or run prepare.sh for a registry-image installation.
 
 ### Unraid Docker page
 
@@ -103,21 +98,21 @@ The beta template is supplied in `deploy/unraid/expense-pilot.xml`. Copy it to `
 | --- | --- |
 | Repository | `ghcr.io/chrisk0007/expense-pilot:beta` |
 | Network | Bridge |
-| Web port | Host 8788 → container 8788 |
-| Appdata | `/mnt/user/appdata/expense-pilot/data` → `/data` |
+| Web port | Host 8787 → container 8788 |
+| Appdata | `/mnt/user/appdata/expense-pilot-beta/data` → `/data` |
 | Setup token | Optional; blank, or a random value of at least 24 characters |
 | Secure cookie | `false` for LAN HTTP setup; `true` when using HTTPS |
 
-The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8788`, create your owner login (enter a setup token only if configured). Complete owner setup before exposing the server remotely. No default password is provided. Enable **Autostart** for the container in Unraid.
+The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8787`, create your owner login (enter a setup token only if configured). Complete owner setup before exposing the server remotely. No default password is provided. Enable **Autostart** for the container in Unraid.
 
-When a tested image is published, use the normal Unraid Docker update controls to pull it. Keep the `/data` mapping unchanged. For private packages the server must remain authenticated to GHCR. Back up before updating.
+When a tested image is published, use the normal Unraid Docker update controls to pull it. Keep the `/data` mapping unchanged. Back up before updating.
 
 ### Docker Compose alternative
 
 Do not run this at the same time as the Unraid template installation. Add this line to your generated `.env`:
 
 ```text
-IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4-beta.2
+IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.6-beta.1
 ```
 
 Then:
@@ -221,7 +216,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.4-beta.2**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.6-beta.1**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -253,28 +248,13 @@ Expense Pilot is an original implementation, not affiliated with Rounded.
 
 The supplied 1 GB memory cap is a starting guardrail for the application. Ollama is a separate service and needs its own model-dependent resources. A hard cap does not reserve 1 GB; it bounds how much this container may consume. Keep the cap unless observed out-of-memory events or large concurrent PDF workloads justify raising it. Browser CI runs with `--memory 1g --memory-swap 1g` and captures peak memory as evidence, not a production capacity guarantee.
 
-The logo is stored in appdata. `prepare.sh` copies it during setup, and container startup creates it automatically if it is missing. With the standard `/data` mount, the host file is:
+The Community Apps template uses the public project icon:
 
 ```text
-/mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
+https://raw.githubusercontent.com/ChrisK0007/Expense-Pilot/main/server/static/expense-pilot-logo.png
 ```
 
-The Unraid template now points **Icon URL** at that local file:
-
-```text
-file:///mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
-```
-
-No server IP, web port or internet connection is needed for the icon. Keep all three slashes after `file:`. If you change the host Appdata location, change the Icon URL path to match. The icon remains available while the app is stopped. An existing logo file is preserved, so you may replace it with your own image.
-
-For an existing installation, update and start the container, then open **Docker → expense-pilot → Edit → Advanced View**, paste the local file URL into **Icon URL**, and Apply. Existing saved Unraid templates do not change when the image updates. If installing without `prepare.sh`, let the container start once to create the file before applying the icon setting.
-
-To copy the logo immediately from an older running image without waiting for an update, run this in the Unraid terminal with the standard appdata path:
-
-```bash
-docker cp expense-pilot:/app/static/expense-pilot-logo.png /mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
-chmod 644 /mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png
-```
+Existing installations may keep their working local icon at `file:///mnt/user/appdata/expense-pilot-beta/data/expense-pilot-logo.png`. Container startup still creates this file when missing. For a different appdata location, adjust the local URL accordingly. To change an existing template, open **Docker → expense-pilot → Edit → Advanced View → Icon URL**, paste the URL and Apply. Image updates do not replace saved Unraid template settings.
 
 This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
 

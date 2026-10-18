@@ -30,6 +30,14 @@ class SourceAccessTests(unittest.TestCase):
         self.assertTrue(inventory['debian'])
         self.assertTrue(inventory['notices'])
         self.assertIn('flask', [d['name'].lower() for d in inventory['python']])
+        sources = client.get('/legal/dependency-source-manifest').json
+        self.assertEqual({(d['source'], d['source_version']) for d in inventory['debian']},
+                         {(d['name'], d['version']) for d in sources['debian']})
+        self.assertEqual({(d['name'], d['version']) for d in inventory['python']},
+                         {(d['name'], d['version']) for d in sources['python']})
+        response = client.head('/legal/dependency-sources')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(int(response.headers['Content-Length']), sources['archive_bytes'])
         with zipfile.ZipFile(io.BytesIO(client.get('/legal/dependencies').data)) as archive:
             for name, digest in inventory['notices'].items():
                 self.assertEqual(hashlib.sha256(archive.read(name)).hexdigest(), digest)

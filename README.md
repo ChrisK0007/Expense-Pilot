@@ -6,9 +6,9 @@
 
 Self-hosted expense tracking and invoicing for Australian sole traders and people tracking employment expenses. Run the Docker container on your own server and use it in a browser.
 
-**Stable Docker release: 1.0.4.** This release adds version-matched source/licence downloads and completes the current attribution and network-example cleanup. Rolling 30-day website sessions are retained. The optional iPhone app remains in testing and is not required to use Expense Pilot.
+**Stable Docker release: 1.0.5.** This release adds matching dependency-source archives and Unraid Community Apps installation metadata. Rolling 30-day website sessions are retained. The optional iPhone app remains in testing and is not required to use Expense Pilot.
 
-This checkout is the beta channel; use its [beta installation guide](docs/public-release.md) and a separate test data volume.
+This checkout is the beta channel; use the [beta installation guide](docs/public-release.md) and a separate test data volume.
 
 ## Built with AI
 
@@ -30,16 +30,16 @@ Records live in the Docker data volume. Optional AI, bank feeds and email use th
 
 | Channel | Image | Documentation |
 | --- | --- | --- |
-| Stable — 1.0.4 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.4` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
-| Beta — 1.0.4-beta.2 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.4-beta.2` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+| Stable — 1.0.5 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.5` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
+| Beta — 1.0.6-beta.1 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.6-beta.1` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
 
 Stable 1.0.2 includes in-app AI modes, an optional setup token, workspace timezones, budgets and full backup/account controls. Legacy Ollama environment settings remain supported until you save AI settings in the app. **Use the template and instructions from the same branch as your image.**
 
-Container images and installation files must be publicly accessible before the public launch. During preparation, private-image access may still require registry authentication. See [release channels](docs/releases.md).
+Public installations do not require a GitHub account or registry login. See [release channels](docs/releases.md) and the maintainer’s [public-launch instructions](docs/public-launch.md).
 
 ## Install or update
 
-- **Unraid:** follow the matching channel's guide and use its `deploy/unraid/expense-pilot.xml` template.
+- **Unraid:** follow the [installation guide](docs/public-release.md#unraid-installation) and use `deploy/unraid/expense-pilot.xml`. Community Apps listing is subject to Unraid review.
 - **Docker Desktop / Linux:** the [portable Compose guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md#new-portable-installation) uses a named volume. The current image is Linux AMD64; ARM hosts need emulation and platform testing remains on the release checklist.
 - **Existing installations:** preserve the `/data` mount and deployment settings, back up first, then update the same channel. Switching an image tag does not undo database migrations.
 - **Separate stable and beta:** use different data volumes and host ports. Never share a data directory between running containers.
