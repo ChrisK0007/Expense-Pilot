@@ -8,7 +8,7 @@ testing. Use [public-launch.md](public-launch.md) for exact manual steps.
 
 | Item | State |
 | --- | --- |
-| Candidate | Stable `1.0.5`, based on cleaned main `682eae4` |
+| Published stable | `1.0.5`, built from cleaned-history commit `d4c799d` |
 | Previous published stable | `1.0.4` |
 | Existing beta | `1.0.4-beta.2`; separate data and moving tag |
 | Licence | AGPL-3.0-only; component-specific notices retained |
@@ -35,12 +35,31 @@ testing. Use [public-launch.md](public-launch.md) for exact manual steps.
 
 ## Candidate verification and publication
 
-- [ ] PR pipeline: dependency audit, image/source build, server/relay tests,
+- [x] Stable PR pipeline: dependency audit, image/source build, server/relay tests,
   hardened startup, browser workflows and source inventory checks.
-- [ ] Merge pipeline publishes `1.0.5` and `latest`; record exact image digest.
-- [ ] GitHub release `v1.0.5` contains source assets and SHA256SUMS.
-- [ ] Review actual image inventory and source archive against installed
-  packages and newly vendored libraries. See [licensing](licensing.md).
+- [x] Stable merge pipeline published `1.0.5` and `latest`; digest recorded below.
+- [x] GitHub release `v1.0.5` contains all ten source/notice/manifest/checksum assets.
+- [x] Build and integration checks compare the actual Debian/Python runtime
+  inventory to retained source versions; archive files and hashes are verified.
+  Current collection: 111 Debian source packages, 16 Python distributions,
+  matching CPython and the Pillow native-source check. Future dependency
+  changes still require licence/source review; see [licensing](licensing.md).
+
+## Verified stable publication — 18 October 2026
+
+- [PR #55](https://github.com/ChrisK0007/Expense-Pilot/pull/55) and the
+  [publishing run](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39088736705)
+  passed 13 release tests, the dependency vulnerability audit, image/source
+  build, 301 server tests, 3 relay tests, hardened startup and browser workflows.
+- Runtime revision: `d4c799d32c8f876d7c2865cf908531322cb3cd6c`.
+- Tags `1.0.5`, `latest`, `sha-d4c799d` share digest
+  `sha256:8c29cace0dd6b782072e74410924da6bec6d9f1f68680a09262452ee6a49ab14`.
+- [GitHub release v1.0.5](https://github.com/ChrisK0007/Expense-Pilot/releases/tag/v1.0.5)
+  was created successfully. Its dependency-source archive is 631,872,595 bytes,
+  SHA-256 `b9369883c60888c3c04b6c578ea37a03d0f18af4add64878401dd2287115e6d9`.
+- These are automated and publishing results, not an Unraid host acceptance test
+  or Community Apps approval. Visibility and admin settings still require the
+  maintainer's account.
 
 ## Maintainer host and service checks
 
