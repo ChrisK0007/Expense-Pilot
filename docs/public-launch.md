@@ -85,7 +85,36 @@ Open `http://YOUR-SERVER-IP:8792`, sign in again and compare the test records, r
 
 ## 4. Check an upgrade and update your stable installation
 
-For a disposable upgrade rehearsal, run the previous 1.0.4 image with a new test folder and port, create synthetic records and download its full backup. Restore that backup into a new folder using the v1.0.5 restore command above, then start v1.0.5 against that folder and confirm the records and originals survive. No migration is added by v1.0.5.
+For a disposable upgrade rehearsal, start the previous stable version with its own folder and port:
+
+```bash
+mkdir -p /mnt/user/appdata/expense-pilot-upgrade-test/data
+chown 99:100 /mnt/user/appdata/expense-pilot-upgrade-test/data
+chmod 770 /mnt/user/appdata/expense-pilot-upgrade-test/data
+docker run -d --name expense-pilot-upgrade-test \
+  --user 99:100 --read-only --tmpfs /tmp:rw,size=256m,mode=1777 \
+  --cap-drop ALL --security-opt no-new-privileges:true --memory 1g \
+  -p 8793:8788 \
+  -v /mnt/user/appdata/expense-pilot-upgrade-test/data:/data \
+  -e SETUP_TOKEN= -e COOKIE_SECURE=false \
+  ghcr.io/chrisk0007/expense-pilot:1.0.4
+```
+
+Open `http://YOUR-SERVER-IP:8793`, create an owner and synthetic receipt/invoice records, and download a full backup. Leave integrations disconnected. Then replace only this disposable test container, preserving its data:
+
+```bash
+docker stop expense-pilot-upgrade-test
+docker rm expense-pilot-upgrade-test
+docker run -d --name expense-pilot-upgrade-test \
+  --user 99:100 --read-only --tmpfs /tmp:rw,size=256m,mode=1777 \
+  --cap-drop ALL --security-opt no-new-privileges:true --memory 1g \
+  -p 8793:8788 \
+  -v /mnt/user/appdata/expense-pilot-upgrade-test/data:/data \
+  -e COOKIE_SECURE=false \
+  ghcr.io/chrisk0007/expense-pilot:1.0.5
+```
+
+Refresh the same address. Confirm v1.0.5, the original receipt and your sample totals. No database migration is added by v1.0.5. This exercises an actual in-place upgrade of a disposable installation; your original live data is untouched.
 
 For your real stable container:
 
@@ -97,7 +126,27 @@ For your real stable container:
 
 Host verification on Linux/Docker Desktop must also be recorded before claiming those hosts have been tested. The current image is AMD64; ARM emulation is not a native ARM release.
 
-## 5. Make the project and package public
+## 5. Retire the old public-download candidates, then change visibility
+
+After the new stable and beta images are verified, retain only the package versions carrying `1.0.5` / `latest` and `1.0.6-beta.1` / `beta` before changing package visibility. These replacements were built from the cleaned history and carry matching dependency sources. The older `1.0.4` and `1.0.4-beta.2` images predate that packaging.
+
+If you need a private rollback image, save it locally before deleting its registry version. For example, while the old image is still available:
+
+```bash
+mkdir -p /mnt/user/backups/expense-pilot-release
+chmod 700 /mnt/user/backups/expense-pilot-release
+docker pull ghcr.io/chrisk0007/expense-pilot:1.0.4
+docker image save ghcr.io/chrisk0007/expense-pilot:1.0.4 \
+  -o /mnt/user/backups/expense-pilot-release/stable-1.0.4-private.tar
+chmod 600 /mnt/user/backups/expense-pilot-release/stable-1.0.4-private.tar
+```
+
+Pair it with your matching private data backup. Keep this folder off public shares. A saved Docker image contains software, not a backup of `/data`.
+
+On the GitHub package page, open **View and manage all versions**. Keep the two versions identified by the new stable/beta tags and their verified digests; each may have several tags including a `sha-` tag. Delete obsolete versions from their version menu/settings. Do not delete the entire package or a version carrying `latest` or `beta`. A version deletion removes all tags attached to that digest. Do not run a broad Docker prune or remove appdata.
+
+Then change visibility:
+
 
 GitHub administration is not exposed by the connected repository tools. Perform these changes yourself after checking the release:
 
@@ -123,9 +172,11 @@ On the repository **Code** page, click the gear beside **About**. Use:
 - Website: `https://github.com/ChrisK0007/Expense-Pilot#readme`
 - Topics: `self-hosted`, `expense-tracker`, `invoicing`, `receipts`, `docker`, `unraid`, `australia`, `pocketsmith`, `ollama`.
 
+To keep the branch list tidy, open merged [PR #55](https://github.com/ChrisK0007/Expense-Pilot/pull/55) and [PR #56](https://github.com/ChrisK0007/Expense-Pilot/pull/56), then use **Delete branch** for their completed release branches. Keep `main` and `beta`. Under **Settings → General → Pull Requests**, enable **Automatically delete head branches** for future merged work.
+
 Open **Settings → Branches → Add classic branch protection rule** (or the equivalent branch ruleset). Create a rule for `main`, then another for `beta`:
 
-1. Require a pull request before merging. A sole maintainer can leave the required-approval count at zero; otherwise nobody can approve their own release PR.
+1. Require a pull request before merging. For a sole maintainer, leave **Require approvals** unchecked; you cannot approve your own release PR.
 2. Require status checks to pass; select **test-and-publish** from the successful run. Do not require **github-release**, which runs after stable publication.
 3. Require branches to be up to date and conversations resolved.
 4. Leave force pushes and deletions disabled. Apply protection to administrators if you want it enforced on your own account too.
@@ -148,6 +199,17 @@ The repository already contains the required root `LICENSE`, `README.md`, `ca_pr
 8. After approval, find Expense Pilot in Unraid **Apps** and perform one installation using the actual listing into a disposable folder/port. Verify the listing's defaults before announcing it.
 
 Official references: [builder guide](https://ca.unraid.net/submit/help/builders), [repository profile](https://ca.unraid.net/submit/help/repository-info-xml), [template fields](https://ca.unraid.net/submit/help/xml-field-reference), [GitHub repository visibility](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility), [package visibility](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+## Stop the disposable test containers
+
+After checking their results, stop and remove only the containers created by this guide:
+
+```bash
+docker stop expense-pilot-release-test expense-pilot-restore-test expense-pilot-upgrade-test
+docker rm expense-pilot-release-test expense-pilot-restore-test expense-pilot-upgrade-test
+```
+
+Omit names you did not create. These commands keep the test data folders. Keep backups private and retain the test folders until you have finished comparing results. Your real stable and beta containers are not named in these commands.
 
 ## Record completion
 

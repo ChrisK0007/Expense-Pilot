@@ -126,3 +126,5 @@ Historical prerelease notes, newest first. These changes were promoted into stab
 - Bring the v1.0.5 dependency source packaging, publication checks and documentation into beta.
 - Keep beta images separate from latest and use a distinct Unraid name, port and data folder.
 - No application database migration or iPhone release.
+
+Publication verification: [run 39089596737](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39089596737) passed after correcting the browser test to wait for the invoice view before closing its dialog. Application behavior is unchanged by that test correction.
