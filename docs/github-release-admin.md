@@ -1,6 +1,6 @@
 # GitHub administration before public release
 
-Status at preparation, 18 October 2026: repository and package remain private.
+Status at the start of preparation, 18 October 2026: repository and package remain private.
 There are 51 branches, no Git tags and 142 workflow runs. The connected editor
 can change repository files, but cannot administer packages, delete refs/runs,
 create an orphan root, or change repository settings. None of the history,
@@ -15,8 +15,8 @@ image, including every platform/attestation manifest they reference.
 
 Stable 1.0.3 currently points to:
 `sha256:2bc318bdec6d52f84510dec82be3af2ceab4d6bb86289238585c731a22778ce6`.
-The last verified beta before this change, 1.0.4-beta.1, points to:
-`sha256:c9dae90c02aa6623ae6b99a269bef1b09ac896bb823b6bcb717403caec6a00d5`.
+The newly verified beta, 1.0.4-beta.2, points to:
+`sha256:23cd14d77f3c364650756366274fe1fc50727de19abd537adcf82072c440f235`.
 Resolve tags again after any new beta publication. Do not rely on an old digest
 list when deleting package versions.
 
@@ -31,6 +31,8 @@ Perform this in a fresh, private administrative clone with no other writers.
 Keep a private offline `git bundle create ../expense-pilot-before-cleanup.bundle
 --all` until the new branches and active work are verified. Never upload this
 bundle or publish an archival branch: either would retain the old history.
+Delete the offline bundle after verification when it is no longer needed;
+otherwise the removed history still exists in that private backup.
 
 1. Fetch all heads and tags, record their exact SHAs, list open PRs, and inspect
    unmerged topic branches. Save active branch **trees**, not their ancestors.

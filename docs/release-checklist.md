@@ -9,7 +9,7 @@ or package public or authorize a stable promotion.
 | Item | State |
 | --- | --- |
 | Stable | `1.0.3` on `main` / `:latest`; unchanged by this beta work |
-| Beta candidate | `1.0.4-beta.2`; verify its publishing run before claiming deployment |
+| Verified beta | `1.0.4-beta.2` on `beta` / `:beta` |
 | Previous verified beta | `1.0.4-beta.1` |
 | Visibility | Repository and package remain private |
 | Project licence | AGPL-3.0-only; third-party notices retained |
@@ -26,6 +26,12 @@ or package public or authorize a stable promotion.
   image digest `sha256:c9dae90c02aa6623ae6b99a269bef1b09ac896bb823b6bcb717403caec6a00d5`.
 - These runs passed the dependency audit, release-channel checks, 298 server
   tests, legacy relay tests, production startup and browser workflows.
+- Beta 1.0.4-beta.2: commit `cfeaf8d1e37eb1342fe4f561ed99b2efa5bb6a92`,
+  [publishing run 39082371434](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39082371434),
+  image digest `sha256:23cd14d77f3c364650756366274fe1fc50727de19abd537adcf82072c440f235`.
+  The audit, 11 release/source tests, 301 server tests, 3 relay tests, production
+  startup and all browser workflows passed. Both `1.0.4-beta.2` and `beta` were
+  pushed with this digest; `main` / stable 1.0.3 remained unchanged.
 - Repeat these gates on every new image. Preserve the candidate's source,
   dependency inventory and exact image digest when recording its result.
 
