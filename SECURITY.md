@@ -4,7 +4,7 @@
 
 If GitHub shows **Security → Advisories → Report a vulnerability** for this repository, use that private reporting form. Include the affected version, a minimal reproduction using synthetic data and the likely impact. Never attach live secrets or someone else's financial records.
 
-Private reporting must be enabled before the repository's public launch. If the button is unavailable, open an issue titled **Request a private security contact** containing only a request for a private channel. Do not include vulnerability details in that public issue. No separate security email address has been published yet.
+If the button is unavailable, open an issue titled **Request a private security contact** containing only a request for a private channel. Do not include vulnerability details in that public issue. No separate security email address has been published yet.
 
 ## Supported versions
 
@@ -12,11 +12,11 @@ Security fixes target the current stable release. Beta builds are for testing an
 
 ## Operating your server
 
-- Complete first-owner setup on a trusted network. Stable v1.0.2 and the current beta allow token-free setup when SETUP_TOKEN is blank/unset. If a token is configured, it is enforced. Create the owner account before exposing a new installation remotely.
+- Complete first-owner setup on a trusted network. Current stable and beta releases allow token-free setup when `SETUP_TOKEN` is blank/unset. If a token is configured, it is enforced. Create the owner account before exposing a new installation remotely.
 - Use HTTPS with `COOKIE_SECURE=true`, or a trusted VPN, for remote access. Do not expose the HTTP port directly to the internet.
 - Keep `/data`, its `session.key`, deployment settings and backups private. Receipt originals and the database are not encrypted at rest by the application; stored integration credentials require both the database and key for recovery.
 - Treat the owner and Docker host administrator as trusted. Tax agents can read the workspace's financial records, including personal records and unfiled receipts; read/write access is an additional permission, not per-record sharing.
 - Review optional AI, SMTP and PocketSmith destinations and permissions. Self-hosting does not prevent data being sent to an integration you enable.
 - Keep Docker, the host and the selected Expense Pilot release current. Retain a tested backup before upgrading.
 
-Automated dependency, integration and browser checks are useful evidence, not a claim of an independent security audit. The [release checklist](docs/release-checklist.md) tracks the remaining publication checks.
+Automated dependency, integration and browser checks are useful evidence, not a claim of an independent security audit. The [release checklist](docs/releases.md#release-checklist) describes the checks for each release.

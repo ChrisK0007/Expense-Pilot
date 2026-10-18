@@ -22,7 +22,7 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -r server/requirements.txt
 PYTHONPATH=server python -m unittest discover -s tests/server -v
-# Use disposable data. Stable 1.0.2 and the current beta allow SETUP_TOKEN to be unset.
+# Use disposable data. SETUP_TOKEN may be unset for trusted local development.
 # Configure a token if protecting first-owner setup, and keep test access local.
 DATA_DIR=/tmp/expense-pilot-dev python server/app.py
 ```
@@ -41,7 +41,7 @@ Add a new numbered file for future schema changes. Never edit a released migrati
 
 `server/VERSION` is the source for the API version and numbered Docker image tag. `main` requires `X.Y.Z` and publishes `latest`; `beta` requires `X.Y.Z-beta.N` and publishes `beta`. CI rejects versions assigned to the wrong branch, verifies any `v` Git tag matches, and never publishes pull requests or topic branches. Matching Git tags publish their numbered image without moving either channel. See [release channels](releases.md) for development and promotion steps.
 
-iOS keeps independent marketing/build versions in its separate Xcode repository. Docker's allowlist includes only the Dockerfile and `server/`, excluding tests, local data and secrets. `python -m unittest discover -s tests/release -v` checks the publishing rules before the Docker build; the existing backend, startup and browser checks still gate every published image.
+iOS keeps independent marketing/build versions in its separate Xcode repository. Docker's build context allowlist includes the runtime and the build, test and documentation inputs needed for the matching source bundle. It excludes Git history, local data and secrets; test servers are not installed as runtime endpoints. `python -m unittest discover -s tests/release -v` checks the publishing rules before the Docker build; the existing backend, startup and browser checks still gate every published image.
 
 ## Backups
 
@@ -56,6 +56,12 @@ The backup utility inspects the selected container's actual `/data` mount instea
 Archives contain `data/` including `rounded.sqlite`, receipts and `session.key`; the checkout's `.env` is included when present. For a different `.env` location, set `EXPENSE_PILOT_ENV_FILE` to that file. Unraid template environment settings live outside the data mount; preserve those settings separately using your normal Unraid configuration backup.
 
 For offline data without a Docker container, first stop every process using the database, then set `EXPENSE_PILOT_DATA_DIR` to the data directory. This explicit mode does not stop or restart any container. Protect archives as sensitive financial data. Restore `data/` to the configured host mount while the app is stopped and retain the existing ownership (normally UID 99/GID 100).
+
+## Mobile API compatibility
+
+`GET /api/server-info` identifies the application, API version, minimum client API and installation identity without credentials. `/api/session` retains existing fields and includes feature capabilities. Clients must check capabilities before using newer features. API version 1 remains backward compatible; server and iOS app versions are independent.
+
+New mobile expense and receipt uploads accept a UUID `client_ref`. Exact retries return a matching `id`, `client_ref` and `stored: true`. Changed payloads conflict; deleted records retain a tombstone so delayed retries cannot recreate them. Clients must keep local copies until the matching acknowledgement is received. Trips retain their existing route-preserving acknowledgement contract.
 
 ## PocketSmith bank feeds
 
