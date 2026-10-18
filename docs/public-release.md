@@ -66,13 +66,9 @@ The `/privacy` page explains storage, optional AI/email/bank services, GPS/addre
 
 Account deletion requires a current password, 2FA when enabled and an exact confirmation phrase. An owner deletes the **entire shared workspace**, including other accounts, settings, receipts and financial records. A tax agent deletes their own login while the owner's records remain. Earlier exports, messages, backups and other devices are separate. Export anything you need first. Deletion is never performed by an update.
 
-## Mobile protocol and release preparation
+## iPhone companion
 
-`GET /api/server-info` identifies the application, API version, minimum client API and installation identity without credentials. `/api/session` retains existing fields and includes feature capabilities. Clients must check capabilities before using newer features. API version 1 remains backward compatible; server and iOS app versions are independent.
-
-New mobile expense and receipt uploads accept a UUID `client_ref`. Exact retries return a matching `id`, `client_ref` and `stored: true`. Changed payloads conflict; deleted records retain a tombstone so delayed retries cannot recreate them. Clients must keep local copies until the matching acknowledgement is received. Trips retain their existing route-preserving acknowledgement contract.
-
-The [Docker release checklist](release-checklist.md) tracks public image access, installation tests, upgrades, restore and repository settings. The iPhone app has its own testing and release schedule; its App Store submission and CarPlay entitlement do not block the Docker release. Server alerts in the current test app refresh directly when it connects; no shared push relay is required.
+The optional iPhone app has its own testing and release schedule. Server alerts refresh directly when it connects; no shared push relay is required. Docker updates do not update the installed phone app. Developers can find the upload and compatibility contract in the [architecture guide](architecture.md#mobile-api-compatibility).
 
 ## Workspace timezone
 

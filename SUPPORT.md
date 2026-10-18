@@ -5,7 +5,7 @@ Expense Pilot is a self-hosted Docker application. The iPhone companion is still
 ## Before reporting a problem
 
 1. Record the version in Settings and the container image tag. State whether you use stable or beta.
-2. Read the [guide](docs/guide.md) for that branch and [release notes](docs/CHANGELOG.md). Stable v1.0.2 includes the features tested through v1.0.2-beta.13; later beta features may differ.
+2. Read the [user guide](docs/guide.md) for that branch and the [stable](docs/CHANGELOG.md) or [beta](docs/beta-changelog.md) changelog.
 3. Describe the smallest set of steps that reproduces the problem, the expected result and what happened instead.
 4. For an upgrade problem, include the previous version and whether the original `/data` mount was retained.
 
