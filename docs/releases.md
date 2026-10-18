@@ -3,13 +3,13 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.3` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.4-beta.1` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.4-beta.2` |
 
-The Docker public release is being prepared separately from iPhone testing. Stable 1.0.3 includes rolling 30-day website sessions. The attribution and network-example cleanup is published in 1.0.4-beta.1; stable promotion is pending. See the [release checklist](release-checklist.md) for remaining verification and publication work.
+The Docker public release is being prepared separately from iPhone testing. Stable 1.0.3 includes rolling 30-day website sessions. Beta 1.0.4-beta.2 adds source/licence access and release-preparation documentation to the attribution cleanup; stable promotion is pending. See the [release checklist](release-checklist.md) for remaining verification and publication work.
 
 ## Choose a matching image and guide
 
-Stable 1.0.2 includes PocketSmith feeds, invoice/service controls, budgets and vehicle comparisons, overnight spending, in-app AI modes, portable setup, full backup/account controls, workspace timezone, saved-address sync, mobile session/notification support and split-allocation badges. Setup tokens are optional and AI is configured in the application. Use the [stable setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) and main-branch Unraid template. Beta remains available separately at 1.0.4-beta.1. Its prerelease history is in the [beta changelog](beta-changelog.md). See the [changelog](CHANGELOG.md) for the release history.
+Stable 1.0.2 includes PocketSmith feeds, invoice/service controls, budgets and vehicle comparisons, overnight spending, in-app AI modes, portable setup, full backup/account controls, workspace timezone, saved-address sync, mobile session/notification support and split-allocation badges. Setup tokens are optional and AI is configured in the application. Use the [stable setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) and main-branch Unraid template. Beta remains available separately at 1.0.4-beta.2. Its prerelease history is in the [beta changelog](beta-changelog.md). See the [changelog](CHANGELOG.md) for the release history.
 
 `latest` follows approved stable releases. Stable v1.0.2 incorporated the features tested through 1.0.2-beta.13. A numbered tag pins a published release. Each published image also has a commit-derived `sha-` tag. Do not change the contents of a numbered release tag after publication.
 

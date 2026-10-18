@@ -43,6 +43,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await page.locator('#delete-my-account').click();await page.getByLabel('Type DELETE WORKSPACE',{exact:true}).waitFor();await page.locator('#close-modal').click();
   await page.screenshot({path:output+'/public-release-settings.png',fullPage:true});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/public-release-settings-mobile.png',fullPage:true});
   const privacy=await page.request.get(url+'/privacy');assert.equal(privacy.status(),200);assert.match(await privacy.text(),/Privacy/);
+  const publicPage=await browser.newPage();await publicPage.goto(url+'/about');await publicPage.getByRole('heading',{name:'Source code & licences',exact:true}).waitFor();assert.equal(await publicPage.getByRole('link',{name:'Download application source',exact:true}).getAttribute('href'),'/source');assert.equal((await publicPage.request.get(url+'/source')).status(),200);await publicPage.close();
   assert.deepEqual(errors,[]);console.log('PASS: Paid dashboard status, four AI modes, no-AI persistence, saved email copy destination, backup/deletion entry points and responsive Settings.');
  }catch(e){await page.screenshot({path:output+'/public-release-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
