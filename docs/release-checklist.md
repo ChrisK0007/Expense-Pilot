@@ -1,62 +1,94 @@
 # Docker public-release checklist
 
-The Docker container and browser interface will be released first. The iPhone app remains in testing and is not a gate for the Docker launch. This checklist prepares a release; it does not change image tags, versions or repository visibility.
+Release the Docker container and browser interface first. The separate iPhone
+app remains in testing. Preparing this checklist does not make the repository
+or package public or authorize a stable promotion.
 
 ## Current baseline
 
 | Item | State |
 | --- | --- |
-| Existing stable | `1.0.3` on `main` / `:latest` |
-| Development candidate | `1.0.3-beta.1` on `beta` / `:beta` |
-| Public availability | Pending owner decision and access verification |
+| Stable | `1.0.3` on `main` / `:latest`; unchanged by this beta work |
+| Beta candidate | `1.0.4-beta.2`; verify its publishing run before claiming deployment |
+| Previous verified beta | `1.0.4-beta.1` |
+| Visibility | Repository and package remain private |
 | Project licence | AGPL-3.0-only; third-party notices retained |
-| Container architectures | Linux AMD64; ARM uses emulation |
+| Container architecture | Linux AMD64; ARM requires emulation |
 | iPhone | Separate repository; remains in testing |
 
-## Verified v1.0.2 publication
+## Recorded publication evidence
 
-- Published on 17 October 2026 from commit `a48c284d7b3c55bf15412191c818bc1b1f97c9d8` via [release PR #38](https://github.com/ChrisK0007/Expense-Pilot/pull/38).
-- [Publishing workflow 38993632918](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/38993632918) passed dependency audit, 8 release-channel checks, 295 server tests, 3 legacy relay tests, production startup and browser workflows.
-- Tags `1.0.2`, `latest` and `sha-a48c284` were pushed with digest `sha256:a7405e917ef05ea432fbb57ad42ff4cdb980e9298d338d9841e86688d7c8daba`.
-- Repository-only AGPL licensing and AI-development disclosure followed this build; they have not rebuilt the image. Public access, image licence packaging and host/live-service checks remain separate tasks below.
+- Stable 1.0.3: commit `4b018e30059e6abf42ecbd2de248b2d7fb4a7307`,
+  [publishing run 39076003001](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39076003001),
+  image digest `sha256:2bc318bdec6d52f84510dec82be3af2ceab4d6bb86289238585c731a22778ce6`.
+- Beta 1.0.4-beta.1: commit `d76f9a5cb9aff9c87ebfb390a83370acd8d6dbcd`,
+  [publishing run 39078172216](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39078172216),
+  image digest `sha256:c9dae90c02aa6623ae6b99a269bef1b09ac896bb823b6bcb717403caec6a00d5`.
+- These runs passed the dependency audit, release-channel checks, 298 server
+  tests, legacy relay tests, production startup and browser workflows.
+- Repeat these gates on every new image. Preserve the candidate's source,
+  dependency inventory and exact image digest when recording its result.
 
-## Repository preparation
+## Privacy, source and licensing
 
-- [x] Provide a Docker-first README with explicit stable/beta boundaries.
-- [x] Add installation, bug and feature issue forms, a pull-request template, support guidance and a security policy.
-- [x] Separate current instructions from historical development notes.
-- [x] Document the licence decision and retain bundled dataset attribution.
-- [x] Select and add the project licence: AGPL-3.0-only, with application copyright notice.
-- [ ] Complete the runtime dependency licence review.
-- [x] Include LICENSE/COPYRIGHT and AGPL image metadata in the v1.0.3 Docker build.
-- [ ] Provide accessible version-matched Corresponding Source and a source/licence link in the web interface, and complete the dependency notice review before public distribution.
-- [ ] Review the complete remote Git history, tags, old branches, releases, attachments and CI artifacts for secrets or personal data before changing visibility. A current-tree scan alone is insufficient.
-- [ ] Enable a private vulnerability-reporting channel and verify it works before the public announcement.
-- [ ] Set the GitHub About description and topics. Suggested description: **Self-hosted expense tracking and invoicing for Australian sole traders and employment expenses.** Suggested topics: `self-hosted`, `docker`, `unraid`, `expense-tracker`, `invoicing`, `australia`.
-- [ ] Confirm branch protections, Actions permissions and package publishing access. Retire only topic branches whose work is verified as merged; keep `main`, `beta` and any active work.
+- [x] Add AGPL-3.0-only licence, copyright notice and image metadata.
+- [x] Use the maintainer's GitHub username and a generic network example in beta.
+- [x] Review the current tree, accessible remote history/branches and PR text.
+  Findings were old attribution and local-network examples; no real credentials
+  or financial records were identified in the inspected material.
+- [x] Add beta source/licence links and build-time application source downloads
+  with version/checksum metadata; no dependency on public GitHub access.
+- [x] Review direct Python/dataset/font licences and capture installed Python,
+  native package and bundled component notices in the image build.
+- [ ] Verify the actual candidate's complete dependency inventory and required
+  GPL/LGPL corresponding-source distribution. See [licensing](licensing.md).
+- [ ] Remove old Git history, obsolete refs/images, CI artifacts/caches and any
+  retained PR/cache views. Deletion has **not** been performed. The administration
+  connection does not expose these operations; see [the exact procedure](github-release-admin.md).
+- [ ] Promote the attribution cleanup to stable only after separate approval.
+  Current stable source/image still has the earlier copyright notice; keep it
+  private. Preserving that image is not complete privacy cleanup.
 
-## Candidate verification
+## Repository and documentation
 
-Use a disposable installation and synthetic records. Record image tag/digest, platform, result and any remaining limitations alongside the release notes.
+- [x] Docker-first README, stable/beta boundaries, changelog starting at v1.0,
+  installation/upgrade/restore guides, issue forms and PR template.
+- [x] Support, security, privacy, licensing and AI-development disclosure.
+- [x] Fix in-app help links to the build revision or matching release channel.
+- [x] Reconcile this checklist with the actual stable/beta baseline.
+- [ ] Apply GitHub About description and topics from [administration guidance](github-release-admin.md).
+- [ ] Protect `main` and `beta`, verify required checks and Actions/package
+  permissions; apply protections after the authorized history rewrite.
+- [ ] At the separately approved public launch, enable and test GitHub private
+  vulnerability reporting. It is not available on a private repository.
 
-- [ ] Fresh setup on Unraid and on each advertised Docker Desktop/Linux platform. Confirm AMD64 emulation explicitly if advertising ARM/Apple silicon support.
-- [ ] Upgrade a copy of stable 1.0.1 data to the candidate; preserve receipts, allocations, invoices, payments, permissions and integration settings.
-- [ ] Restore a full backup into a new empty volume and verify representative records and originals. Keep the original data and matching old image as rollback.
-- [ ] Check token-free and token-protected first setup, login/2FA, password recovery and tax-agent read-only/read-write boundaries.
-- [ ] Check No AI, existing Ollama and any cloud provider included in the release with deliberate test data. Confirm consent, key replacement and errors. Manual receipt entry must remain usable without AI.
-- [ ] Check real SMTP delivery/copies/reminders and a live PocketSmith connection with operator-owned test accounts. Automated mocks do not establish live-service delivery.
-- [ ] Verify upload limits, receipt review/deletion, invoice totals, refunds, export and account/workspace deletion.
-- [ ] Review Australian tax/allowance estimates and explain their scope. A different timezone does not change currency, financial-year or tax rules.
-- [x] Run the Docker dependency audit, integration, production startup and browser gates on the exact v1.0.2 release commit; evidence is recorded above. Repeat for any new image candidate.
+## Host and live-service verification
 
-## Stable publication and public launch
+Use a disposable installation and synthetic records. Record the image digest,
+platform and result. Existing CI checks are not evidence of testing a real host
+or third-party service.
 
-- [x] Select stable v1.0.2 and prepare its changelog and upgrade notes. Do not reuse a published numbered tag for changed code.
-- [x] Update the Unraid template and portable Compose defaults to the approved stable image; align setup fields with that release. Stable 1.0.2 now includes optional setup tokens and in-app AI settings.
-- [ ] Make the approved repository/install files and GHCR package publicly accessible. Package visibility and repository visibility are separate settings.
-- [ ] From a logged-out environment, verify anonymous image pull and installation-file access. Do not publish using a tester's cached registry login as the only evidence.
-- [x] Promote v1.0.2 through a release PR to `main` and verify the published digest, version and `latest` tag. Follow [release channels](releases.md).
-- [ ] Publish the public-launch announcement after access and platform verification. Release notes, upgrade/restore instructions and support links are prepared; remove remaining preparation notices only when those checks are complete.
-- [x] Reconcile stable release history and shared documentation into `beta` while retaining its prerelease installation defaults.
+- [ ] Fresh setup on Unraid and each advertised Docker Desktop/Linux platform.
+- [ ] Upgrade a copy of stable data; verify records, receipts, allocations,
+  invoices/payments, permissions and integration settings.
+- [ ] Restore a full backup to an empty volume and verify representative records
+  and originals. Keep a private matching image/backup for rollback.
+- [ ] Token-free/token-protected setup, login/2FA/recovery and tax-agent boundaries.
+- [ ] No AI/manual entry, local/remote Ollama and advertised cloud providers.
+- [ ] Real SMTP delivery/copies/reminders and live PocketSmith integration.
+- [ ] Upload limits, receipt deletion, invoice totals/refunds, export and deletion.
+- [ ] Review tax/allowance estimate wording and scope. Timezone selection does
+  not change AUD, Australian financial years or tax rules.
 
-Public iPhone distribution, CarPlay approval and a central push service are not requirements for this Docker release. The existing source includes legacy optional relay tooling; it is not part of the standard installation or current iPhone notification path.
+## Public launch — separately approved
+
+- [ ] Approve a stable candidate, run its full gates, publish and verify its digest.
+- [ ] Make the approved repository/install files and GHCR package public;
+  these are separate visibility controls.
+- [ ] Test anonymous image pull and installation links without cached credentials.
+- [ ] Verify source downloads, notices, source obligations and private reporting
+  from the public installation, then announce the release.
+
+CarPlay approval, public iPhone distribution and a central push service are not
+requirements for this Docker launch. Legacy optional relay tooling is not part
+of the standard installation or current iPhone notification path.

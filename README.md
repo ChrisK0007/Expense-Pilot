@@ -31,7 +31,7 @@ Records live in the Docker data volume. Optional AI, bank feeds and email use th
 | Channel | Image | Documentation |
 | --- | --- | --- |
 | Stable — 1.0.3 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.3` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
-| Beta — 1.0.4-beta.1 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.4-beta.1` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+| Beta — 1.0.4-beta.2 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.4-beta.2` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
 
 Stable 1.0.2 includes in-app AI modes, an optional setup token, workspace timezones, budgets and full backup/account controls. Legacy Ollama environment settings remain supported until you save AI settings in the app. **Use the template and instructions from the same branch as your image.**
 

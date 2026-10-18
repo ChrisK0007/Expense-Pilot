@@ -2,6 +2,13 @@
 
 Historical prerelease notes, newest first. These changes were promoted into stable v1.0.1 and v1.0.2. Statements about the stable version describe the time of each entry. Use the [stable changelog](CHANGELOG.md), [current guide](guide.md) and [release channels](releases.md) for current instructions.
 
+## 1.0.4-beta.2
+
+- Add source and licence links at login, in the sidebar and in Settings, with version-matched application source downloadable directly from the container.
+- Package build scripts, checksums, dependency versions and available third-party licence notices without workspace data or Git history.
+- Make installation/help links follow the installed build revision or release channel.
+- Refresh the release checklist and document pending GitHub history/image cleanup, repository settings and dependency-source distribution checks. Stable remains 1.0.3.
+
 ## 1.0.4-beta.1
 
 - Use the maintainer’s GitHub username in project and container copyright notices.

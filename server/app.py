@@ -301,6 +301,8 @@ import ai_providers
 ai_providers.register(app, auth)
 import public_release
 public_release.register(app, auth)
+import source_access
+source_access.register(app, VERSION)
 workspace_time.register(app, auth)
 
 import notifications
