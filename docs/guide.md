@@ -1,6 +1,6 @@
 # Installation and operation
 
-This branch documents **stable 1.0.4**. Beta 1.0.4-beta.2 remains available separately; see the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/guide.md) for beta installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.4-beta.2**. Stable is **1.0.4**; see the [main-branch guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) for stable installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
 
@@ -29,7 +29,7 @@ The native iPhone app is developed separately and remains in testing. It is opti
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
 
-Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
+Update a beta Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
 
 ---
 
@@ -47,7 +47,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 
 A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
 
-**This branch: stable 1.0.4; beta: 1.0.4-beta.2.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
+**This branch: beta 1.0.4-beta.2; stable: 1.0.4.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
 
 ## Features
 
@@ -97,11 +97,11 @@ This creates `.env` with an optional random first-run setup token and a `data` f
 
 ### Unraid Docker page
 
-The stable template is supplied in `deploy/unraid/expense-pilot.xml`. Copy it to `/boot/config/plugins/dockerMan/templates-user/my-expense-pilot.xml`, then go to **Docker → Add Container** and select the Expense Pilot template. Set:
+The beta template is supplied in `deploy/unraid/expense-pilot.xml`. Copy it to `/boot/config/plugins/dockerMan/templates-user/my-expense-pilot.xml`, then go to **Docker → Add Container** and select the Expense Pilot template. Set:
 
 | Setting | Value |
 | --- | --- |
-| Repository | `ghcr.io/chrisk0007/expense-pilot:latest` |
+| Repository | `ghcr.io/chrisk0007/expense-pilot:beta` |
 | Network | Bridge |
 | Web port | Host 8788 → container 8788 |
 | Appdata | `/mnt/user/appdata/expense-pilot/data` → `/data` |
@@ -117,7 +117,7 @@ When a tested image is published, use the normal Unraid Docker update controls t
 Do not run this at the same time as the Unraid template installation. Add this line to your generated `.env`:
 
 ```text
-IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4
+IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4-beta.2
 ```
 
 Then:
@@ -221,7 +221,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm the version in Settings matches the selected stable image (currently **1.0.4**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. If the package is private and pulling is denied, sign in again with `docker login ghcr.io -u YOUR_GITHUB_USERNAME`. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.4-beta.2**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 

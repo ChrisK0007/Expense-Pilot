@@ -8,7 +8,7 @@ Self-hosted expense tracking and invoicing for Australian sole traders and peopl
 
 **Stable Docker release: 1.0.4.** This release adds version-matched source/licence downloads and completes the current attribution and network-example cleanup. Rolling 30-day website sessions are retained. The optional iPhone app remains in testing and is not required to use Expense Pilot.
 
-This checkout is the stable channel; use the [installation guide](docs/public-release.md). Run beta separately with its own data volume.
+This checkout is the beta channel; use its [beta installation guide](docs/public-release.md) and a separate test data volume.
 
 ## Built with AI
 

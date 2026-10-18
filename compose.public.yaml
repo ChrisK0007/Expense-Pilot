@@ -2,7 +2,7 @@
 # Optional: set SETUP_TOKEN in .env for protected owner setup. Start: docker compose -f compose.public.yaml up -d
 services:
   expense-pilot:
-    image: ${IMAGE:-ghcr.io/chrisk0007/expense-pilot:latest}
+    image: ${IMAGE:-ghcr.io/chrisk0007/expense-pilot:beta}
     platform: linux/amd64
     restart: unless-stopped
     ports:

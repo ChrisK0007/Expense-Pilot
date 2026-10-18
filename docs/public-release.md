@@ -1,11 +1,11 @@
-# Stable installation and configuration — 1.0.4
+# Beta installation and configuration — 1.0.4-beta.2
 
-Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes stable 1.0.4, including the source/licence downloads tested in beta. Use the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) only for a separate testing installation. The iPhone app stays in testing; no App Store setup is needed to install the container.
+Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes beta 1.0.4-beta.2. Stable v1.0.4 includes this feature set; use the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) for stable image defaults. The iPhone app stays in testing; no App Store setup is needed to install the container.
 
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4` to pin this stable release.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.4-beta.2` to pin this beta release.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
@@ -37,7 +37,7 @@ In **Settings → Email delivery**, enable **Send me a copy of client emails** a
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.4 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.4-beta.2 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
