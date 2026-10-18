@@ -1,6 +1,14 @@
-# Beta development history
+# Beta changelog
 
-Historical prerelease notes, newest first. These changes were promoted into stable v1.0.1 and v1.0.2. Statements about the stable version describe the time of each entry. Use the [stable changelog](CHANGELOG.md), [current guide](guide.md) and [release channels](releases.md) for current instructions.
+Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
+
+## 1.0.6-beta.1 — Stable source packaging sync (2026-10-18)
+
+- Bring the v1.0.5 dependency source packaging, publication checks and documentation into beta.
+- Keep beta images separate from latest and use a distinct Unraid name, port and data folder.
+- No application database migration or iPhone release.
+
+Publication verification: [run 39089596737](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/39089596737) passed after correcting the browser test to wait for the invoice view before closing its dialog. Application behavior is unchanged by that test correction.
 
 ## 1.0.4-beta.2
 

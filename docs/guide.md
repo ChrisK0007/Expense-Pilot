@@ -1,8 +1,8 @@
-# Installation and operation
+# User guide and operations
 
 This branch documents **stable 1.0.5**. Beta 1.0.6-beta.1 remains available separately; see the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/guide.md) for beta installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
-For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md).
+For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
 ## Security and supported accounts
 
@@ -45,10 +45,6 @@ Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`
 Australian location data attribution and age are recorded in `server/datasets/README.md` and `server/datasets/LICENSE-au-suburbs.txt`. No external geocoding account, API key or receipt-location upload is needed. This lookup helps organise receipts; it does not decide overnight eligibility or tax deductibility.
 
 
-A self-hosted expense workspace for Australian employment and sole-trader records. Separate employment, business and personal spending, attach receipts, track overnight meals and give your tax agent access to all financial records.
-
-**This branch: stable 1.0.5; beta: 1.0.6-beta.1.** [PocketSmith bank feeds](pocketsmith.md) support transaction sync and expense matching. Bank exports can also be imported as CSV using a column preview and mapping. Receipt entry works with No AI, local/existing Ollama or an explicitly configured cloud provider; configure the mode in Settings. The database and receipt originals live in your Docker data volume. Optional services receive the data required for their configured functions; GitHub is not a backup of your workspace.
-
 ## Features
 
 - Client records, branded PDF invoices and quotes, payments and income exports.
@@ -68,15 +64,7 @@ The app records actual expenses, allocations and invoice payments. It calculates
 
 ## GitHub and Docker updates
 
-The workflow in `.github/workflows/docker.yml` builds the image and runs integration tests and real-browser workflow checks before publishing. A passing push to `main` publishes:
-
-```text
-ghcr.io/chrisk0007/expense-pilot:latest
-```
-
-The numbered image tag comes from `server/VERSION`; a Git release tag must match it (for example `v1.0.0`). A passing push to `beta` publishes `ghcr.io/chrisk0007/expense-pilot:beta` plus a prerelease tag such as `1.0.1-beta.1`, and never changes `latest`. Both channels have commit-derived image tags. Pull requests run checks without publishing. See [release channels](releases.md) for separate beta-container setup and the repository’s **Actions** tab for build status.
-
-Public images can be pulled without a GitHub account or registry token. Before the initial public launch, the maintainer's private installations still need their existing GHCR authentication.
+Use `:latest` for stable or `:beta` for a separate testing installation. Public images can be pulled without a GitHub account or registry token. Back up before updating, preserve the existing `/data` mount and refresh your browser afterwards. See [release channels and rollback](releases.md) for versioned images and upgrade guidance.
 
 ## First install on Unraid
 

@@ -2,7 +2,7 @@
 
 Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.5**. The iPhone app is versioned separately and remains in testing.
 
-Detailed beta changes are retained in the [beta development history](beta-changelog.md). Earlier internal development notes are archived separately and are not part of this stable release history.
+Prerelease changes are recorded separately in the [beta changelog](beta-changelog.md).
 
 ## v1.0 — Initial stable release
 
@@ -51,7 +51,7 @@ No database migration is added. If your old website session has already expired,
 - Use the maintainer's GitHub username in copyright notices and a generic local-network example in tests.
 - Add Source & licences links at login, in the sidebar and in Settings. Download the matching application source, build scripts, checksums and available dependency licence notices directly from the container.
 - Point installation/help links to the installed build revision or matching release channel.
-- Update release documentation and cleanup guidance. Repository/package visibility remains private; old Git history, images and the remaining dependency-source distribution checks are separate tasks.
+- Update release documentation and cleanup guidance. At the time of v1.0.4, repository/package visibility and dependency-source distribution were still release-preparation tasks.
 
 No database migration is added. Back up the existing data directory, update the image, keep the same `/data` mapping and refresh the browser. Existing settings, receipts and sessions are retained. The iPhone app remains in testing and is not updated by this release.
 
