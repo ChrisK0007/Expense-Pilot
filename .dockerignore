@@ -4,6 +4,7 @@
 !.env.example
 !LICENSE
 !COPYRIGHT
+!ca_profile.xml
 !THIRD_PARTY_NOTICES.md
 !*.md
 !compose*.yaml

@@ -12,6 +12,8 @@ FILES = {
     'third-party': ('THIRD_PARTY_NOTICES.md', 'text/plain'),
     'dependencies': ('dependency-notices.zip', 'application/zip'),
     'inventory': ('dependency-inventory.json', 'application/json'),
+    'dependency-sources': ('dependency-sources.zip', 'application/zip'),
+    'dependency-source-manifest': ('dependency-sources-manifest.json', 'application/json'),
 }
 
 
@@ -47,7 +49,7 @@ def register(app, version):
         path = directory() / filename
         if not path.is_file() or path.is_symlink():
             abort(503, description='This build does not contain the requested document.')
-        return send_file(path, mimetype=mime, as_attachment=document in ('source', 'dependencies'),
+        return send_file(path, mimetype=mime, as_attachment=document in ('source', 'dependencies', 'dependency-sources'),
                          download_name=f'expense-pilot-{version}-{filename}', conditional=True)
 
     @app.get('/help')

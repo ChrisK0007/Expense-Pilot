@@ -120,3 +120,9 @@ Historical prerelease notes, newest first. These changes were promoted into stab
 ## 1.0.1-beta.1
 
 - Start the beta development channel from the v1.0.0 feature set, with a prerelease version and isolated `beta` Docker tag.
+
+## v1.0.6-beta.1 — Stable source packaging sync (2026-10-18)
+
+- Bring the v1.0.5 dependency source packaging, publication checks and documentation into beta.
+- Keep beta images separate from latest and use a distinct Unraid name, port and data folder.
+- No application database migration or iPhone release.
