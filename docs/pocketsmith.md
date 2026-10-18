@@ -4,7 +4,7 @@ Available in stable Expense Pilot **1.0.2** and the beta channel. First included
 
 ## Connect
 
-1. Update within your chosen channel: beta uses `ghcr.io/chrisk0007/expense-pilot:beta` (or pin `:1.0.2-beta.13`); stable uses `:latest` (or `:1.0.2`). Keep that instance’s own `/data` directory and back it up first. Do not downgrade to an older database schema by changing only the image tag; restore a matching backup and image for rollback.
+1. Update within your chosen channel: beta uses `ghcr.io/chrisk0007/expense-pilot:beta` (or pin `:1.0.4-beta.2`); stable uses `:latest` (or `:1.0.4`). Keep that instance’s own `/data` directory and back it up first. Do not downgrade to an older database schema by changing only the image tag; restore a matching backup and image for rollback.
 2. Connect your banks and check their transactions in [PocketSmith](https://my.pocketsmith.com/). Your PocketSmith account needs access to the feeds you want to use.
 3. In PocketSmith, open **Settings → Security** and create a developer key for this installation.
 4. Sign in as the Expense Pilot owner, open **Settings → Bank feeds → Configure PocketSmith**, enter the key and select **Connect PocketSmith**.

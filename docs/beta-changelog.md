@@ -2,6 +2,24 @@
 
 Historical prerelease notes, newest first. These changes were promoted into stable v1.0.1 and v1.0.2. Statements about the stable version describe the time of each entry. Use the [stable changelog](CHANGELOG.md), [current guide](guide.md) and [release channels](releases.md) for current instructions.
 
+## 1.0.4-beta.2
+
+- Add source and licence links at login, in the sidebar and in Settings, with version-matched application source downloadable directly from the container.
+- Package build scripts, checksums, dependency versions and available third-party licence notices without workspace data or Git history.
+- Make installation/help links follow the installed build revision or release channel.
+- Refresh the release checklist and document pending GitHub history/image cleanup, repository settings and dependency-source distribution checks. Stable remains 1.0.3.
+
+## 1.0.4-beta.1
+
+- Use the maintainer’s GitHub username in project and container copyright notices.
+- Replace the local Ollama test address with a generic private network example. No application behaviour or database schema changes are included.
+
+## 1.0.3-beta.1
+
+- Bring the website session fix from stable v1.0.3 into beta: authenticated activity renews the browser cookie and server session for 30 days of inactivity instead of forcing sign-in after 12 hours.
+- Preserve expiry, logout, password/2FA revocation and account permissions; no database migration is added.
+- Include the approved AGPL licence/copyright and licence image metadata.
+
 ## 1.0.2-beta.13
 
 - Show split expense allocations as separate purple Employment and green Business badges, with capitalised labels, in expense tables and recent expenses.

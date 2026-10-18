@@ -6,7 +6,9 @@
 
 Self-hosted expense tracking and invoicing for Australian sole traders and people tracking employment expenses. Run the Docker container on your own server and use it in a browser.
 
-**Stable Docker release: 1.0.3.** This update fixes daily website sign-outs, following the features promoted in v1.0.2. The optional iPhone app remains in testing and is not required to use Expense Pilot.
+**Stable Docker release: 1.0.4.** This release adds version-matched source/licence downloads and completes the current attribution and network-example cleanup. Rolling 30-day website sessions are retained. The optional iPhone app remains in testing and is not required to use Expense Pilot.
+
+This checkout is the stable channel; use the [installation guide](docs/public-release.md). Run beta separately with its own data volume.
 
 ## Built with AI
 
@@ -28,8 +30,8 @@ Records live in the Docker data volume. Optional AI, bank feeds and email use th
 
 | Channel | Image | Documentation |
 | --- | --- | --- |
-| Stable — 1.0.3 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.3` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
-| Beta — 1.0.2-beta.13 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.2-beta.13` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+| Stable — 1.0.4 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.4` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md) |
+| Beta — 1.0.4-beta.2 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.4-beta.2` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
 
 Stable 1.0.2 includes in-app AI modes, an optional setup token, workspace timezones, budgets and full backup/account controls. Legacy Ollama environment settings remain supported until you save AI settings in the app. **Use the template and instructions from the same branch as your image.**
 
@@ -68,4 +70,4 @@ The iPhone companion is developed separately and remains in testing. Docker rele
 | `scripts/` | Setup, backup and release helpers |
 | `docs/` | Installation, operations and release documentation |
 
-Licensed under the [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`). Copyright (C) 2026 Christopher Kahwati. Third-party components retain their own licences; see [licensing and notices](docs/licensing.md). The separately maintained iPhone app is outside this repository licence.
+Licensed under the [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`). Copyright (C) 2026 ChrisK0007. Third-party components retain their own licences; see [licensing and notices](docs/licensing.md). The separately maintained iPhone app is outside this repository licence.

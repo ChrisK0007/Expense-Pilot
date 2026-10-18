@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Source code & licences · Expense Pilot</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><main class="content"><article class="card">
+<h1>Source code & licences</h1>
+<p>Expense Pilot {{ version }} · Copyright (C) 2026 ChrisK0007.</p>
+<p>Expense Pilot is free software under the GNU Affero General Public License, version 3 only. It is supplied without warranty.</p>
+{% if available %}
+<p><a class="button-link" href="/source">Download application source</a></p>
+<p>This archive contains the application source, build scripts and documentation included in this container. It does not contain your workspace records or credentials.</p>
+<ul>
+<li><a href="/legal/licence">AGPL-3.0 licence</a> and <a href="/legal/copyright">copyright notice</a></li>
+<li><a href="/legal/manifest">Source version and checksums</a></li>
+<li><a href="/legal/third-party">Third-party components</a></li>
+<li><a href="/legal/dependencies">Download dependency licence notices</a></li>
+<li><a href="/legal/inventory">Dependency versions and upstream source references</a></li>
+</ul>
+{% else %}
+<p>Source downloads are unavailable in this checkout. The standard Docker build includes them. Ask this installation's administrator for the source matching this version.</p>
+{% endif %}
+<p><a href="https://github.com/ChrisK0007/Expense-Pilot" rel="noopener">Project repository</a> · <a href="/privacy">Privacy & data</a> · <a href="/">Return to Expense Pilot</a></p>
+</article></main></body></html>
