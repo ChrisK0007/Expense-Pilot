@@ -1,0 +1,150 @@
+name: Test and publish Docker image
+on:
+  push:
+    branches: [main, beta]
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
+    tags: ['v*']
+  pull_request:
+    branches: [main, beta]
+    paths: ['server/**', 'tests/**', 'Dockerfile', '.dockerignore', 'LICENSE', 'COPYRIGHT', 'THIRD_PARTY_NOTICES.md', 'compose*.yaml', 'deploy/**', 'scripts/**', 'prepare.sh', 'backup.sh', '.github/workflows/docker.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Syntax checks
+        run: |
+          node --check server/static/workspace-time.js
+          node --check server/static/public-release.js
+          node --check server/static/app.js
+          node --check server/static/overnights.js
+          node --check server/static/bank-feeds.js
+          node --check server/static/billing.js
+          node --check server/static/billing-mail.js
+          node --check server/static/receipts.js
+          node --check server/static/finance.js
+          node --check server/static/workspace.js
+          node --check server/static/theme.js
+          node --check server/static/tracking.js
+          node --check server/static/security.js
+          node --check server/static/preferences.js
+          node --check server/static/planning.js
+          python -m compileall -q server tests
+          bash -n prepare.sh backup.sh scripts/prepare.sh scripts/backup.sh
+      - name: Release version
+        id: release
+        run: |
+          python -m unittest discover -s tests/release -v
+          python scripts/release_metadata.py
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r server/requirements.txt --progress-spinner off
+      - name: Build image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -t expense-pilot:test .
+      - name: Integration tests
+        run: docker run --rm --entrypoint python -v "$PWD/tests/server:/app/tests/server:ro" -v "$PWD/scripts:/app/scripts:ro" expense-pilot:test -m unittest discover -s tests/server -v
+      - name: Build and check optional push relay
+        run: |
+          docker build -t expense-pilot-relay:test deploy/push-relay
+          docker run --rm --entrypoint python -v "$PWD/tests/relay:/relay/tests:ro" expense-pilot-relay:test -m unittest discover -s tests -v
+      - name: Production startup smoke test
+        env:
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          docker run -d --name expense-pilot-production -p 127.0.0.1:8789:8788 expense-pilot:test
+          trap 'docker logs expense-pilot-production; docker rm -f expense-pilot-production' EXIT
+          python - <<'PYTHON'
+          import json, os, time, urllib.request
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8789/api/session', timeout=2) as response:
+                      result = json.load(response)
+                  assert result['version'] == os.environ['EXPECTED_VERSION'], result
+                  break
+              except (OSError, TimeoutError):
+                  time.sleep(1)
+          else:
+              raise SystemExit('Production server did not start')
+          PYTHON
+      - name: Browser workflow tests
+        id: browser
+        env:
+          UI_OUTPUT: ${{ runner.temp }}/expense-pilot-ui
+        run: |
+          npm install --prefix "$RUNNER_TEMP/expense-pilot-browser" playwright@1.62.1
+          node "$RUNNER_TEMP/expense-pilot-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_smoke.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_tracking.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_receipt_trip.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_security.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_splits.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_bank_feeds.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_beta_billing_cleanup.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_billing_controls.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_vehicle_logbook.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_planning.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_routing.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_public_release.cjs
+          docker run -d --name expense-pilot-onboarding --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8790:8788 -e SETUP_TOKEN= expense-pilot:test tests/browser_server.py
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_setup.cjs
+      - name: Container memory evidence
+        if: always() && steps.browser.outcome != 'skipped'
+        run: |
+          mkdir -p "$RUNNER_TEMP/expense-pilot-ui"
+          docker exec expense-pilot-ui cat /sys/fs/cgroup/memory.peak | tee "$RUNNER_TEMP/expense-pilot-ui/memory-peak-bytes.txt"
+          docker logs expense-pilot-ui > "$RUNNER_TEMP/expense-pilot-ui/server.log" 2>&1
+          docker inspect --format 'OOMKilled={{.State.OOMKilled}} Running={{.State.Running}}' expense-pilot-ui
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-evidence
+          path: ${{ runner.temp }}/expense-pilot-ui
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Image name
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ steps.release.outputs.version }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.moving_tag == 'latest' }}
+            type=raw,value=beta,enable=${{ steps.release.outputs.moving_tag == 'beta' }}
+            type=sha
+      - name: Log in to GitHub Container Registry
+        if: steps.release.outputs.publish == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested image
+        if: steps.release.outputs.publish == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          SOURCE: https://github.com/${{ github.repository }}
+        run: |
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              docker tag expense-pilot:test "$tag"
+              docker push "$tag"
+            fi
+          done <<< "$TAGS"

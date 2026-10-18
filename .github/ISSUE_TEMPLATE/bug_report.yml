@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible problem in the Docker server or browser interface.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Use synthetic examples. Do not upload receipts, backups, credentials or private financial records. For vulnerabilities, read SECURITY.md."
+  - type: input
+    id: version
+    attributes:
+      label: Expense Pilot version and image tag
+      placeholder: "1.0.2 / ghcr.io/chrisk0007/expense-pilot:1.0.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: Docker host
+      options:
+        - Unraid
+        - Linux
+        - Docker Desktop on Windows
+        - Docker Desktop on macOS
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser, host architecture and installation details
+      description: Include browser version, AMD64 or ARM/emulation, and fresh install or upgrade.
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the expected result and actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted error messages or screenshots
+      description: Read logs before sharing. Never paste full docker inspect output or environment variables.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, personal information and real financial data from this report.
+          required: true
