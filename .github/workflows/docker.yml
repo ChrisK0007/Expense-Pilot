@@ -117,7 +117,7 @@ jobs:
         with:
           name: browser-evidence
           path: ${{ runner.temp }}/expense-pilot-ui
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: ignore
       - name: Image name
         id: image
