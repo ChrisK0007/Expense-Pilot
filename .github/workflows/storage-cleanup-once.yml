@@ -1,0 +1,143 @@
+name: One-time Actions storage cleanup
+on:
+  push:
+    branches: [maintenance/actions-storage-20261023]
+    paths: [.github/workflows/storage-cleanup-once.yml]
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+concurrency:
+  group: actions-storage-cleanup-20261023
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_REPO: ChrisK0007/Expense-Pilot
+      ARTIFACT_MANIFEST: '[{"id":12125291367,"name":"browser-evidence","size_in_bytes":14463282,"created_at":"2026-10-18T04:32:57Z","run_id":39097036054,"digest":"sha256:c6f105e3ad4df9c16d532f7bdfa75ec6c7fe6e4ae438233f4a979663dac922bf"},{"id":12122052526,"name":"browser-evidence","size_in_bytes":2478107,"created_at":"2026-10-18T02:14:57Z","run_id":39088916309,"digest":"sha256:7934f8351c120c2dce70d409945cc0da18414c6c8cd8de69067bdbb58fff3b32"},{"id":12122315666,"name":"browser-evidence","size_in_bytes":14433897,"created_at":"2026-10-18T02:06:26Z","run_id":39088409266,"digest":"sha256:477b92d47dd90b24906da6fda6a04f1fc546f95671a116cdfdaf343d59534595"},{"id":12122121183,"name":"browser-evidence","size_in_bytes":14396309,"created_at":"2026-10-18T02:03:12Z","run_id":39088214224,"digest":"sha256:c6700c95886aed10376c79dbf0a19e769c86062b1a40c686c8462d7ab34644f8"},{"id":12119759099,"name":"browser-evidence","size_in_bytes":14398490,"created_at":"2026-10-18T00:49:46Z","run_id":39083800683,"digest":"sha256:0d910302d76a958613e739f71440a476a7f8fa5adce02937d5941aa15ce3c514"},{"id":12119168645,"name":"browser-evidence","size_in_bytes":14399229,"created_at":"2026-10-18T00:41:30Z","run_id":39083291401,"digest":"sha256:6b92e11919ae05efd449ea188fe6191399baa8baa395f78600dbdb60d0d3da26"},{"id":12119741079,"name":"browser-evidence","size_in_bytes":14426546,"created_at":"2026-10-18T00:26:27Z","run_id":39082371434,"digest":"sha256:8237bbc8ec8a7836cf98e30773582c68760d0caa40d5cf1d5b4f448e00ce5d97"},{"id":12119830492,"name":"browser-evidence","size_in_bytes":14483622,"created_at":"2026-10-18T00:18:54Z","run_id":39082026448,"digest":"sha256:84be451d460177f3660f59b66d1722467844599f7e7b83c41e3043b4a3fe5cf0"},{"id":12117668798,"name":"browser-evidence","size_in_bytes":14153893,"created_at":"2026-10-17T23:19:27Z","run_id":39078172216,"digest":"sha256:6cb410e43365dd8ce8c17a54f0733239d6d5c0cd5ca89bb209e97f807f5fc6cc"},{"id":12117837319,"name":"browser-evidence","size_in_bytes":14126357,"created_at":"2026-10-17T23:11:33Z","run_id":39077633123,"digest":"sha256:d8672483c50cbddc52d688fb5023bb136eb9baf5adb125462a4bfba4268d7cf0"},{"id":12117955698,"name":"browser-evidence","size_in_bytes":14074033,"created_at":"2026-10-17T23:09:28Z","run_id":39077624377,"digest":"sha256:f66d9e509b4834be925ac34aa19a9b15464b50523b025c86163d82b6dd971532"},{"id":12116812915,"name":"browser-evidence","size_in_bytes":14091943,"created_at":"2026-10-17T22:46:13Z","run_id":39076017007,"digest":"sha256:e8059a0d4406207ea15da85224d87b1917719a8c892fb97cf715beb4ac66d142"},{"id":12116139766,"name":"browser-evidence","size_in_bytes":14085641,"created_at":"2026-10-17T22:45:39Z","run_id":39076003001,"digest":"sha256:a2d6f7397d11364ab47323ceb600a8bffcb6c9d62037a7ba31ef24d18f88df00"},{"id":12115904202,"name":"browser-evidence","size_in_bytes":14119798,"created_at":"2026-10-17T22:32:48Z","run_id":39075087493,"digest":"sha256:9f2998c50115d78619897903c0bafb48e991ef855634139144abb6766d06006e"},{"id":12117070725,"name":"browser-evidence","size_in_bytes":14122463,"created_at":"2026-10-17T22:31:36Z","run_id":39074999832,"digest":"sha256:a1f7ecffb408f868cfb5a4a6305adfaae1cfed40301c9d7bbbe2bae4d059c3dc"},{"id":12085832829,"name":"browser-evidence","size_in_bytes":14117928,"created_at":"2026-10-17T02:12:55Z","run_id":38993632918,"digest":"sha256:3d7446c07fbc81d676deabd91d757ba11fdbaeaad11aa5182f201a3e9b41e8d5"},{"id":12085898447,"name":"browser-evidence","size_in_bytes":14104014,"created_at":"2026-10-17T02:06:09Z","run_id":38993283269,"digest":"sha256:a0ddd6e366e9f6a191f0f771e8f8105a98230a44c8356cb6b2a9f8c25f0e310e"},{"id":12081006399,"name":"browser-evidence","size_in_bytes":14164341,"created_at":"2026-10-16T23:15:23Z","run_id":38979861348,"digest":"sha256:7f61dfc95c73219085cc18e31682f4bd211242d43633a8529770ec1c745f9edb"},{"id":12080761357,"name":"browser-evidence","size_in_bytes":14137881,"created_at":"2026-10-16T23:08:36Z","run_id":38979259416,"digest":"sha256:170ca2e03ffdcee63675e2e17ae0f061f442c13839dbdd563a5c9d7ac7a42d89"},{"id":12079058200,"name":"browser-evidence","size_in_bytes":14122112,"created_at":"2026-10-16T22:40:27Z","run_id":38976548802,"digest":"sha256:f385596c4ebc0882b747a8c35f5855b6c3dc8cdbddfff70c402e107f80b41855"},{"id":12079515080,"name":"browser-evidence","size_in_bytes":14113348,"created_at":"2026-10-16T22:33:31Z","run_id":38975986455,"digest":"sha256:93bd4494fcc88c6e79dea2b0e61d1f902596776d9eb79ac658c6cfa3a65fb481"},{"id":12077039069,"name":"browser-evidence","size_in_bytes":13969067,"created_at":"2026-10-16T21:57:46Z","run_id":38972349444,"digest":"sha256:c6ce41ea060eee8d487bc31499008d82f9cb6f5fa0188e42aecc81e26cc6c569"},{"id":12076269927,"name":"browser-evidence","size_in_bytes":14054708,"created_at":"2026-10-16T21:50:25Z","run_id":38971298788,"digest":"sha256:eb821691a5b5bdf879e652941747b554d766831ff15ba7052022075e76c618e2"},{"id":12076488102,"name":"browser-evidence","size_in_bytes":14015989,"created_at":"2026-10-16T21:46:00Z","run_id":38970782288,"digest":"sha256:4a826ca2daa1c4ede353dcd2e25aca58a7a7bf40a494d1748b9828c09d77ef46"}]'
+      PRESERVE_ARTIFACT_IDS: '[12125242469,12122616239,12122032404,12121174490]'
+    steps:
+      - name: Delete reviewed obsolete diagnostics and unused caches
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, urllib.request, urllib.error
+          from datetime import datetime, timezone, timedelta
+          
+          repo = os.environ["GITHUB_REPOSITORY"]
+          expected_repo = os.environ["EXPECTED_REPO"]
+          assert repo == expected_repo, "Repository mismatch"
+          token = os.environ["GH_TOKEN"]
+          base = "https://api.github.com/repos/" + repo + "/"
+          headers = {"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+          
+          def api(path, method="GET"):
+              assert not path.startswith("/") and "://" not in path
+              request = urllib.request.Request(base + path, headers=headers, method=method)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  data = response.read()
+                  return json.loads(data) if data else None
+          
+          def pages(path, key=None):
+              result = []
+              for page in range(1, 101):
+                  separator = "&" if "?" in path else "?"
+                  data = api(path + separator + "per_page=100&page=" + str(page))
+                  items = data[key] if key else data
+                  result.extend(items)
+                  if len(items) < 100:
+                      return result
+              raise RuntimeError("Pagination limit reached; refusing incomplete inventory")
+          
+          def time(value):
+              return datetime.fromisoformat(value.replace("Z", "+00:00"))
+          
+          def emit(event, **data):
+              print("STORAGE_CLEANUP " + json.dumps({"event": event, **data}, separators=(",", ":")), flush=True)
+          
+          manifest = json.loads(os.environ["ARTIFACT_MANIFEST"])
+          preserve_ids = set(json.loads(os.environ["PRESERVE_ARTIFACT_IDS"]))
+          allowed = {"browser-evidence", "iphone-build-evidence", "iphone-release-configuration-evidence"}
+          cutoff = time("2026-10-20T10:00:00Z")
+          artifacts = pages("actions/artifacts", "artifacts")
+          caches = pages("actions/caches", "actions_caches")
+          branches = {item["name"] for item in pages("branches")}
+          open_prs = {item["number"] for item in pages("pulls?state=open")}
+          runs = pages("actions/runs", "workflow_runs")
+          run_map = {item["id"]: item for item in runs}
+          active_other_runs = [run["id"] for run in runs if run["status"] != "completed" and str(run["id"]) != os.environ["GITHUB_RUN_ID"]]
+          by_id = {item["id"]: item for item in artifacts}
+          planned = []
+          for expected in manifest:
+              assert expected["id"] not in preserve_ids
+              artifact = by_id.get(expected["id"])
+              if not artifact:
+                  emit("already_absent", id=expected["id"])
+                  continue
+              for field in ("id", "name", "size_in_bytes", "created_at", "digest"):
+                  assert artifact.get(field) == expected.get(field), "Artifact changed: " + str(expected["id"])
+              assert artifact["name"] in allowed
+              assert time(artifact["created_at"]) < cutoff
+              assert artifact["workflow_run"]["id"] == expected["run_id"]
+              run = run_map[expected["run_id"]]
+              assert run["status"] == "completed" and run["event"] in ("push", "pull_request", "workflow_dispatch")
+              assert not str(run["head_branch"]).startswith("v")
+              planned.append(artifact)
+          
+          # Only caches belonging to closed pull requests or deleted branches are eligible.
+          # Keep every live-branch cache and anything accessed or created within seven days.
+          cache_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+          planned_caches = []
+          for cache in caches:
+              ref = cache.get("ref", "")
+              obsolete_ref = False
+              if ref.startswith("refs/pull/") and ref.endswith("/merge"):
+                  number = int(ref.split("/")[2])
+                  obsolete_ref = number not in open_prs
+              elif ref.startswith("refs/heads/"):
+                  obsolete_ref = ref[len("refs/heads/"):] not in branches
+              if not active_other_runs and obsolete_ref and time(cache["created_at"]) < cache_cutoff and time(cache["last_accessed_at"]) < cache_cutoff:
+                  planned_caches.append(cache)
+          
+          def total(items):
+              return sum(item["size_in_bytes"] for item in items)
+          
+          emit("before", repository=repo, artifact_count=len(artifacts), artifact_bytes=total(artifacts), cache_count=len(caches), cache_bytes=total(caches), delete_artifact_count=len(planned), delete_artifact_bytes=total(planned), delete_cache_count=len(planned_caches), delete_cache_bytes=total(planned_caches), active_other_runs=active_other_runs)
+          for cache in caches:
+              emit("cache_inventory", **cache)
+          
+          deleted = []
+          deleted_caches = []
+          try:
+              for artifact in planned:
+                  api("actions/artifacts/" + str(artifact["id"]), "DELETE")
+                  deleted.append(artifact)
+                  emit("deleted_artifact", id=artifact["id"], name=artifact["name"], size_in_bytes=artifact["size_in_bytes"], run_id=artifact["workflow_run"]["id"], created_at=artifact["created_at"])
+              for cache in planned_caches:
+                  # Recheck access immediately before deleting a cache.
+                  current = next((item for item in pages("actions/caches", "actions_caches") if item["id"] == cache["id"]), None)
+                  if current and current["last_accessed_at"] == cache["last_accessed_at"]:
+                      api("actions/caches/" + str(cache["id"]), "DELETE")
+                      deleted_caches.append(cache)
+                      emit("deleted_cache", **cache)
+          finally:
+              after_artifacts = pages("actions/artifacts", "artifacts")
+              after_caches = pages("actions/caches", "actions_caches")
+              after_ids = {item["id"] for item in after_artifacts}
+              deleted_ids = {item["id"] for item in deleted}
+              assert not after_ids.intersection(deleted_ids), "A deleted artifact is still listed"
+              originally_present_preserved = preserve_ids.intersection(by_id)
+              assert originally_present_preserved.issubset(after_ids), "A protected artifact disappeared during cleanup"
+              report = {"repository": repo, "deleted_artifacts": len(deleted), "deleted_artifact_bytes": total(deleted), "deleted_caches": len(deleted_caches), "deleted_cache_bytes": total(deleted_caches), "remaining_artifacts": len(after_artifacts), "remaining_artifact_bytes": total(after_artifacts), "remaining_caches": len(after_caches), "remaining_cache_bytes": total(after_caches), "protected_artifacts_verified": len(originally_present_preserved)}
+              emit("after", **report)
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+                  output.write("# Actions storage cleanup\n\n")
+                  output.write("| Result | Value |\n|---|---:|\n")
+                  for key, value in report.items():
+                      output.write("| " + key + " | " + str(value) + " |\n")
+                  output.write("\nOnly the explicit diagnostic artifact list and stale caches for closed PRs/deleted branches were eligible. Source code, packages, releases and workflow-run logs were untouched.\n")
+          
+          PYTHON
