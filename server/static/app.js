@@ -35,8 +35,8 @@ async function api(path,body,method='POST',{timeoutMs=0}={}){
  if(body!==undefined){if(body instanceof FormData)init.body=body;else{init.headers['Content-Type']='application/json';init.body=JSON.stringify(body);}}
  const timer=timeoutMs?setTimeout(()=>controller.abort(),timeoutMs):null;
  try{
-  const r=await fetch('/api/'+path,init);let d;
-  try{d=JSON.parse(await r.text());}catch{
+  const r=await fetch('/api/'+path,init),raw=await r.text();let d;
+  try{d=JSON.parse(raw);}catch{
    const recovery=path==='receipts'||path.startsWith('receipts/')?'Check the saved document in Document inbox before retrying.':'Check whether your changes were saved before retrying.';
    const message=[408,504,524].includes(r.status)?'The connection timed out. '+recovery:r.status===413?'The server rejected the upload size. Use a smaller file.':`The server returned an unexpected response (HTTP ${r.status}). ${recovery}`;
    const error=Error(message);error.status=r.status;error.transient=[408,502,503,504,520,522,524].includes(r.status);throw error;
