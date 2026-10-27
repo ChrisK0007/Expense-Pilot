@@ -29,7 +29,7 @@ window.addEventListener('hashchange',restorePage);
 const scopeName=s=>({work:'Employment',business:'Business',personal:'Personal',split:'Split'}[s]||s);
 const allocated=(e,scope='all')=>{const a=Splits.amounts(e);return scope==='work'?a.work:scope==='business'?a.business:scope==='personal'?0:a.work+a.business;};
 function toast(t){$('#toast').textContent=t;$('#toast').style.display='block';setTimeout(()=>$('#toast').style.display='none',5500)}
-async function api(path,body,method='POST'){const init={method:body===undefined?'GET':method,headers:{'X-CSRF-Token':S.csrf||''}};if(body!==undefined){if(body instanceof FormData)init.body=body;else{init.headers['Content-Type']='application/json';init.body=JSON.stringify(body)}}const r=await fetch('/api/'+path,init);const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+async function api(path,body,method='POST'){const init={method:body===undefined?'GET':method,headers:{'X-CSRF-Token':S.csrf||''}};if(body!==undefined){if(body instanceof FormData)init.body=body;else{init.headers['Content-Type']='application/json';init.body=JSON.stringify(body)}}const r=await fetch('/api/'+path,init);const d=await r.json();if(!r.ok){const error=Error(d.error||'Request failed');error.status=r.status;throw error}return d}
 function bind(id,fn){const el=$(id);if(el)el.addEventListener('click',fn)}
 function dateAU(value){return String(value??'').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1');}
 function dateISO(value){

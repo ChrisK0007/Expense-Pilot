@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -31,7 +32,7 @@ class HomeOfficeTests(unittest.TestCase):
     def method(self, method='fixed', year=2026, **changes):
         payload = dict(version=self.annual(year)['settings']['version'], method=method,
                        eligible=True, hours_complete=True, costs_complete=True,
-                       actual_complete=True, incurred_types=['phone','internet'])
+                       incurred_types=['phone','internet'])
         payload.update(changes)
         response = self.call(self.owner, f'home-office/{year}/settings', payload, 'PUT')
         self.assertEqual(response.status_code, 200, response.json)
@@ -65,15 +66,64 @@ class HomeOfficeTests(unittest.TestCase):
         self.assertEqual(original['amount_cents'],10000)
         self.assertEqual((original['work_percent'],original['business_percent']),(60,40))
 
-    def test_actual_cost_method_and_none_do_not_add_hourly_amounts(self):
+    def test_actual_cost_requests_are_rejected_and_disabled_claim_preserves_ordinary_expenses(self):
         self.bill();self.diary()
-        self.method('actual')
+        response=self.call(self.owner,'home-office/2026/settings',dict(version=0,method='actual'),'PUT')
+        self.assertEqual(response.status_code,400)
+        self.method('none')
         tax=self.owner.get('/api/tax/2026').json
         self.assertEqual(tax['recorded']['work_deductions_cents'],6000)
         self.assertEqual(tax['recorded']['business_deductions_cents'],4000)
         self.assertEqual(tax['home_office']['hourly'],dict(work=0,business=0))
-        self.method('none')
-        self.assertEqual(self.owner.get('/api/tax/2026').json['recorded'],tax['recorded'])
+
+    def test_legacy_actual_cost_election_stays_pending_without_mutating_saved_records(self):
+        self.bill();self.diary()
+        legacy=dict(method='actual',eligible=True,hours_complete=True,costs_complete=True,
+                    actual_complete=True,incurred_types=['phone','internet'],standard_other_cents=234)
+        with app.app_context():
+            uid=db().execute("SELECT id FROM users WHERE role='owner'").fetchone()[0]
+            db().execute('INSERT INTO home_office_settings(user_id,year,data) VALUES (?,2026,?)',(uid,json.dumps(legacy)));db().commit()
+        annual=self.annual()
+        self.assertTrue(annual['settings']['needs_fixed_review']);self.assertFalse(annual['active'])
+        self.assertNotIn('actual',annual);self.assertNotIn('standard_comparison',annual)
+        tax=self.owner.get('/api/tax/2026').json
+        self.assertEqual(tax['recorded']['work_deductions_cents'],0)
+        with app.app_context():
+            self.assertEqual(json.loads(db().execute('SELECT data FROM home_office_settings').fetchone()[0]),legacy)
+        self.assertTrue(self.method()['active'])
+        self.assertFalse(self.annual()['settings']['needs_fixed_review'])
+        history=self.owner.get('/api/home-office/history').json
+        self.assertEqual(json.loads(history[0]['before_json'])['method'],'actual')
+        self.assertEqual(json.loads(history[0]['before_json'])['standard_other_cents'],234)
+
+    def test_fixed_rate_evidence_needs_neither_allocations_nor_apportionment_notes(self):
+        eid=self.bill(work_percent=0,business_percent=0);self.diary()
+        response=self.call(self.owner,f'home-office/costs/{eid}',dict(version=1,kind='phone_internet',basis=''),'PUT')
+        self.assertEqual(response.status_code,200)
+        annual=self.method();self.assertTrue(annual['active'])
+        self.assertEqual(self.owner.get('/api/tax/2026').json['recorded']['work_deductions_cents'],560)
+        with app.app_context():
+            # A retired actual-cost assessment on a covered bill cannot block hours.
+            db().execute('UPDATE home_office_costs SET claim_base_cents=999999 WHERE expense_id=?',(eid,));db().commit()
+        self.assertTrue(self.annual()['active'])
+
+    def test_new_bill_evidence_is_atomic_idempotent_and_not_a_separate_deduction(self):
+        image=io.BytesIO();Image.new('RGB',(8,8),'orange').save(image,'PNG');image.seek(0)
+        receipt=self.owner.post('/api/receipts',data={'file':(image,'power.png')},headers={'X-CSRF-Token':self.owner.get('/api/session').json['csrf']}).json['id']
+        data=dict(date='2026-10-08',merchant='Power supplier',amount='100',kind='electricity',receipt_id=receipt,
+                  client_ref=str(uuid.uuid4()),personally_paid=True)
+        bad=self.call(self.owner,'home-office/bills',dict(data,personally_paid=False))
+        self.assertEqual(bad.status_code,400)
+        self.assertEqual(self.owner.get('/api/expenses').json,[])
+        response=self.call(self.owner,'home-office/bills',data)
+        self.assertEqual(response.status_code,200,response.json)
+        self.assertEqual(self.call(self.owner,'home-office/bills',data).json['id'],response.json['id'])
+        self.assertEqual(self.call(self.owner,'home-office/bills',dict(data,amount='200')).status_code,409)
+        self.assertEqual(self.call(self.agent,'home-office/bills',data).status_code,403)
+        records=self.owner.get('/api/expenses').json;self.assertEqual(len(records),1)
+        self.assertEqual((records[0]['work_percent'],records[0]['business_percent']),(0,0))
+        self.diary();self.assertTrue(self.method(incurred_types=['electricity'])['active'])
+        self.assertEqual(self.owner.get('/api/tax/2026').json['recorded']['work_deductions_cents'],560)
 
     def test_incomplete_evidence_holds_claim_pending_until_explicit_completion(self):
         self.bill();self.diary()
@@ -86,7 +136,7 @@ class HomeOfficeTests(unittest.TestCase):
         self.bill(reimbursed=True);self.diary()
         annual=self.method()
         self.assertFalse(annual['active'])
-        self.assertEqual(annual['actual'],dict(work=0,business=0))
+        self.assertEqual(annual['extras'],dict(work=0,business=0))
         self.assertTrue(any('Attach a bill' in issue for issue in annual['fixed_issues']))
 
     def test_equipment_uses_assessed_amount_and_changed_bill_requires_review(self):

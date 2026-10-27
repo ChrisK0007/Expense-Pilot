@@ -1,36 +1,35 @@
-# Home office in the beta
+# Fixed-rate home office in the beta
 
-Open **Tracking → Home office** and choose the financial year.
+Open **Tracking → Home office** and choose the financial year. Home office supports the fixed-rate method only.
 
-1. Use **Log hours** for actual home-working sessions. Choose Employment or Business, record the activity and start/finish times, and subtract breaks. Times use your workspace timezone. Split work crossing midnight into two dates; `24:00` closes the first day. The diary rejects overlaps across both workspaces.
-2. Keep bills and receipts in **Expenses**, with the correct employment/business percentages and reimbursement status. Use **Link a bill** to confirm each cost type and explain the work/private calculation. Automatic Phone & internet detection prevents double counting, but you must confirm the bill type before it counts as evidence.
-3. Open **Annual method & records** to choose fixed rate or actual costs and review the evidence confirmations. The choice covers both workspaces for that year. The comparison shows estimates; only a complete selected method enters the recorded tax forecast.
-4. Record any **Employer allowances**. Leave “Already included in gross pay” checked when your Employment income total already includes the allowance. Otherwise the allowance is added once. An annual salary override replaces the complete recorded salary total.
-5. Download **Home-office CSV** for your tax agent. It includes the diary, original bills, assessed amounts, forecast treatment, allowances and edit history. A full application backup also retains the records and receipt files.
+1. **Log hours:** choose Employment or Business, describe the work, record start/finish times and subtract breaks. Times use your workspace timezone. Split work crossing midnight into two dates; `24:00` closes the first day. Overlapping sessions across either workspace are rejected.
+2. **Bills & receipts:** use **Add bill evidence** to attach a bill or receipt and enter its supplier, date, amount and cost type. No work-use percentages are needed. Confirm you personally incurred the cost and it was not reimbursed. If the bill is already in Expenses, use **Link a bill** instead of adding it again. Confirm automatically identified Phone & internet bills before using them as evidence.
+3. **Set up claim:** enable the fixed-rate claim, review the eligibility/hours/bills confirmations and select the running-cost types you personally incurred. Keep at least one bill or receipt for each selected type. Save now and finish missing checks later. **Pending** means no home-office deduction is included yet; **Included in tax forecast** means the record checks are complete.
+4. **Allowances** is optional. Leave “Already included in gross pay” checked when your Employment income includes the allowance. Otherwise it is added once. An annual salary override replaces the complete recorded salary total.
+5. **Download logbook PDF** creates a financial-year report with a summary, monthly employment/business totals, hours diary, breaks, work notes, logged/updated timestamps and bill checklist. **Export CSV** retains the detailed calculations, allowances and full relevant edit history. Full backups also retain receipt originals.
 
-## Calculation and evidence
+## Bill evidence and the deduction
 
-The ATO fixed rate is 67c for FY 2022–23 and 2023–24, and 70c from 1 July 2024 under [PCG 2023/1](https://www.ato.gov.au/law/view/document?DocID=COG/PCG20231/NAT/ATO/00001). This beta enables reviewed rates through FY 2026–27. Later years need a rule update.
+The ATO fixed rate is 67c for FY 2022–23 and 2023–24, and 70c from 1 July 2024 under [PCG 2023/1](https://www.ato.gov.au/law/view/document?DocID=COG/PCG20231/NAT/ATO/00001). Reviewed rates are enabled through FY 2026–27; later years need a rule update.
 
-The fixed rate covers energy, phone usage, internet, stationery and computer consumables, including work phone use away from home. Keep actual hours and a bill for each cost type incurred. The application retains when diary entries were created/changed; entering old hours now does not itself establish contemporaneous records.
+The rate covers energy, phone usage, internet, stationery and computer consumables, including work phone use away from home. Your recorded hours determine the deduction, not a percentage of these bills. Classify covered bills already recorded in Expenses so they are excluded from separate forecast deductions.
 
-Actual costs need evidence and reasonable apportionment. Equipment/depreciation and occupancy require an explicitly assessed annual amount; purchase cost is not automatically the deduction. Occupancy eligibility, personal services income and potential CGT effects need review. Reimbursements are excluded. Keep separately evidenced portions for partly reimbursed bills.
+**Add bill evidence** saves the full bill as a personal/unallocated expense (0% employment and 0% business), with a note that it supports fixed-rate hours. It still counts as evidence. Linking an existing expense does not change its amount or percentages. Ordinary spending reports retain those original allocations; the tax forecast applies the fixed-rate adjustment once.
 
-The optional [employee standard-deduction comparison](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/work-related-deductions/standard-deduction-for-work-related-expenses) is indicative and stays outside the forecast. Relevant deductions already claimed reduce the remaining amount; eligibility and income limits still need checking. It is not added to itemised deductions automatically.
+Separate deductions outside the hourly rate, such as eligible equipment depreciation, still need their own evidence and use calculation. Their assessment fields appear only when a non-covered cost type is selected. Equipment/occupancy require an explicitly assessed annual amount and confirmation; purchase cost is not automatically the deduction. The beta does not calculate depreciation schedules, GST credits or BAS.
 
-These are deduction estimates, not refunds or a lodged return. The beta does not calculate depreciation schedules, GST credits or BAS. Original spending reports retain the original allocations; use the home-office export to review the adjustments. Changing the annual method to “Not selected” restores ordinary expense treatment, so review the forecast after changing it.
+Log sessions as they occur. Creation/update timestamps remain in the diary and PDF; entering old hours later does not establish contemporaneous evidence. Figures are deduction estimates, not refunds or a lodged return.
 
-## Updating and restoring
+## Existing records and updates
 
-Back up before installing this beta. Migration m020 adds five tables and retains existing records. Keep the pre-update backup: an older application image rejects the new migration and requires restoration of its matching backup to roll back.
+The fixed-rate-only update adds no migration and keeps all hours, bills, allowances and history. A year previously set to actual costs is held pending until you review and save the fixed-rate claim checks. Its stored old settings remain unchanged until then and are retained in edit history when replaced.
 
-## Finding your records
+Turning off the fixed-rate claim restores ordinary expense treatment; review the forecast after doing so. New evidence-only bills remain unallocated. Back up before updating, keep the same data mount, and refresh the browser afterwards.
 
-The overview shows hours recorded and the deduction actually included in the forecast. **Not set up** means no method is selected; **Pending** means the selected method still needs checks or evidence. Potential comparison figures are kept under **Claim → Compare fixed rate and actual costs**.
+## Mileage reports
 
-- **Hours:** log and edit actual sessions, separately for employment and business.
-- **Bills & receipts:** link existing expenses, confirm automatically identified phone/internet bills and record their use.
-- **Claim:** see outstanding checks, compare methods and open detailed tax guidance. **Set up claim / Review claim settings** shows only confirmations relevant to the selected method.
-- **Allowances:** optional employer payments, with an explicit gross-pay inclusion choice.
+Open **Tracking → Vehicles → Download mileage PDF**. Choose one vehicle, start/end dates and the journey workspace (or all workspaces). The page's text search is not applied to the report. Leave the reimbursement rate blank for a distance-only report, or enter the agreed AUD rate per kilometre.
 
-Your last view is remembered in the current browser tab. Financial-year selection, CSV export and edit history remain available above the records. Tax forecast also shows a short method/status note, with the calculation explanation expandable underneath. Calculations and evidence requirements are unchanged.
+The PDF includes a summary by employment, business and personal use, then monthly journey details. Employment/business distances use the saved journey use percentage; the remainder is personal. Reimbursement estimates use those allocated kilometres and are rounded per journey. They do not set an ATO tax rate, apply annual kilometre limits or change the tax forecast.
+
+Only recorded journey odometer readings are printed. Missing readings are labelled **Not recorded** rather than inferred from GPS. Only journeys already uploaded to the server are included. Existing journey CSV export remains available.
