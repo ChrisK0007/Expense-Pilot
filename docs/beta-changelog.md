@@ -2,6 +2,14 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.4 — Clearer home office and verified automatic backups (2026-10-27)
+
+- Replace the long Home office dashboard with a compact claim/hour summary and separate Hours, Bills & receipts, Claim and Allowances views. Remember the selected view on reload. Keep method comparisons and optional tax guidance expandable; only show the checks for the selected method in claim settings. Preserve calculations, records, permissions and existing migrations.
+- Add nightly automatic backups at 02:30 workspace time, keeping seven (`BACKUP_TIME`, `BACKUP_KEEP`; zero disables). Verify the database snapshot and read every completed ZIP member back against its checksum before rotating older backups. Pin receipt originals before releasing the brief database reservation; compression runs without a write lock. Isolate archives by a local installation ID. Settings → Data & privacy shows the last result and offers **Back up now**.
+- Add opt-in `TRUSTED_PROXIES` for per-visitor sign-in limits behind a verified reverse proxy. Default behaviour stays unchanged; trust exact proxy addresses and restrict direct access before enabling.
+- Reuse Docker cache metadata carried in the published beta image, without creating an Actions cache or additional build artifacts. Refresh dependency layers on the first build each UTC day and pull the current base; stable builds remain uncached.
+- Keep dependency source archives bundled with the application. No FUSE/storage warnings, repository-wide reformat or new database migration in this release.
+
 ## 1.0.6-beta.3 — Home office (2026-10-27)
 
 - Add Home office under Tracking, with separate employment and sole-trader hours, breaks, workspace timezone and an edit history. Reject overlapping sessions, stale edits and accidental duplicate retries.

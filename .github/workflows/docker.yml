@@ -56,8 +56,35 @@ jobs:
         run: |
           python -m pip install pip-audit
           pip-audit -r server/requirements.txt --progress-spinner off
+      - name: Build cache policy
+        id: cache
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "refresh=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_BASE_REF" == "main" ]]; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "from=type=registry,ref=ghcr.io/${REPOSITORY,,}:beta" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@v4
       - name: Build image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -t expense-pilot:test .
+        uses: docker/build-push-action@v7
+        env:
+          # Keep existing three-day browser evidence; no extra Actions build artifacts.
+          DOCKER_BUILD_RECORD_UPLOAD: 'false'
+        with:
+          context: .
+          load: true
+          pull: true
+          no-cache: ${{ steps.cache.outputs.fresh == 'true' }}
+          tags: expense-pilot:test
+          build-args: |
+            SOURCE_REVISION=${{ github.sha }}
+            DEPENDENCY_REFRESH=${{ steps.cache.outputs.refresh }}
+          cache-from: ${{ steps.cache.outputs.from }}
+          cache-to: type=inline
       - name: Integration tests
         run: docker run --rm --entrypoint python -v "$PWD/tests/server:/app/tests/server:ro" -v "$PWD/scripts:/app/scripts:ro" expense-pilot:test -m unittest discover -s tests/server -v
       - name: Build and check optional push relay

@@ -5,6 +5,7 @@ ARG SOURCE_REVISION=unknown
 RUN python scripts/package_source.py /source /out --revision "$SOURCE_REVISION"
 
 FROM python:3.12-slim AS sqlite-build
+ARG DEPENDENCY_REFRESH=manual
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 COPY scripts/build_sqlite.py /build_sqlite.py
 RUN python /build_sqlite.py --output /opt/sqlite
@@ -14,6 +15,7 @@ LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DATA_DIR=/data
 COPY --from=sqlite-build /opt/sqlite/ /opt/sqlite/
 ENV LD_LIBRARY_PATH=/opt/sqlite/lib
+ARG DEPENDENCY_REFRESH=manual
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends poppler-utils fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 COPY server/healthcheck.py /tmp/healthcheck.py
 RUN python -c "import sys; sys.path.insert(0, '/tmp'); from healthcheck import check_runtime; print('Python SQLite:', check_runtime())" && rm /tmp/healthcheck.py

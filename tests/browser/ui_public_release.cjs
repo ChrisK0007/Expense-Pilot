@@ -20,6 +20,8 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   assert.equal(await page.locator('#settings-business #mail-settings').count(),1);
   assert.equal(await page.locator('#settings-security #manage-tax-agents').count(),1);
   assert.equal(await page.locator('#settings-data #full-backup').count(),1);
+  await page.locator('#settings-data').getByText('Automatic backups on',{exact:true}).waitFor();
+  assert.equal(await page.locator('#settings-data #auto-backup-now').count(),1);
   assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
   await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Data & privacy',exact:true}).click();
   assert.equal(await page.evaluate(()=>document.activeElement.id),'settings-title-data');

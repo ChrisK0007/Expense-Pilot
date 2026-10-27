@@ -1,12 +1,8 @@
 """Public-client discovery, onboarding and explicit data lifecycle controls."""
-import hashlib
-import json
 import os
 import sqlite3
 import tempfile
 import uuid
-import zipfile
-from pathlib import Path
 from flask import Response, g, jsonify, request, session
 
 
@@ -62,27 +58,13 @@ def register(app, auth):
         db().execute('BEGIN IMMEDIATE'); reauthenticate()
         # Consume a recovery code before snapshotting through the read connection.
         # The archive must not restore a recovery code already used for this backup.
-        db().commit(); db().execute('BEGIN IMMEDIATE')
+        db().commit()
         archive = tempfile.TemporaryFile()
         try:
-            with tempfile.TemporaryDirectory() as directory:
-                snapshot = Path(directory)/'rounded.sqlite'
-                # A separate read connection observes the last committed state
-                # while the write reservation prevents concurrent file deletion.
-                source = sqlite3.connect(DATA/'rounded.sqlite')
-                target = sqlite3.connect(snapshot)
-                try: source.backup(target)
-                finally: source.close(); target.close()
-                checksums = {}
-                with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as zipped:
-                    files = [('rounded.sqlite', snapshot), ('session.key', DATA/'session.key')]
-                    files += [('receipts/'+x['id'], DATA/'receipts'/x['id']) for x in rows('SELECT id FROM receipts')]
-                    for name, path in files:
-                        digest = hashlib.sha256()
-                        with path.open('rb') as source, zipped.open('data/'+name, 'w') as out:
-                            for chunk in iter(lambda: source.read(1024*1024), b''): digest.update(chunk); out.write(chunk)
-                        checksums['data/'+name] = digest.hexdigest()
-                    zipped.writestr('manifest.json', json.dumps(dict(format=1, product='Expense Pilot', version=VERSION, sha256=checksums)))
+            # Snapshot and pin receipts briefly; compression runs without a database write lock.
+            # Same format as automatic backups; a damaged database is still exported here.
+            from auto_backup import write_archive
+            write_archive(archive, DATA, VERSION)
             save_settings('release_setup', {'backup_downloaded': True}); audit('workspace backup downloaded', 'workspace'); db().commit()
         except Exception:
             archive.close(); db().rollback(); fail('Could not create a complete backup. Check server storage and receipt files.', 503)
