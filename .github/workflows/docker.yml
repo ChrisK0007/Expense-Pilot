@@ -42,6 +42,7 @@ jobs:
           node --check server/static/preferences.js
           node --check server/static/planning.js
           node --check server/static/home-office.js
+          node --check server/static/documents.js
           python -m compileall -q server tests
           bash -n prepare.sh backup.sh scripts/prepare.sh scripts/backup.sh
       - name: Release version

@@ -22,7 +22,7 @@ Log sessions as they occur. Creation/update timestamps remain in the diary and P
 
 ## Existing records and updates
 
-The fixed-rate-only update adds no migration and keeps all hours, bills, allowances and history. A year previously set to actual costs is held pending until you review and save the fixed-rate claim checks. Its stored old settings remain unchanged until then and are retained in edit history when replaced.
+The fixed-rate-only calculation change keeps all hours, bills, allowances and history. This beta also adds migration m021 for the Documents repository; the twenty earlier migrations are unchanged. A year previously set to actual costs is held pending until you review and save the fixed-rate claim checks. Its stored old settings remain unchanged until then and are retained in edit history when replaced.
 
 Turning off the fixed-rate claim restores ordinary expense treatment; review the forecast after doing so. New evidence-only bills remain unallocated. Back up before updating, keep the same data mount, and refresh the browser afterwards.
 

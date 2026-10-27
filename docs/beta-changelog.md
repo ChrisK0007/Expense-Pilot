@@ -2,13 +2,14 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
-## 1.0.6-beta.5 — Fixed-rate home office and printable logbooks (2026-10-27)
+## 1.0.6-beta.5 — Fixed-rate home office, printable logbooks and documents (2026-10-27)
 
 - Simplify Home office to the fixed-rate method. Remove actual-cost selection, method comparisons and the optional employee standard-deduction comparison. Existing actual-cost settings and records are retained; the claim stays pending until fixed-rate confirmations are reviewed and saved.
 - Add bill evidence directly without entering use percentages. Save the receipt, expense and classification safely with retry protection; new evidence has no separate allocated deduction. Existing expense allocations remain unchanged, while covered bills are excluded from duplicate forecast deductions. Separate assessed equipment and other costs outside the hourly rate retain their existing checks.
 - Download a WFH logbook PDF with the financial-year summary, employment/business hours, monthly totals, session times, breaks, creation/update timestamps, work notes and evidence checklist. Clearly distinguish estimated deductions, pending claims and amounts included in the forecast.
 - Download a mileage PDF for a vehicle, date range and workspace, with distance summaries and monthly journey details. Include routes, purposes, saved odometer readings, use percentages and an optional user-entered reimbursement rate. Never invent missing odometer readings or apply reimbursement amounts to the tax forecast.
-- Preserve CSV exports, allowances, audit history, backups and all existing migrations. No new database migration or iPhone build.
+- Add **Reports → Documents** for tax returns, private health statements and other supporting files, with titles, categories, optional financial years, notes, search, downloads and duplicate detection. Keep these files out of claims, income and receipt AI processing. Apply owner/tax-agent permissions and retain originals in manual and automatic backups.
+- Add migration m021 for document metadata without changing the twenty released migrations. Preserve CSV exports, allowances and audit history. No iPhone build. Take a full backup before updating; rollback needs its matching backup because older images do not recognise m021.
 
 ## 1.0.6-beta.4 — Clearer home office and verified automatic backups (2026-10-27)
 
