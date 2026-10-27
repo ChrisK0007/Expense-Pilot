@@ -18,7 +18,7 @@ const IncomeDocuments=(()=>{
   bind('#income-delete-draft',async()=>{if(!confirm('Permanently delete this unfiled document?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await Receipts.reload();}catch(e){toast(e.message);}});
   $('#document_kind').onchange=async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');await Receipts.reopen(r.id);}catch(e){toast(e.message);}};
   bind('#income-save-draft',async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');$('#modal').close();await Receipts.reload();toast('Income draft saved.');}catch(e){toast(e.message);}});
-  bind('#income-read',async ev=>{ev.currentTarget.disabled=true;try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});await Receipts.reopen(r.id);}catch(e){toast(e.message);ev.currentTarget.disabled=false;}});
+  bind('#income-read',async ev=>{const button=ev.currentTarget;button.disabled=true;try{await readDocument(r.id);await Receipts.reopen(r.id);}catch(e){toast(e.message);if(button.isConnected)button.disabled=false;}});
   formHandler('#income-document-form',async()=>{
    const v=gather();await api('receipts/'+r.id+'/income',{...v,record_kind:v.document_kind,currency:'AUD',reviewed:$('#income-reviewed').checked,existing_income_id:Number($('#existing_income_id')?.value)||null});
    $('#modal').close();await refresh();await Receipts.reload();toast('Employment income saved. Original available in Employment income.');

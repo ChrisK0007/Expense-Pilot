@@ -114,13 +114,32 @@ def preview_receipt(rid):
         return send_file(io.BytesIO(rendered),mimetype='image/png')
 
 
-@app.post('/api/receipts/<rid>/extract')
+@app.route('/api/receipts/<rid>/extract', methods=['GET', 'POST'])
 @auth('owner','employee')
 def extract(rid):
+    from app import fail, jsonify, one, receipt, request
+    import document_reading
+    receipt(rid)
+    if request.method == 'GET':
+        return jsonify(document_reading.status(rid, request.args.get('job', '')))
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict): fail('Expected document-reading options.')
+    if data.get('unfiled_only') and one('SELECT id FROM expenses WHERE receipt_id=?', (rid,)):
+        fail('Receipt is already filed; skipped.', 409)
+    if one('SELECT id FROM employment_income WHERE receipt_id=?', (rid,)):
+        fail('Document is already filed as income.', 409)
+    background = data.get('background') is True
+    job = document_reading.start(rid, bool(data.get('unfiled_only')), background)
+    if background: return jsonify(job), 202
+    if job['status'] == 'failed': fail(job['error'], job['error_status'])
+    return jsonify(job['result'])
+
+
+def extract_document(rid, unfiled_only=False):
     from app import DATA, Decimal, InvalidOperation, Path, ROUND_HALF_UP, audit, base64, category_names, date, db, fail, inspect_pdf, json, jsonify, one, os, receipt, request, subprocess, tempfile, textval, urllib
     import ai_providers
     r=receipt(rid)
-    if request.get_json(silent=True) and request.get_json().get('unfiled_only') and one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Receipt is already filed; skipped.',409)
+    if unfiled_only and one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Receipt is already filed; skipped.',409)
     import income_documents
     if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('Document is already filed as income.',409)
     db().execute('INSERT OR IGNORE INTO receipt_details(receipt_id) VALUES (?)',(rid,))
@@ -160,10 +179,13 @@ def extract(rid):
     safe.update(income_documents.clean(result))
     if local and not ai_providers.configured(): safe['extraction_method']='local labels'
     db().execute('BEGIN IMMEDIATE')
+    from flask import g
+    from document_reading import require_actor
+    require_actor(g.user['id'], g.user['version'])
     stored=one('SELECT extraction FROM receipt_details WHERE receipt_id=?',(rid,))
     if not stored: fail('Receipt was deleted while AI was reading it.',404)
     if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('Document was filed while it was being read.',409)
-    if request.get_json(silent=True) and request.get_json().get('unfiled_only') and one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Document was filed while it was being read.',409)
+    if unfiled_only and one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Document was filed while it was being read.',409)
     previous=json.loads(stored['extraction'] or '{}')
     if previous.get('currency_status')=='confirmed':
         safe.update({k:previous[k] for k in ('currency','currency_status','currency_evidence')})
@@ -174,7 +196,7 @@ def extract(rid):
         if value.is_finite() and abs(value)<=10000000: safe['amount']=float(value.quantize(Decimal('.01'),rounding=ROUND_HALF_UP))
     except (InvalidOperation,ValueError,TypeError): pass
     db().execute("UPDATE receipt_details SET extraction=?,scan_status='scanned',scan_error='' WHERE receipt_id=?",(json.dumps(safe),rid))
-    audit('receipt AI requested',rid);db().commit();return jsonify(safe)
+    audit('receipt AI requested',rid);db().commit();return safe
 
 
 @app.put('/api/receipts/<rid>/currency')

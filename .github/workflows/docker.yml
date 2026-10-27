@@ -31,6 +31,7 @@ jobs:
           node --check server/static/public-release.js
           node --check server/static/app.js
           node tests/js/toast_timer.cjs
+          node tests/js/document_reading.cjs
           node --check server/static/overnights.js
           node --check server/static/bank-feeds.js
           node --check server/static/billing.js
