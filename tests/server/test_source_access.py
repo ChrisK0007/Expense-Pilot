@@ -30,7 +30,11 @@ class SourceAccessTests(unittest.TestCase):
         self.assertTrue(inventory['debian'])
         self.assertTrue(inventory['notices'])
         self.assertIn('flask', [d['name'].lower() for d in inventory['python']])
+        import sqlite3
+        sqlite = next(d for d in inventory['native'] if d['name'] == 'sqlite')
+        self.assertEqual(sqlite['version'], sqlite3.sqlite_version)
         sources = client.get('/legal/dependency-source-manifest').json
+        self.assertIn(('sqlite', sqlite3.sqlite_version), {(d['name'], d['version']) for d in sources['additional']})
         self.assertEqual({(d['source'], d['source_version']) for d in inventory['debian']},
                          {(d['name'], d['version']) for d in sources['debian']})
         self.assertEqual({(d['name'], d['version']) for d in inventory['python']},

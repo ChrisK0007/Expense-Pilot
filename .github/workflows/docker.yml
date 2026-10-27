@@ -82,6 +82,7 @@ jobs:
           else:
               raise SystemExit('Production server did not start')
           PYTHON
+          docker exec expense-pilot-production python healthcheck.py
       - name: Browser workflow tests
         id: browser
         env:
@@ -117,7 +118,7 @@ jobs:
         with:
           name: browser-evidence
           path: ${{ runner.temp }}/expense-pilot-ui
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: ignore
       - name: Image name
         id: image
