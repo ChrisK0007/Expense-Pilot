@@ -11,7 +11,8 @@ permissions:
   contents: read
 concurrency:
   group: docker-${{ github.ref }}
-  cancel-in-progress: false
+  # Superseded PR checks may stop; publishing runs must finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test-and-publish:
     runs-on: ubuntu-latest
@@ -118,6 +119,7 @@ jobs:
           PYTHON
           docker exec expense-pilot-production python healthcheck.py
       - name: Browser workflow tests
+        timeout-minutes: 10
         id: browser
         env:
           UI_OUTPUT: ${{ runner.temp }}/expense-pilot-ui

@@ -11,6 +11,7 @@ async function main() {
   fs.mkdirSync(output,{recursive:true});
   const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
   const page = await browser.newPage({viewport:{width:1440,height:1050}});
+  page.setDefaultTimeout(30000);page.setDefaultNavigationTimeout(30000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const acceptDialog=dialog=>dialog.accept();
   page.on('dialog', acceptDialog);

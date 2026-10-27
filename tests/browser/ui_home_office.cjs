@@ -9,6 +9,7 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1440,height:1050}});
  const page=await context.newPage(),errors=[];
+ context.setDefaultTimeout(30000);context.setDefaultNavigationTimeout(30000);
  page.on('pageerror',e=>errors.push(e.message));
  const post=async(endpoint,data,method='POST')=>{
   const session=await(await context.request.get(url+'/api/session')).json();

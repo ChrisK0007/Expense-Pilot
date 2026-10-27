@@ -8,6 +8,7 @@ function pdf(lines){
 }
 (async()=>{
  fs.mkdirSync(output,{recursive:true});const browser=await chromium.launch({headless:true,args:['--no-sandbox']}),context=await browser.newContext({viewport:{width:1440,height:1050}}),page=await context.newPage(),errors=[];
+ context.setDefaultTimeout(30000);context.setDefaultNavigationTimeout(30000);
  page.on('pageerror',e=>errors.push(e.message));
  const post=async(endpoint,data,method='POST')=>{const s=await(await context.request.get(url+'/api/session')).json();const r=await context.request.fetch(url+'/api/'+endpoint,{method,data,headers:{'X-CSRF-Token':s.csrf}});assert.equal(r.status(),200,await r.text());return r.json();};
  const get=async endpoint=>(await context.request.get(url+'/api/'+endpoint)).json();
