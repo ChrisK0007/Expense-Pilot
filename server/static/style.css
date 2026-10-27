@@ -24,3 +24,5 @@ h1{font-size:30px;font-weight:650;letter-spacing:-.9px}h2{font-size:18px;font-we
 @media(max-width:650px){.document-viewer,.wfh-import-dialog{padding:16px;width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.wfh-import-fields{grid-template-columns:1fr 1fr}.wfh-import-fields .field:last-child{grid-column:1/-1}.wfh-import-row{padding:12px}.preview-heading{align-items:start}.document-view-stage{padding:4px}.wfh-import-dialog .toolbar{display:grid;grid-template-columns:1fr}.wfh-import-dialog .grid2{grid-template-columns:1fr}}
 
 .wfh-import-dialog>form>p,.wfh-import-row details p{margin:12px 0}.wfh-import-dialog .field{margin-bottom:12px}.wfh-import-row .footnote{margin:8px 0 14px}
+
+.wfh-import-dialog .import-error:empty{display:none}.wfh-import-dialog p{overflow-wrap:anywhere}
