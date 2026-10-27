@@ -8,6 +8,7 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 - Reject partial PDF extraction, invalid hours and overlapping sessions. Skip existing or previously removed imports, including retries after a lost response. Selected sessions save together or not at all.
 - Preserve the original report in Documents and retain original logged/updated timestamps and source values in import history. Imported sessions link to their source; PDF logbooks distinguish source timestamps from Expense Pilot import timestamps. No monetary totals from a report are imported and claim settings are unchanged.
 - View documents inside Expense Pilot: PDF page navigation and zoom, images, plain-text Word/TXT previews and cell-value Excel/CSV previews. Downloads retain original bytes. Password-protected or unsupported previews provide a download fallback.
+- Keep each new success notification visible for its full duration when messages arrive close together.
 - Process previews locally with bounded resources and authenticated owner/tax-agent access. No document content goes to an external viewer or AI service. No new schema migration.
 
 ## 1.0.6-beta.5 — Fixed-rate home office, printable logbooks and documents (2026-10-27)
