@@ -29,6 +29,10 @@ DATA_DIR=/tmp/expense-pilot-dev python server/app.py
 
 Production uses Gunicorn, not Flask's development server. Browser suites live in `tests/browser/`; see the Docker workflow for their Playwright setup. The disposable browser server is excluded from the production image. CI also boots the real Gunicorn entry point and checks its reported version.
 
+The image builds a checksum-pinned SQLite shared library with `scripts/build_sqlite.py` and selects it through `LD_LIBRARY_PATH=/opt/sqlite/lib`. Build and health checks verify Python's loaded version and source ID against `/opt/sqlite/share/sqlite-runtime.json`; the Debian package version alone does not identify the application's library. Source, compiler arguments and notices accompany the dependency downloads.
+
+Docker runs `python healthcheck.py` every 60 seconds. It checks the local HTTP service, then opens the existing database with `mode=ro` and runs `quick_check(1)` with a five-second SQL execution budget. The check respects live WAL data, checks required tables and never imports the app, creates a database or repairs corruption. A failure marks the container unhealthy; it does not itself restart or replace the database. Large databases exceeding the time budget require investigation. Full integrity and foreign-key validation remain part of backup restore checks.
+
 ## Database migrations
 
 Startup applies `server/migrations/mNNN_description.py` in filename order. Each module exposes `upgrade(connection)`. A `schema_migrations` ledger records the name, checksum and application time. `BEGIN IMMEDIATE` serialises concurrent startup; a failed migration rolls back its schema/data changes and its ledger entry together. Successful earlier migrations remain committed.

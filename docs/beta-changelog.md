@@ -2,6 +2,16 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.2 — SQLite reliability (2026-10-27)
+
+- Build and pin SQLite 3.54.1, including the upstream WAL-reset corruption fix. Verify the downloaded source checksums and the library version/source ID actually loaded by Python.
+- Preserve existing databases, receipts, credentials and all 19 migrations. This updates the database engine; it does not repair an already-corrupt file or replace user records.
+- Check HTTP availability and database structure in the Docker health check. Missing or malformed databases report unhealthy without automatic repair. Checks have a bounded execution time and include active WAL data.
+- Retain the matching SQLite source, build command, notices and version in the downloadable dependency bundles.
+- Test the upgrade from Debian SQLite, retained records, backup integrity and a deliberately damaged session table. Reduce temporary browser evidence retention to 3 days.
+
+Take a full backup before updating. Keep any recovery snapshot until a fresh backup has been verified and the repaired application's records and receipt attachments have been checked. Stable remains v1.0.5; WFH development is not included in this reliability release.
+
 ## 1.0.6-beta.1 — Stable source packaging sync (2026-10-18)
 
 - Bring the v1.0.5 dependency source packaging, publication checks and documentation into beta.

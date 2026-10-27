@@ -11,6 +11,7 @@ Dependencies, datasets and fonts retain their own licences and copyright notices
 | pypdf | 6.19.0 | BSD-3-Clause |
 | ReportLab | 5.0.1 | BSD; bundled fonts retain their notices |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause; bundled libraries retain their notices |
+| SQLite library used by Python | 3.54.1 | Public domain; https://www.sqlite.org/copyright.html |
 | Australian suburb dataset | See server/datasets/README.md | MIT; original notice in server/datasets/LICENSE-au-suburbs.txt |
 | Python 3.12 base image | Resolved at build time | Python PSF and component-specific licences |
 | Poppler utilities | Resolved by Debian at build time | GPL-2.0-or-later and component-specific notices |
@@ -26,7 +27,9 @@ are retained in the image as well.
 upstream source references. `/source` contains the Expense Pilot application,
 its build/install scripts and the bundled dataset notice. The separate `/legal/dependency-sources` archive retains the exact Debian source
 packages and their patches/build rules, Python source distributions, CPython
-source/configure arguments and the detected FriBiDi source when loaded by Pillow.
+source/configure arguments, the pinned SQLite amalgamation and compiler arguments,
+and the detected FriBiDi source when loaded by Pillow. The native SQLite entry in
+the inventory identifies Python's loaded library separately from Debian's package.
 `/legal/dependency-source-manifest` records versions and SHA-256 checksums. The
 build refuses incomplete source collection or an unreviewed libimagequant build.
 
