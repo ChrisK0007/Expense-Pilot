@@ -38,7 +38,7 @@ async function reprocess(r,fromReview=false){
  controls.forEach(([el])=>el.disabled=true);scanning.add(r.id);draw();
  if(form)$('#rescan-receipt').textContent='Reading receipt…';
  let success=false;
- try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});success=true;toast('Receipt reprocessed. Check the new suggestions before saving.');}
+ try{await readDocument(r.id);success=true;toast('Receipt reprocessed. Check the new suggestions before saving.');}
  catch(e){toast('Reprocessing failed. '+e.message);}
  finally{scanning.delete(r.id);controls.forEach(([el,disabled])=>el.disabled=disabled);if(form?.isConnected)$('#rescan-receipt').textContent='✧ Reprocess with AI';}
  try{await load();draw();if(success&&page==='receipts'&&(fromReview?form?.isConnected&&$('#modal').open:!$('#modal').open))review(items.find(x=>x.id===r.id));}catch(e){toast(e.message);}
@@ -61,7 +61,7 @@ function capture(kind='expense'){
       if(f.size>12*1024*1024)throw Error('File exceeds 12 MB.');
       const fd=new FormData();fd.append('file',f);fd.append('document_kind',documentKind);const r=await api('receipts',fd);
       row.textContent=f.name+(r.duplicate?' — already saved':' — saved');
-      if(scan&&!r.duplicate){row.textContent=f.name+(S.ai_configured?' — saved, AI reading…':' — saved, reading text…');try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});row.textContent=f.name+' — ready to categorise';}catch(e){row.textContent=f.name+' — saved. '+e.message;}}
+      if(scan&&!r.duplicate){row.textContent=f.name+(S.ai_configured?' — saved, AI reading…':' — saved, reading text…');try{await readDocument(r.id);row.textContent=f.name+' — ready to categorise';}catch(e){row.textContent=f.name+' — saved. '+e.message;}}
     }catch(e){row.textContent=f.name+' — '+e.message;row.classList.add('error');}
   }
   busy=false;$('#modal').removeEventListener('cancel',preventClose);$('#close-modal').disabled=false;$('#capture-done').disabled=false;$('#inbox-files').disabled=false;$('#inbox-camera').disabled=false;
@@ -76,7 +76,7 @@ async function reprocessAll(){
  const queue=pending().map(r=>({id:r.id,name:r.filename}));batch.total=queue.length;if(!queue.length){batch.running=false;draw();return;}draw();
  for(const r of queue){
   if(batch.cancel||!S.user)break;
-  try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});}catch(e){batch.failed.push(r.name+' — '+e.message);}
+  try{await readDocument(r.id);}catch(e){batch.failed.push(r.name+' — '+e.message);}
   batch.done++;try{await load();}catch(e){batch.failed.push('Refresh failed: '+e.message);}draw();
  }
  batch.running=false;try{await load();}catch(e){toast(e.message);}draw();toast(`Processed ${batch.done} draft receipt(s). ${batch.failed.length} failed. Manual draft edits were kept.`);

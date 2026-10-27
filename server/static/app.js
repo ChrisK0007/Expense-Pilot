@@ -30,7 +30,39 @@ const scopeName=s=>({work:'Employment',business:'Business',personal:'Personal',s
 const allocated=(e,scope='all')=>{const a=Splits.amounts(e);return scope==='work'?a.work:scope==='business'?a.business:scope==='personal'?0:a.work+a.business;};
 let toastTimer;
 function toast(t){clearTimeout(toastTimer);const element=$('#toast');element.textContent=t;element.style.display='block';toastTimer=setTimeout(()=>{element.style.display='none';toastTimer=null;},5500)}
-async function api(path,body,method='POST'){const init={method:body===undefined?'GET':method,headers:{'X-CSRF-Token':S.csrf||''}};if(body!==undefined){if(body instanceof FormData)init.body=body;else{init.headers['Content-Type']='application/json';init.body=JSON.stringify(body)}}const r=await fetch('/api/'+path,init);const d=await r.json();if(!r.ok){const error=Error(d.error||'Request failed');error.status=r.status;throw error}return d}
+async function api(path,body,method='POST',{timeoutMs=0}={}){
+ const controller=new AbortController(),init={method:body===undefined?'GET':method,headers:{'X-CSRF-Token':S.csrf||''},signal:controller.signal};
+ if(body!==undefined){if(body instanceof FormData)init.body=body;else{init.headers['Content-Type']='application/json';init.body=JSON.stringify(body);}}
+ const timer=timeoutMs?setTimeout(()=>controller.abort(),timeoutMs):null;
+ try{
+  const r=await fetch('/api/'+path,init);let d;
+  try{d=JSON.parse(await r.text());}catch{
+   const recovery=path==='receipts'||path.startsWith('receipts/')?'Check the saved document in Document inbox before retrying.':'Check whether your changes were saved before retrying.';
+   const message=[408,504,524].includes(r.status)?'The connection timed out. '+recovery:r.status===413?'The server rejected the upload size. Use a smaller file.':`The server returned an unexpected response (HTTP ${r.status}). ${recovery}`;
+   const error=Error(message);error.status=r.status;error.transient=[408,502,503,504,520,522,524].includes(r.status);throw error;
+  }
+  if(!r.ok){const error=Error(typeof d?.error==='string'?d.error:`Request failed (HTTP ${r.status}).`);error.status=r.status;error.transient=[408,502,503,504,520,522,524].includes(r.status);throw error;}
+  return d;
+ }catch(error){
+  if(error.name==='AbortError'||error instanceof TypeError){const connection=Error('Connection interrupted. Check whether the request completed before trying again.');connection.status=0;connection.transient=true;throw connection;}
+  throw error;
+ }finally{if(timer)clearTimeout(timer);}
+}
+async function readDocument(rid){
+ let job=await api('receipts/'+rid+'/extract',{unfiled_only:true,background:true},'POST',{timeoutMs:20000});
+ // A cached client/server pair may still use the synchronous endpoint during an update.
+ if(!job.job_id)return job;
+ const jobId=job.job_id,deadline=Date.now()+10*60*1000;let failures=0;
+ while(job.status==='reading'){
+  if(Date.now()>=deadline)throw Error('Reading is taking longer than expected. The original is saved; check Document inbox shortly.');
+  await new Promise(resolve=>setTimeout(resolve,1500));
+  try{job=await api('receipts/'+rid+'/extract?job='+encodeURIComponent(jobId),undefined,'GET',{timeoutMs:20000});failures=0;}
+  catch(error){if(error.transient&&++failures<=3)continue;throw error;}
+ }
+ if(job.status==='failed'){const error=Error(job.error||'Document reading failed. Retry from Document inbox or enter the figures manually.');error.status=job.error_status;throw error;}
+ if(job.status!=='complete')throw Error('Reading progress was interrupted. Check the saved draft in Document inbox before retrying.');
+ return job.result;
+}
 function bind(id,fn){const el=$(id);if(el)el.addEventListener('click',fn)}
 function dateAU(value){return String(value??'').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1');}
 function dateISO(value){

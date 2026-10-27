@@ -41,10 +41,25 @@ function pdf(lines){
   await page.setViewportSize({width:1440,height:1050});await page.goto(url+'/#/employment');await page.getByRole('button',{name:'Upload payslip / statement',exact:true}).click();
   assert.equal(await page.locator('#auto-scan').isChecked(),true);
   const slip=pdf(['PAYSLIP','Employer: Synthetic Aviation Pty Ltd','Payment date: 16/10/2026','Pay period: 01/10/2026 to 14/10/2026','This pay Gross taxable pay: AUD 3000.00','This pay PAYG tax withheld: AUD 650.00','Net pay: AUD 2350.00','YTD gross: AUD 21000.00','YTD tax: AUD 4550.00']);
-  await page.locator('#inbox-files').setInputFiles({name:'synthetic-payslip.pdf',mimeType:'application/pdf',buffer:slip});
+  let htmlFailures=0,pollFailures=0;
+  const extractRoute=/\/api\/receipts\/[^/]+\/extract(?:\?.*)?$/;
+  await page.route(extractRoute,async route=>{
+   if(route.request().method()==='POST'&&htmlFailures++===0)return route.fulfill({status:524,contentType:'text/html',body:'<!DOCTYPE html><title>Gateway timeout</title>'});
+   if(route.request().method()==='GET'&&pollFailures++===0)return route.fulfill({status:502,contentType:'text/html',body:'<!DOCTYPE html><title>Temporary gateway error</title>'});
+   await route.continue();
+  });
+  await page.locator('#inbox-files').setInputFiles([{name:'retry-payslip.pdf',mimeType:'application/pdf',buffer:Buffer.concat([slip,Buffer.from('\n% retry fixture')])},{name:'synthetic-payslip.pdf',mimeType:'application/pdf',buffer:slip}]);
   await page.locator('#capture-progress').getByText('synthetic-payslip.pdf — ready to categorise',{exact:true}).waitFor();
+  await page.locator('#capture-progress').getByText('retry-payslip.pdf — saved. The connection timed out. Check the saved document in Document inbox before retrying.',{exact:true}).waitFor();
+  assert.ok(pollFailures>=2,'A temporary polling failure must retry status, not upload or AI reading');
+  await page.screenshot({path:output+'/payslip-upload-recovery.png',fullPage:true});
+  await page.unroute(extractRoute);
   assert.equal((await get('employment')).length,0);
   await page.getByRole('button',{name:'Done',exact:true}).click();
+  await page.locator('.receipt-card').filter({hasText:'retry-payslip.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  await page.locator('#income-read').click();await page.getByLabel('Gross taxable pay (AUD)',{exact:true}).waitFor();
+  await page.waitForFunction(()=>document.querySelector('#income-document-form #gross')?.value==='3000');
+  await page.locator('#close-modal').click();
   await page.locator('.receipt-card').filter({hasText:'synthetic-payslip.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
   await page.getByRole('heading',{name:'Review employment document',exact:true}).waitFor();
   assert.equal(await page.getByLabel('Gross taxable pay (AUD)',{exact:true}).inputValue(),'3000');assert.equal(await page.getByLabel('PAYG tax withheld (AUD)',{exact:true}).inputValue(),'650');
@@ -54,6 +69,6 @@ function pdf(lines){
   const income=await get('employment');assert.equal(income.length,1);assert.equal(income[0].gross_cents,300000);assert.equal(income[0].withheld_cents,65000);assert.ok(income[0].receipt_id);assert.equal((await get('expenses')).filter(e=>e.receipt_id===income[0].receipt_id).length,0);
   await page.goto(url+'/#/employment');await page.getByRole('button',{name:'View document',exact:true}).click();await page.locator('#receipt-viewer img').waitFor();
   await page.screenshot({path:output+'/payslip-source-mobile.png',fullPage:true});
-  assert.deepEqual(errors,[]);console.log('PASS: document inbox, local payslip extraction/review, income source, home-office filing, automatic bank links and previous-expense matching on desktop/mobile.');
+  assert.deepEqual(errors,[]);console.log('PASS: document inbox, background payslip reading, HTML error recovery, saved-original retry, income source, home-office filing, automatic bank links and previous-expense matching on desktop/mobile.');
  }catch(e){console.error('Browser errors:',errors);await page.screenshot({path:output+'/document-inbox-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

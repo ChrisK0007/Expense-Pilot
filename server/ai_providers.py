@@ -107,6 +107,8 @@ def fetch(c, path, payload=None):
     except urllib.error.HTTPError as exc:
         message = {401: 'AI authentication failed. Check your API key.', 403: 'The AI provider denied access. Check your key permissions.', 404: 'AI endpoint or model not found. Check Settings.', 429: 'AI quota or rate limit reached. Retry later or check provider billing.'}.get(exc.code, 'AI provider could not complete the request. Retry or enter the receipt manually.')
         raise AIError(message) from None
+    except TimeoutError:
+        raise AIError('The AI service took too long to read this document. The original is saved; retry from Document inbox or enter the figures manually.') from None
     except (OSError, ValueError) as exc:
         if isinstance(exc, AIError): raise
         raise AIError('Cannot reach the selected AI service or read its response. Check the address, TLS and model; manual entry remains available.') from None

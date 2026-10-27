@@ -2,6 +2,13 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.8 — Reliable payslip reading behind a proxy (2026-10-27)
+
+- Read uploaded documents in bounded background jobs and poll progress with short requests, so slow AI reads do not hold a browser request open across the proxy timeout. Apply this to capture, individual retries, bulk reprocessing and employment-document review.
+- Reuse an active read for repeated clicks; preserve original documents and manual drafts after failures. Interrupted reads can be retried from Document inbox, including after a container restart. The standard single-worker deployment handles at most two reads at once.
+- Replace raw JSON parsing errors from HTML gateway pages with useful messages and HTTP status. Retry temporary progress-check failures without repeating the upload or AI request. Report AI timeouts explicitly and recover the review button after a failed read.
+- Recheck permissions and filed/deleted documents before saving extracted suggestions. Extraction still never writes employment income or expense records. No database migration or AI-provider change.
+
 ## 1.0.6-beta.7 — Document inbox, payslips and bank matching (2026-10-27)
 
 - Make notes optional for manual WFH sessions and reviewed imports. Existing notes, original reports and history are retained.
