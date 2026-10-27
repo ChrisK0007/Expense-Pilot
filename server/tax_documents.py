@@ -1,4 +1,4 @@
-"""Private file repository; originals are downloaded, never executed or sent to AI."""
+"""Private file repository with bounded local previews; no document content is executed or sent to AI."""
 import hashlib
 import io
 import os
@@ -68,6 +68,28 @@ def inspect_file(filename, raw):
     return filename,TYPES[extension]
 
 
+def store_original(raw, filename, content_type, metadata):
+    """Caller holds a write transaction and cleans up a new file if its commit fails."""
+    from app import audit, db, one, record_user_id
+    uid=record_user_id();digest=hashlib.sha256(raw).hexdigest()
+    previous=one('SELECT id FROM tax_documents WHERE user_id=? AND sha256=?',(uid,digest))
+    if previous: return previous['id'],True
+    did=secrets.token_hex(20);path=folder()/did;created=False
+    try:
+        with path.open('xb') as out:
+            created=True;os.chmod(path,0o600);out.write(raw);out.flush();os.fsync(out.fileno())
+        directory_fd=os.open(path.parent,os.O_RDONLY)
+        try: os.fsync(directory_fd)
+        finally: os.close(directory_fd)
+        db().execute('INSERT INTO tax_documents(id,user_id,title,category,year,notes,filename,content_type,size_bytes,sha256,uploaded_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                     (did,uid,*metadata,filename,content_type,len(raw),digest,g.user['id']))
+        audit('document uploaded',did)
+    except BaseException:
+        if created: path.unlink(missing_ok=True)
+        raise
+    return did,False
+
+
 def register(app, auth):
     from app import audit, db, fail, one, rows, record_user_id
 
@@ -89,27 +111,16 @@ def register(app, auth):
         metadata=values(request.form)
         raw=upload.read(MAX_FILE+1)
         filename,content_type=inspect_file(upload.filename or '',raw)
-        digest=hashlib.sha256(raw).hexdigest()
         db().execute('BEGIN IMMEDIATE')
-        previous=one('SELECT id FROM tax_documents WHERE user_id=? AND sha256=?',(uid,digest))
-        if previous:
-            db().commit();return jsonify(id=previous['id'],duplicate=True)
-        did=secrets.token_hex(20);path=folder()/did;created=False
+        did=None;duplicate=True
         try:
-            with path.open('xb') as out:
-                created=True
-                os.chmod(path,0o600);out.write(raw);out.flush();os.fsync(out.fileno())
-            directory_fd=os.open(path.parent,os.O_RDONLY)
-            try: os.fsync(directory_fd)
-            finally: os.close(directory_fd)
-            db().execute('INSERT INTO tax_documents(id,user_id,title,category,year,notes,filename,content_type,size_bytes,sha256,uploaded_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                         (did,uid,*metadata,filename,content_type,len(raw),digest,g.user['id']))
-            audit('document uploaded',did);db().commit()
+            did,duplicate=store_original(raw,filename,content_type,metadata)
+            db().commit()
         except BaseException:
             db().rollback()
-            if created: path.unlink(missing_ok=True)
+            if did and not duplicate: (folder()/did).unlink(missing_ok=True)
             raise
-        return jsonify(id=did,duplicate=False)
+        return jsonify(id=did,duplicate=duplicate)
 
     @app.route('/api/documents/<did>',methods=['PUT','DELETE'],endpoint='document_change')
     @auth('owner','tax_agent')
@@ -143,3 +154,30 @@ def register(app, auth):
             return response
         except BaseException:
             handle.close();raise
+
+    def preview_data(did, mode, page=1):
+        from document_processing import process
+        db().execute('BEGIN IMMEDIATE');row=document(did)
+        try:
+            with (folder()/did).open('rb') as source: raw=source.read(MAX_FILE+1)
+        except FileNotFoundError: fail('The original file is missing. Restore it from a backup.',404)
+        if mode=='info': audit('document viewed',did)
+        db().commit()
+        try: result=process(raw,Path(row['filename']).suffix.lower(),mode,page)
+        except ValueError as exc: fail(str(exc),422)
+        return row,result
+
+    @app.get('/api/documents/<did>/view',endpoint='document_view')
+    @auth('owner','tax_agent')
+    def view(did):
+        row,result=preview_data(did,'info')
+        return jsonify(**result,id=did,title=row['title'],filename=row['filename'])
+
+    @app.get('/api/documents/<did>/page',endpoint='document_page')
+    @auth('owner','tax_agent')
+    def page(did):
+        import base64
+        value=request.args.get('page','1')
+        if not re.fullmatch(r'[1-9][0-9]{0,2}',value): fail('Choose a valid document page.')
+        row,result=preview_data(did,'page',int(value))
+        return send_file(io.BytesIO(base64.b64decode(result['image'])),mimetype='image/png')

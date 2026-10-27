@@ -164,7 +164,7 @@ def home_office_pdf(annual, person):
     report.add('These amounts are deductions from income, not tax refunds or reimbursements. Annual tax overrides may replace the recorded forecast.')
     report.add('Records supporting this logbook', 'heading')
     report.add('Keep a bill or receipt for each covered running-cost type you personally incurred. Covered bills are evidence; their cost and work-use percentages do not determine the hourly deduction. They cannot also be claimed separately.')
-    report.add('The diary lists recorded sessions after breaks. Original creation and update timestamps are retained; generating this report does not establish that older entries were recorded at the time. Keep supporting records for any late entries.')
+    report.add('The diary lists recorded sessions after breaks. Expense Pilot creation and update timestamps are retained; generating this report does not establish that older entries were recorded at the time. Keep supporting records for any late entries.')
     report.add('Logged/updated timestamps below use ' + workspace_time.name() + '. Session times use the timezone shown on each row.')
     report.add('ATO fixed-rate guidance: ' + annual['source'], 'small')
     report.add('Rule reference checked ' + day(annual['rules_checked']) + '. CSV export contains the full relevant edit history.', 'small')
@@ -195,6 +195,15 @@ def home_office_pdf(annual, person):
         ], [30, 30, 114])
     else:
         report.add('No home-working sessions recorded for this financial year.')
+    imported = [e for e in entries if e.get('import_source')]
+    if imported:
+        report.add('Imported source records', 'heading')
+        report.add('Diary Logged/Updated dates above are Expense Pilot timestamps. The dates below are transcribed from the original report, not independently verified. PDF source timestamp timezones are unspecified; CSV source timestamps are UTC. Original files are kept in Documents unless separately deleted.')
+        report.table(['Date / ID', 'Source report', 'Original logged', 'Original updated'], [
+            [day(e['date']) + f"\n#{e['id']}", e['import_source']['filename'],
+             e['import_source']['original'].get('source_logged') or 'Not provided',
+             e['import_source']['original'].get('source_updated') or 'Not provided'] for e in imported
+        ], [30, 64, 40, 40])
     report.add('Bill evidence and separate deductions', 'heading')
     if annual['costs']:
         from home_office import COVERED, KINDS

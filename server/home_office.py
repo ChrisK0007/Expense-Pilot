@@ -127,6 +127,10 @@ def summary(year):
     from app import rows
     start, end = bounds(year); s = settings(year); rate = RATES.get(year)
     entries = rows('SELECT * FROM home_office_entries WHERE user_id=? AND deleted=0 AND date BETWEEN ? AND ? ORDER BY date DESC,start_at DESC', (owner_id(),start,end))
+    imported = rows("SELECT h.entity,h.after_json FROM home_office_history h JOIN home_office_entries e ON h.entity='entry:'||e.id AND h.owner_id=e.user_id WHERE h.owner_id=? AND h.action='entry imported' AND e.deleted=0 AND e.date BETWEEN ? AND ?", (owner_id(),start,end))
+    sources = {h['entity']: json.loads(h['after_json']).get('import_source') for h in imported}
+    for entry in entries:
+        if 'entry:'+str(entry['id']) in sources: entry['import_source']=sources['entry:'+str(entry['id'])]
     minutes = {scope: sum((e['end_at']-e['start_at'])//60-e['break_minutes'] for e in entries if e['scope']==scope) for scope in ('work','business')}
     fixed = {scope: int((Decimal(minutes[scope])*rate/60).quantize(Decimal(1), rounding=ROUND_HALF_UP)) if rate is not None else None for scope in minutes}
     all_costs = costs(year); classified = [e for e in all_costs if e['home_office_kind']]
@@ -399,3 +403,6 @@ def register(app, auth):
             if h['entity']==f'year:{year}' or any(d and financial_year(d)==year for d in dates):
                 write(h['at'],h['actor_id'],h['entity'],h['action'],h['before_json'],h['after_json'])
         return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name=f'expense-pilot-home-office-{year}-{year+1}.csv')
+
+    from home_office_import import register as register_import
+    register_import(app,auth)
