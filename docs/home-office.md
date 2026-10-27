@@ -33,4 +33,4 @@ The overview shows hours recorded and the deduction actually included in the for
 - **Claim:** see outstanding checks, compare methods and open detailed tax guidance. **Set up claim / Review claim settings** shows only confirmations relevant to the selected method.
 - **Allowances:** optional employer payments, with an explicit gross-pay inclusion choice.
 
-Your last view is remembered in the current browser tab. Financial-year selection, CSV export and edit history remain available above the records. Calculations and evidence requirements are unchanged.
+Your last view is remembered in the current browser tab. Financial-year selection, CSV export and edit history remain available above the records. Tax forecast also shows a short method/status note, with the calculation explanation expandable underneath. Calculations and evidence requirements are unchanged.

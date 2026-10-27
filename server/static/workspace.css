@@ -135,3 +135,22 @@ button{transition:box-shadow .15s}
 #home-office-view .panel{margin:0}
 .home-office-review h2{margin-top:0}
 @media(max-width:700px){.home-office-overview{grid-template-columns:1fr;gap:12px}.home-office-next{flex-direction:column;align-items:start;gap:12px}.home-office-tabs{gap:4px}.home-office-tabs button{padding:9px 10px;font-size:13px}.home-office-toolbar{align-items:center}.home-office-tools{gap:2px}.home-office-cost-options{grid-template-columns:1fr}.home-office-overview .card{padding:18px}.home-office-claim-summary .metric{font-size:28px}}
+
+@media(max-width:700px){
+ .home-office-overview .card{padding:16px}
+ .home-office-hours-summary{display:grid;grid-template-columns:1fr auto;gap:6px 12px}
+ .home-office-hours-summary .metric{grid-column:2;grid-row:1 / span 2;margin:0;font-size:24px}
+ .home-office-hours-split{grid-column:1;flex-direction:column;gap:2px;margin:0}
+ .home-office-hours-summary>small{grid-column:1 / -1}
+ #home-office-view .table-wrap{overflow:visible}
+ .home-office-records,.home-office-records tbody{display:block;min-width:0;width:100%}
+ .home-office-records thead{display:none}
+ .home-office-records tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:16px;border-bottom:1px solid var(--line)}
+ .home-office-records tr:last-child{border-bottom:0}
+ .home-office-records td{display:block;min-width:0;padding:0;border:0;white-space:normal;overflow-wrap:anywhere}
+ .home-office-records td:first-child,.home-office-records td:last-child{grid-column:1 / -1}
+ .home-office-records td:before{content:attr(data-label);display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
+ .home-office-records td[data-label=""]:before{display:none}
+ .home-office-records td[data-label="Activity"],.home-office-records td[data-label="Income treatment"]{grid-column:1 / -1}
+ .home-office-records td:last-child button{padding:8px 12px;background:var(--soft);margin-right:6px}
+}

@@ -84,10 +84,12 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await page.screenshot({path:output+'/home-office-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.equal(await page.locator('.home-office-records').evaluate(el=>el.scrollWidth>el.clientWidth),false);
   await page.screenshot({path:output+'/home-office-mobile.png',fullPage:true});
   for(const view of ['bills','claim','allowances']){
    await page.locator(`.home-office-tabs [data-view=${view}]`).click();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,view+' overflow');
+   for(const table of await page.locator('.home-office-records').all())assert.equal(await table.evaluate(el=>el.scrollWidth>el.clientWidth),false,view+' table overflow');
    await page.screenshot({path:output+'/home-office-mobile-'+view+'.png',fullPage:true});
   }
   await page.locator('.home-office-tabs [data-view=claim]').click();
@@ -111,6 +113,10 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   assert.equal((await context.request.get(url+'/api/home-office/2026/export')).status(),200);
   const original=(await(await context.request.get(url+'/api/expenses')).json()).find(e=>e.id===bill.id);
   assert.equal(original.amount_cents,10000);
+  await page.goto(url+'/#/tax');
+  await page.locator('#home-office-forecast-note').waitFor();
+  assert.match(await page.locator('#home-office-forecast-note > p').innerText(),/Fixed rate.*Included in the forecast/);
+  assert.equal(await page.locator('#home-office-forecast-note details').getAttribute('open'),null);
   assert.deepEqual(errors,[]);
   console.log('PASS: home-office diary, method checks, fixed-rate amount, allowance income, reload, history, CSV and mobile layout');
  }catch(error){console.error('Browser errors:',errors);await page.screenshot({path:output+'/home-office-failure.png',fullPage:true});throw error;}

@@ -121,6 +121,8 @@ def verify_archive(path, expected):
     with zipfile.ZipFile(path) as zipped:
         names = zipped.namelist()
         checks = expected['sha256']
+        if zipped.getinfo('manifest.json').file_size > 8 * 1024 * 1024 or sum(item.file_size for item in zipped.infolist()) > 100 * 1024**3:
+            raise BackupError('The backup exceeds the restore tool limits. Earlier backups were kept.')
         if len(names) != len(set(names)) or set(names) != set(checks) | {'manifest.json'}:
             raise BackupError('The completed backup has missing or duplicate files. Earlier backups were kept.')
         if json.loads(zipped.read('manifest.json')) != expected:

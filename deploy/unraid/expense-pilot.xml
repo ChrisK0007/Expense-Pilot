@@ -17,7 +17,7 @@
   <License>AGPL-3.0-only</License>
   <ExtraSearchTerms>expenses receipts invoices quotes budget bookkeeping finance australia pocketsmith ollama</ExtraSearchTerms>
   <Requires>64-bit x86 Docker host. Optional AI services need their own resources. Appdata must be writable by UID 99 / GID 100.</Requires>
-  <Changes>v1.0.5: Public-release packaging, matching dependency sources and Community Apps installation metadata.</Changes>
+  <Changes>v1.0.6-beta.4: Clearer home-office views, verified nightly backups, optional trusted proxy limits and improved beta builds. Existing database records are preserved.</Changes>
   <WebUI>http://[IP]:[PORT:8788]/</WebUI>
   <ExtraParams>--user 99:100 --read-only --tmpfs /tmp:rw,size=256m,mode=1777 --cap-drop ALL --security-opt no-new-privileges:true --memory 1g</ExtraParams>
   <Config Name="Web port" Target="8788" Default="8787" Mode="tcp" Description="Expense Pilot web interface" Type="Port" Display="always" Required="true" Mask="false">8787</Config>
