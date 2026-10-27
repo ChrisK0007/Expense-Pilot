@@ -154,3 +154,5 @@ button{transition:box-shadow .15s}
  .home-office-records td[data-label="Activity"],.home-office-records td[data-label="Income treatment"]{grid-column:1 / -1}
  .home-office-records td:last-child button{padding:8px 12px;background:var(--soft);margin-right:6px}
 }
+
+.document-card h2,.document-filename{overflow-wrap:anywhere}.document-notes{white-space:pre-wrap;overflow-wrap:anywhere}.document-card .settings-options{margin-top:16px}

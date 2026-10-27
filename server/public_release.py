@@ -67,7 +67,7 @@ def register(app, auth):
             write_archive(archive, DATA, VERSION)
             save_settings('release_setup', {'backup_downloaded': True}); audit('workspace backup downloaded', 'workspace'); db().commit()
         except Exception:
-            archive.close(); db().rollback(); fail('Could not create a complete backup. Check server storage and receipt files.', 503)
+            archive.close(); db().rollback(); fail('Could not create a complete backup. Check server storage and attachment files.', 503)
         archive.seek(0)
         def stream():
             try:
@@ -85,6 +85,8 @@ def register(app, auth):
             # removes the workspace, revokes sessions and preserves schema history.
             floor = one('SELECT COALESCE(MAX(id),0)+1 AS n FROM users')['n']
             receipt_ids = [x['id'] for x in rows('SELECT id FROM receipts')]
+            from tax_documents import folder
+            document_files = list(folder().iterdir())
             db().execute('PRAGMA defer_foreign_keys=ON')
             tables = [x['name'] for x in rows("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name!='schema_migrations'")]
             for table in tables:
@@ -96,6 +98,8 @@ def register(app, auth):
             db().commit(); session.clear()
             from receipt_routes import remove_receipt_files
             for rid in receipt_ids: remove_receipt_files(rid)
+            for path in document_files:
+                if path.is_file(): path.unlink(missing_ok=True)
         else:
             if data.get('confirmation') != 'DELETE ACCOUNT': fail('Type DELETE ACCOUNT to permanently remove your login.')
             # Tax agents share the owner's records; deleting a login does not

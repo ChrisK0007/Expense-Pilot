@@ -31,12 +31,13 @@ def restore(archive, destination):
         if set(names) != set(checks) | {'manifest.json'} or not {'data/rounded.sqlite', 'data/session.key'} <= set(checks): raise ValueError('Incomplete backup.')
         if sum(x.file_size for x in source.infolist()) > 100 * 1024**3: raise ValueError('Backup exceeds the 100 GB restore limit.')
         for name, expected in checks.items():
-            if name not in ('data/rounded.sqlite', 'data/session.key') and not re.fullmatch(r'data/receipts/[0-9a-f]{40}', name): raise ValueError('Unexpected backup path.')
+            if name not in ('data/rounded.sqlite', 'data/session.key') and not re.fullmatch(r'data/(receipts|documents)/[0-9a-f]{40}', name): raise ValueError('Unexpected backup path.')
             target = root/name; target.parent.mkdir(parents=True, exist_ok=True)
             digest = hashlib.sha256()
             with source.open(name) as inp, target.open('xb') as out:
                 for chunk in iter(lambda: inp.read(1024*1024), b''): digest.update(chunk); out.write(chunk)
             if digest.hexdigest() != expected: raise ValueError('Backup checksum failed.')
+            target.chmod(0o600)
         con = sqlite3.connect(root/'data/rounded.sqlite')
         try:
             if con.execute('PRAGMA integrity_check').fetchone()[0] != 'ok' or con.execute('PRAGMA foreign_key_check').fetchone(): raise ValueError('Backup database failed integrity validation.')
@@ -45,10 +46,17 @@ def restore(archive, destination):
                 if known.get(name) != checksum: raise ValueError('Use an application image compatible with this backup version.')
             receipts = {row[0] for row in con.execute('SELECT id FROM receipts')}
             if receipts != {name.split('/')[-1] for name in checks if name.startswith('data/receipts/')}: raise ValueError('Receipt files do not match the backup database.')
+            documents = {row[0]: (row[1],row[2]) for row in con.execute('SELECT id,sha256,size_bytes FROM tax_documents')} if con.execute("SELECT 1 FROM sqlite_schema WHERE name='tax_documents'").fetchone() else {}
+            if set(documents) != {name.split('/')[-1] for name in checks if name.startswith('data/documents/')}: raise ValueError('Document files do not match the backup database.')
+            for did, expected in documents.items():
+                name='data/documents/'+did
+                if expected != (checks[name],source.getinfo(name).file_size): raise ValueError('Document checksum does not match its saved metadata.')
             # Restored sessions must sign in again; credentials and 2FA remain valid.
             con.execute('DELETE FROM login_sessions'); con.commit()
         finally: con.close()
         (root/'data/receipts').mkdir(exist_ok=True)
+        (root/'data/documents').mkdir(exist_ok=True,mode=0o700)
+        (root/'data/documents').chmod(0o700)
         created = []
         try:
             for item in (root/'data').iterdir():

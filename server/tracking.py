@@ -342,6 +342,30 @@ def journeys_api():
     for item in data: item['has_route']=item.pop('route_json') is not None
     return jsonify(data)
 
+@bp.get('/vehicles/<int:vid>/report.pdf')
+@access
+def mileage_report(vid):
+    from record_reports import mileage_pdf
+    from billing import business
+    v=vehicle(vid)
+    if not request.args.get('from') or not request.args.get('to'): fail('Choose a report start and end date.')
+    start,end=day(request.args['from']),day(request.args['to'])
+    if start>end: fail('The report end must be on or after its start.')
+    scope=request.args.get('scope','all')
+    if scope not in ('all','work','business','personal'): fail('Choose a valid report workspace.')
+    rate=None
+    value=request.args.get('rate','').strip()
+    if value:
+        try:
+            rate=Decimal(value)
+            if not rate.is_finite() or not 0<=rate<=1000 or rate.as_tuple().exponent < -4: raise ValueError()
+        except (ValueError,InvalidOperation): fail('Enter a reimbursement rate from 0 to 1000 with up to four decimal places, or leave it blank.')
+    clause='' if scope=='all' else ' AND scope=?'
+    journeys=rows('SELECT * FROM vehicle_journeys WHERE vehicle_id=? AND date BETWEEN ? AND ?'+clause+' ORDER BY date,COALESCE(started_at,0),id',(vid,start,end)+(() if scope=='all' else (scope,)))
+    person=one('SELECT name FROM users WHERE id=?',(v['user_id'],))['name']
+    pdf=mileage_pdf(v,person,business().get('name',''),journeys,start,end,scope,rate)
+    return send_file(io.BytesIO(pdf),mimetype='application/pdf',as_attachment=True,download_name=f'expense-pilot-mileage-{vid}-{start}-{end}.pdf')
+
 @bp.route('/vehicle-journeys/<int:jid>',methods=['GET','PUT','DELETE'])
 @access
 def journey_api(jid):

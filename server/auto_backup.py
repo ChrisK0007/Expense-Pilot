@@ -66,22 +66,24 @@ def _stage(data_dir, root):
                 source.backup(target)
             with closing(sqlite3.connect(snapshot)) as con:
                 receipt_ids = [row[0] for row in con.execute('SELECT id FROM receipts')]
+                document_ids = [row[0] for row in con.execute('SELECT id FROM tax_documents')] if con.execute("SELECT 1 FROM sqlite_schema WHERE name='tax_documents'").fetchone() else []
             files = [('rounded.sqlite', snapshot)]
             # session.key is small and may be rotated outside normal receipt writes.
             shutil.copyfile(data_dir / 'session.key', root / 'session.key')
             files.append(('session.key', root / 'session.key'))
             (root / 'receipts').mkdir()
-            for rid in receipt_ids:
+            (root / 'documents').mkdir()
+            for directory, rid in [('receipts', rid) for rid in receipt_ids] + [('documents', did) for did in document_ids]:
                 if not re.fullmatch(r'[0-9a-f]{40}', rid):
-                    raise BackupError('Invalid receipt identifier. Earlier backups were kept.')
-                source, target = data_dir / 'receipts' / rid, root / 'receipts' / rid
+                    raise BackupError('Invalid attachment identifier. Earlier backups were kept.')
+                source, target = data_dir / directory / rid, root / directory / rid
                 try:
                     os.link(source, target)
                 except OSError as exc:
                     if exc.errno not in (errno.EXDEV, errno.EPERM, errno.EOPNOTSUPP, errno.ENOSYS):
                         raise
                     shutil.copyfile(source, target)
-                files.append(('receipts/' + rid, target))
+                files.append((directory + '/' + rid, target))
             return files
         finally:
             reservation.rollback()
@@ -96,16 +98,22 @@ def write_archive(archive, data_dir, version, verify=False):
     data_dir = Path(data_dir)
     with tempfile.TemporaryDirectory(prefix='.backup-stage-', dir=data_dir) as directory:
         files = _stage(data_dir, Path(directory))
+        with closing(sqlite3.connect(Path(directory) / 'rounded.sqlite')) as con:
+            documents = {row[0]: (row[1], row[2]) for row in con.execute('SELECT id,sha256,size_bytes FROM tax_documents')} if con.execute("SELECT 1 FROM sqlite_schema WHERE name='tax_documents'").fetchone() else {}
         if verify:
             verify_snapshot(Path(directory) / 'rounded.sqlite')
         checksums = {}
         with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as zipped:
             for name, path in files:
                 digest = hashlib.sha256()
+                size = 0
                 with path.open('rb') as inp, zipped.open('data/' + name, 'w', force_zip64=True) as out:
                     for chunk in iter(lambda: inp.read(1024 * 1024), b''):
                         digest.update(chunk)
                         out.write(chunk)
+                        size += len(chunk)
+                if name.startswith('documents/') and documents[name.split('/')[-1]] != (digest.hexdigest(), size):
+                    raise BackupError('A document original does not match its saved checksum. Earlier backups were kept.')
                 checksums['data/' + name] = digest.hexdigest()
             manifest = dict(format=1, product='Expense Pilot', version=version, sha256=checksums)
             zipped.writestr('manifest.json', json.dumps(manifest))
@@ -210,9 +218,11 @@ def rotate(folder, count, newest=None):
 
 def _required_bytes(data_dir):
     total = sum(p.stat().st_size for p in (data_dir / 'rounded.sqlite', data_dir / 'rounded.sqlite-wal') if p.exists())
-    for path in (data_dir / 'receipts').iterdir():
-        if path.is_file():
-            total += path.stat().st_size
+    for directory in ('receipts','documents'):
+        if (data_dir / directory).is_dir():
+            for path in (data_dir / directory).iterdir():
+                if path.is_file():
+                    total += path.stat().st_size
     return int(total * 1.1) + 64 * 1024 * 1024
 
 
