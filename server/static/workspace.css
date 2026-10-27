@@ -160,3 +160,8 @@ button{transition:box-shadow .15s}
 /* Document type controls hide expense-only fields while filing home-office evidence. */
 #receipt-review [hidden]{display:none!important}
 #income-document-form .notice,#receipt-bank-match{overflow-wrap:anywhere}
+
+#bank-match-previous table{width:100%;min-width:0;table-layout:fixed}
+#bank-match-previous th,#bank-match-previous td{white-space:normal;overflow-wrap:anywhere}
+#bank-match-previous th:first-child{width:52px}
+#bank-match-previous th:last-child{width:84px}

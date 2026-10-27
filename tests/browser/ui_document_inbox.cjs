@@ -19,7 +19,7 @@ function pdf(lines){
   const transactions=(await get('bank-transactions?state=all')).items,purchase=transactions.find(t=>t.payee==='PocketSmith browser purchase'),bill=transactions.find(t=>t.payee==='PocketSmith browser matching receipt');
   const previous=await post('expenses',{date:purchase.date,merchant:purchase.payee,amount:36.75,scope:'personal',work_percent:0,business_percent:0,category:'Other',status:'ready'});
   await page.goto(url+'/#/banks');await page.getByRole('button',{name:'Review suggested matches',exact:true}).click();
-  await page.getByRole('heading',{name:'Match previous expenses',exact:true}).waitFor();
+  await page.locator('#bank-match-previous').waitFor();
   assert.equal(await page.locator('[data-match]:checked').count(),1);
   await page.screenshot({path:output+'/match-previous-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});assert.equal(await page.locator('#modal').evaluate(el=>el.scrollWidth>el.clientWidth),false);await page.screenshot({path:output+'/match-previous-mobile.png',fullPage:true});

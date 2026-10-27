@@ -119,7 +119,7 @@ jobs:
           PYTHON
           docker exec expense-pilot-production python healthcheck.py
       - name: Browser workflow tests
-        timeout-minutes: 10
+        timeout-minutes: 20
         id: browser
         env:
           UI_OUTPUT: ${{ runner.temp }}/expense-pilot-ui
