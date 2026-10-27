@@ -38,6 +38,7 @@ function pdf(lines){
   await page.getByRole('button',{name:'Save home-office bill',exact:true}).click();await page.getByText('Home-office bill evidence saved.',{exact:true}).waitFor();
   const expense=(await get('expenses')).find(e=>e.receipt_id===rid);assert.ok(expense.account_id);assert.equal(expense.work_percent+expense.business_percent,0);assert.equal((await get('bank-transactions/'+bill.id)).transaction.expense_id,expense.id);
   await page.setViewportSize({width:1440,height:1050});await page.goto(url+'/#/employment');await page.getByRole('button',{name:'Upload payslip / statement',exact:true}).click();
+  assert.equal(await page.locator('#auto-scan').isChecked(),true);
   const slip=pdf(['PAYSLIP','Employer: Synthetic Aviation Pty Ltd','Payment date: 16/10/2026','Pay period: 01/10/2026 to 14/10/2026','This pay Gross taxable pay: AUD 3000.00','This pay PAYG tax withheld: AUD 650.00','Net pay: AUD 2350.00','YTD gross: AUD 21000.00','YTD tax: AUD 4550.00']);
   await page.locator('#inbox-files').setInputFiles({name:'synthetic-payslip.pdf',mimeType:'application/pdf',buffer:slip});
   await page.locator('#capture-progress').getByText('synthetic-payslip.pdf — ready to categorise',{exact:true}).waitFor();

@@ -47,20 +47,21 @@ function capture(kind='expense'){
  if(typeof kind!=='string')kind='expense';
  if(!editor())return;
  if(busy||batch.running)return toast('Receipt processing is still running.');
- modal('Capture documents',`<div class="capture-drop"><span class="capture-symbol">▤</span><h2>Snap it. Save it. Sort it later.</h2><p>JPEG, PNG, WebP or PDF · up to 12 MB per file</p><label class="upload-label" for="inbox-files">Choose files</label><input class="hidden" id="inbox-files" type="file" multiple accept="${accept}"><label class="upload-label secondary" for="inbox-camera">Take a photo</label><input class="hidden" id="inbox-camera" type="file" accept="image/*" capture="environment"></div>${IncomeDocuments.typeField(kind)}<label class="check"><input id="auto-scan" type="checkbox" checked>${S.ai_configured?'Read with AI after upload':'Read supported text payslips after upload'}</label><p class="footnote">${S.ai_configured?'Sends documents to your configured AI provider. Check the figures before saving.':'Supported text payslips are read locally. Other files remain saved for manual entry; configure AI to read photos and other layouts.'} No category, workspace or tax allocation is required now.</p><div id="capture-progress" role="status" aria-live="polite"></div><div class="modal-footer"><button class="secondary" id="capture-done">Done</button></div>`);
+ modal('Capture documents',`<div class="capture-drop"><span class="capture-symbol">▤</span><h2>Snap it. Save it. Sort it later.</h2><p>JPEG, PNG, WebP or PDF · up to 12 MB per file</p><label class="upload-label" for="inbox-files">Choose files</label><input class="hidden" id="inbox-files" type="file" multiple accept="${accept}"><label class="upload-label secondary" for="inbox-camera">Take a photo</label><input class="hidden" id="inbox-camera" type="file" accept="image/*" capture="environment"></div>${IncomeDocuments.typeField(kind)}<label class="check"><input id="auto-scan" type="checkbox" ${S.ai_configured||kind==='payslip'?'checked':''}>${S.ai_configured?'Read with AI after upload':'Read supported text payslips after upload'}</label><p class="footnote">${S.ai_configured?'Sends documents to your configured AI provider. Check the figures before saving.':'Supported text payslips are read locally. Other files remain saved for manual entry; configure AI to read photos and other layouts.'} No category, workspace or tax allocation is required now.</p><div id="capture-progress" role="status" aria-live="polite"></div><div class="modal-footer"><button class="secondary" id="capture-done">Done</button></div>`);
  bind('#capture-done',()=>{$('#modal').close();navigate('receipts');});
+ $('#document_kind').onchange=()=>{if(!S.ai_configured)$('#auto-scan').checked=$('#document_kind').value==='payslip';};
  const upload=async files=>{
   if(!files.length||busy)return;
-  busy=true;const scan=$('#auto-scan').checked;const progress=$('#capture-progress');
+  busy=true;const scan=$('#auto-scan').checked,documentKind=$('#document_kind').value;const progress=$('#capture-progress');
   $('#close-modal').disabled=true;$('#capture-done').disabled=true;$('#inbox-files').disabled=true;$('#inbox-camera').disabled=true;
   const preventClose=e=>e.preventDefault();$('#modal').addEventListener('cancel',preventClose);
   for(const f of files){
     const row=document.createElement('div');row.className='upload-progress';row.textContent=f.name+' — uploading…';progress.append(row);
     try{
       if(f.size>12*1024*1024)throw Error('File exceeds 12 MB.');
-      const fd=new FormData();fd.append('file',f);fd.append('document_kind',$('#document_kind').value);const r=await api('receipts',fd);
+      const fd=new FormData();fd.append('file',f);fd.append('document_kind',documentKind);const r=await api('receipts',fd);
       row.textContent=f.name+(r.duplicate?' — already saved':' — saved');
-      if(scan&&!r.duplicate){row.textContent=f.name+' — saved, AI reading…';try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});row.textContent=f.name+' — ready to categorise';}catch(e){row.textContent=f.name+' — saved. '+e.message;}}
+      if(scan&&!r.duplicate){row.textContent=f.name+(S.ai_configured?' — saved, AI reading…':' — saved, reading text…');try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});row.textContent=f.name+' — ready to categorise';}catch(e){row.textContent=f.name+' — saved. '+e.message;}}
     }catch(e){row.textContent=f.name+' — '+e.message;row.classList.add('error');}
   }
   busy=false;$('#modal').removeEventListener('cancel',preventClose);$('#close-modal').disabled=false;$('#capture-done').disabled=false;$('#inbox-files').disabled=false;$('#inbox-camera').disabled=false;
