@@ -119,6 +119,9 @@ class Report:
         self.add('Generated ' + datetime.now(workspace_time.zone()).strftime('%d %b %Y %H:%M') + ' (' + workspace_time.name() + ')')
 
     def build(self):
+        # A final table's spacing can spill onto a page with no report content.
+        while self.story and isinstance(self.story[-1], Spacer):
+            self.story.pop()
         out = io.BytesIO()
         def decoration(c, doc):
             c.saveState()

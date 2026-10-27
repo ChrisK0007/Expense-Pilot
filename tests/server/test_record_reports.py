@@ -64,6 +64,15 @@ class RecordReportTests(unittest.TestCase):
         self.assertIn('Rate unavailable',text);self.assertIn('No home-working sessions',text)
         self.assertIn('Not enabled',text);self.assertNotIn('$0.70',text)
 
+    def test_wfh_report_does_not_add_a_blank_page_after_the_evidence_table(self):
+        self.bill(work_percent=0,business_percent=0)
+        self.diary(start_time='09:00',end_time='17:00',break_minutes=60,activity='Test client preparation')
+        self.method()
+        text,reader=self.pdf_text(self.owner.get('/api/home-office/2026/report.pdf'))
+        self.assertEqual(len(reader.pages),2)
+        self.assertIn('Bill attached; type confirmed',reader.pages[-1].extract_text())
+        self.assertIn('ATO fixed-rate guidance',reader.pages[0].extract_text())
+
     def test_mileage_filters_allocations_rate_and_actual_odometer(self):
         vid=self.vehicle()
         self.journey(vid,odometer_start='1000',odometer_end='1100')
