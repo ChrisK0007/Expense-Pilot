@@ -2,6 +2,13 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.9 — Faster payslip extraction with Ollama (2026-10-28)
+
+- Read complete, explicitly labelled current-pay text payslips locally even when AI is enabled. Keep YTD and ambiguous amounts out of current-pay fields. All extracted figures still require review before saving income.
+- Retain partial local fields with a visible review warning if AI is unavailable; keep manual drafts and original documents. Scanned or unsupported documents still report a clear failure when no local fields are available.
+- Use a shorter employment-document prompt, disable Ollama thinking and cap generated output at 2,048 tokens. Reject truncated responses. Allow Ollama reads up to five minutes; cloud-provider and connection-test limits remain unchanged.
+- No database migration, provider switch or iPhone build.
+
 ## 1.0.6-beta.8 — Reliable payslip reading behind a proxy (2026-10-27)
 
 - Read uploaded documents in bounded background jobs and poll progress with short requests, so slow AI reads do not hold a browser request open across the proxy timeout. Apply this to capture, individual retries, bulk reprocessing and employment-document review.

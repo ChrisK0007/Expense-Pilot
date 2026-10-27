@@ -68,7 +68,7 @@ class IncomeDocumentTests(unittest.TestCase):
         self.assertIsNone(result['date']);self.assertIsNone(result['gross']);self.assertIsNone(result['withheld'])
 
     def test_ai_keeps_current_pay_and_ytd_separate(self):
-        rid=self.upload().json['id']
+        rid=self.upload(payslip_pdf('PAYSLIP\nEmployer: Synthetic Aviation Pty Ltd\nCurrent and YTD amounts are in columns.')).json['id']
         result=dict(document_kind='payslip',employer='Synthetic Aviation Pty Ltd',date='2026-10-16',gross=3000,withheld=650,ytd_gross=21000,ytd_withheld=4550,amounts_basis='period',currency='AUD',currency_evidence='AUD')
         with patch('ai_providers.configured',return_value=True),patch('ai_providers.extract',return_value=result):
             read=self.call(self.owner,f'receipts/{rid}/extract',{})
@@ -90,7 +90,7 @@ class IncomeDocumentTests(unittest.TestCase):
         self.assertEqual(len(self.owner.get('/api/employment').json),1)
 
     def test_filed_during_extraction_cannot_update_record(self):
-        rid=self.upload().json['id']
+        rid=self.upload(payslip_pdf('PAYSLIP\nSynthetic layout requiring AI extraction.')).json['id']
         def race(*args):
             db().execute('INSERT INTO employment_income(date,employer,gross_cents,withheld_cents,receipt_id) VALUES (?,?,?,?,?)',('2026-10-16','Synthetic',1000,200,rid));db().commit()
             return dict(document_kind='payslip',amounts_basis='period',gross=9999,withheld=999)

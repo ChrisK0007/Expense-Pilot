@@ -32,4 +32,10 @@ import pocketsmith
 from pocketsmith_fixture import BrowserClient
 pocketsmith.Client=BrowserClient
 
+# Keep synthetic payroll documents off every real provider during browser tests.
+import ai_providers
+def unavailable_ai(*args, **kwargs):
+    raise ai_providers.AIError('Ollama did not finish reading this synthetic document.')
+ai_providers.extract=unavailable_ai
+
 app.run(host='0.0.0.0',port=int(os.environ.get('PORT','8788')),threaded=True)
