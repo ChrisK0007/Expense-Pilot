@@ -9,6 +9,7 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 - Download a WFH logbook PDF with the financial-year summary, employment/business hours, monthly totals, session times, breaks, creation/update timestamps, work notes and evidence checklist. Clearly distinguish estimated deductions, pending claims and amounts included in the forecast.
 - Download a mileage PDF for a vehicle, date range and workspace, with distance summaries and monthly journey details. Include routes, purposes, saved odometer readings, use percentages and an optional user-entered reimbursement rate. Never invent missing odometer readings or apply reimbursement amounts to the tax forecast.
 - Add **Reports → Documents** for tax returns, private health statements and other supporting files, with titles, categories, optional financial years, notes, search, downloads and duplicate detection. Keep these files out of claims, income and receipt AI processing. Apply owner/tax-agent permissions and retain originals in manual and automatic backups.
+- Keep vehicle actions disabled while records load, so an early click cannot be lost before the form is ready.
 - Add migration m021 for document metadata without changing the twenty released migrations. Preserve CSV exports, allowances and audit history. No iPhone build. Take a full backup before updating; rollback needs its matching backup because older images do not recognise m021.
 
 ## 1.0.6-beta.4 — Clearer home office and verified automatic backups (2026-10-27)
