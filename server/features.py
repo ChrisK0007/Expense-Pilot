@@ -2,7 +2,7 @@
 import json
 from flask import g, request, jsonify
 
-DEFAULTS = dict(employment=True, business=True, trips=True, vehicles=True, banks=True, tax=True)
+DEFAULTS = dict(employment=True, business=True, trips=True, vehicles=True, banks=True, tax=True, home_office=True)
 
 def preferences():
     if not g.user:

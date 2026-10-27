@@ -1,6 +1,6 @@
 'use strict';
 const Features=(()=>{
- const labels={employment:'Employment tracking',business:'Business features',trips:'Trips & meals',vehicles:'Vehicle tracking',banks:'Bank accounts & imports',tax:'Tax forecast'};
+ const labels={home_office:'Home office',employment:'Employment tracking',business:'Business features',trips:'Trips & meals',vehicles:'Vehicle tracking',banks:'Bank accounts & imports',tax:'Tax forecast'};
  const enabled=key=>S.features?.[key]!==false;
  const defaultScope=()=>role()==='employee'?'business':enabled('employment')?'work':'business';
  function scopes(current='',personal=true,split=false){

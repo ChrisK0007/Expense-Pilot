@@ -89,3 +89,19 @@ button{transition:box-shadow .15s}
 #modal .modal-title h2{overflow-wrap:anywhere;min-width:0}
 #modal #close-modal{flex-shrink:0}
 @media(max-width:600px){#modal .modal-footer>button{flex:1;min-height:44px}.billing-tabs button{min-height:44px}.table-actions{gap:4px}}
+
+/* Home-office records share existing workspace cards, forms and responsive tables. */
+.home-office-method {font-size:1.5rem}
+.home-office-note {padding:0 24px;max-width:90ch;color:var(--muted)}
+.home-office-issues {padding-left:1.25rem;line-height:1.6}
+.home-office-issues li+li {margin-top:.35rem}
+.home-office-history {white-space:pre-wrap;overflow-wrap:anywhere;max-width:40ch;font-size:.8rem}
+.home-office-comparison .card {min-width:0}
+#home-office-method-form fieldset {margin:20px 0;border:1px solid var(--line);border-radius:10px;padding:16px}
+#home-office-cost-form textarea {min-height:100px}
+#home-office-entry-form details,#home-office-method-form details {margin-top:16px}
+
+.home-office-cards {grid-template-columns:repeat(3,minmax(0,1fr))}
+.home-office-comparison {grid-template-columns:repeat(2,minmax(0,1fr))}
+.home-office-panel-header {flex-wrap:wrap}
+@media(max-width:700px){.home-office-cards,.home-office-comparison {grid-template-columns:1fr}.home-office-panel-header h2 {flex-basis:100%}}
