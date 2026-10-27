@@ -163,6 +163,8 @@ def home_office_pdf(annual, person):
     report.add('Keep a bill or receipt for each covered running-cost type you personally incurred. Covered bills are evidence; their cost and work-use percentages do not determine the hourly deduction. They cannot also be claimed separately.')
     report.add('The diary lists recorded sessions after breaks. Original creation and update timestamps are retained; generating this report does not establish that older entries were recorded at the time. Keep supporting records for any late entries.')
     report.add('Logged/updated timestamps below use ' + workspace_time.name() + '. Session times use the timezone shown on each row.')
+    report.add('ATO fixed-rate guidance: ' + annual['source'], 'small')
+    report.add('Rule reference checked ' + day(annual['rules_checked']) + '. CSV export contains the full relevant edit history.', 'small')
     report.story.append(PageBreak())
     report.add('Year at a glance', 'heading')
     monthly = defaultdict(lambda: dict(work=0, business=0))
@@ -207,8 +209,6 @@ def home_office_pdf(annual, person):
         report.add('Outstanding checks', 'heading')
         for issue in annual['fixed_issues'] + annual['warnings']:
             report.add('- ' + issue)
-    report.add('ATO fixed-rate guidance: ' + annual['source'], 'small')
-    report.add('Rule reference checked ' + day(annual['rules_checked']) + '. CSV export contains the full relevant edit history.', 'small')
     return report.build()
 
 
@@ -234,7 +234,7 @@ def mileage_pdf(vehicle, person, workplace, journeys, start, end, scope, rate=No
     report.add(vehicle['name'] + (' (' + vehicle['registration'] + ')' if vehicle['registration'] else ''))
     if workplace:
         report.add(workplace)
-    report.add('Journeys included: ' + ('all workspaces' if scope == 'all' else SCOPE[scope]) + f'. {len(journeys)} recorded journeys.')
+    report.add('Journeys included: ' + ('all workspaces' if scope == 'all' else SCOPE[scope]) + f". {len(journeys)} recorded {'journey' if len(journeys) == 1 else 'journeys'}.")
     distance, amounts, line_amounts = mileage_totals(journeys, rate)
     report.add('Distance summary', 'heading')
     rate_label = f'${rate:.4f}'.rstrip('0').rstrip('.') + '/km' if rate is not None else 'Not set'
