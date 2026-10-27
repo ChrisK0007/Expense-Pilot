@@ -2,6 +2,18 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.3 — Home office (2026-10-27)
+
+- Add Home office under Tracking, with separate employment and sole-trader hours, breaks, workspace timezone and an edit history. Reject overlapping sessions, stale edits and accidental duplicate retries.
+- Compare fixed-rate and actual-cost deductions by financial year. One annual method prevents covered running costs being claimed again through the ordinary expense forecast. Missing confirmations or evidence leave the selected deduction pending.
+- Link original expense bills, preserve spending and use percentages, and require an assessed amount for equipment/depreciation and occupancy. Reimbursements are excluded.
+- Record employer allowances, with an explicit choice about whether they are already included in gross pay. Annual salary overrides replace the recorded total.
+- Export the diary, bills, calculations, allowances and relevant edit history to CSV. Tax agents can view/export; editing follows their existing permissions.
+- Show an optional employee standard-deduction comparison separately from the forecast. This beta does not calculate a final tax return, depreciation schedules or GST/BAS.
+- Add migration m020 without altering existing data or the 19 released migrations. Full backups retain home-office records and attachments. SQLite 3.54.1 and database health checks remain included.
+
+See the [Home office guide](home-office.md). Take a full backup before updating. An older image cannot open a database after m020; rollback requires the matching pre-update backup.
+
 ## 1.0.6-beta.2 — SQLite reliability (2026-10-27)
 
 - Build and pin SQLite 3.54.1, including the upstream WAL-reset corruption fix. Verify the downloaded source checksums and the library version/source ID actually loaded by Python.

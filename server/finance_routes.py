@@ -132,8 +132,9 @@ def tax_forecast(year):
     from overnights import is_overnight
     overnight_expenses=[e for e in expenses if is_overnight(e)]
     expenses=[e for e in expenses if not is_overnight(e)]
-    business_deductions=sum(allocations(e)[1] for e in expenses)
-    work_deductions=sum(allocations(e)[0] for e in expenses)
+    from home_office import forecast_adjustments
+    home_office,work_deductions,business_deductions=forecast_adjustments(year,expenses)
+    salary['gross']+=home_office['allowance_income_cents']
     unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review' AND trip_id IS NULL AND meal='' AND category!='Meals'",(start,end))['n']
     import workspace_time
     current=workspace_time.today();begin=date.fromisoformat(start);finish=date.fromisoformat(end)
@@ -146,4 +147,4 @@ def tax_forecast(year):
     profit=forecast['business_income_cents']-forecast['business_deductions_cents']+(settings.get('gst_credits') or 0)
     taxable=forecast['salary_cents']+max(0,profit)-forecast['work_deductions_cents']+(settings.get('other_income') or 0)-(settings.get('other_deductions') or 0)
     result=estimate(taxable,year,forecast['withheld_cents'],settings.get('instalments') or 0,settings.get('medicare_override'),settings.get('other_tax') or 0,settings.get('set_aside') or 0)
-    return jsonify(year=year,start=start,end=end,settings=settings,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions,overnight_work_cents=sum(allocations(e)[0] for e in overnight_expenses),overnight_business_cents=sum(allocations(e)[1] for e in overnight_expenses)),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat())
+    return jsonify(year=year,start=start,end=end,settings=settings,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions,overnight_work_cents=sum(allocations(e)[0] for e in overnight_expenses),overnight_business_cents=sum(allocations(e)[1] for e in overnight_expenses)),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat(),home_office=dict(status=home_office['status'],method=home_office['settings']['method'],active=home_office['active'],hourly=home_office['hourly'] if home_office['active'] and home_office['settings']['method']=='fixed' else dict(work=0,business=0),allowance_income_cents=home_office['allowance_income_cents']))
