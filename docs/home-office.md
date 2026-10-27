@@ -33,3 +33,16 @@ Open **Tracking → Vehicles → Download mileage PDF**. Choose one vehicle, sta
 The PDF includes a summary by employment, business and personal use, then monthly journey details. Employment/business distances use the saved journey use percentage; the remainder is personal. Reimbursement estimates use those allocated kilometres and are rounded per journey. They do not set an ATO tax rate, apply annual kilometre limits or change the tax forecast.
 
 Only recorded journey odometer readings are printed. Missing readings are labelled **Not recorded** rather than inferred from GPS. Only journeys already uploaded to the server are included. Existing journey CSV export remains available.
+
+
+## Importing existing hours
+
+Choose **Home office → Import hours**. Select a WFH Logbook Australia PDF or an Expense Pilot diary CSV and confirm the session timezone. PDF uploads support text-based reports up to 10 MB and 500 pages; CSV uploads support UTF-8 files up to 2 MB. Imports accept up to 1,000 sessions. Scanned PDFs and other PDF layouts are not supported. The parser checks the PDF's session total against its reported hours; money in the report is ignored.
+
+Review the sessions, choose Employment or Business (individually or using Apply), and enter any missing work descriptions. Dates, times, breaks and timezones can be corrected before saving. Repeated daylight-saving times need an occurrence selection. Select only the correct sessions and tick the review confirmation. No hours or source document are stored during preview.
+
+Existing sessions and previously deleted rows from the same import are skipped, including a retry after a lost response. Overlaps with saved or selected sessions reject the whole selected batch. Import does not overwrite existing sessions or restore deleted imports. Review and edit existing hours from the diary instead.
+
+The original report is saved in Documents and linked from imported sessions. Its original dates, times, notes and logged/updated timestamps remain in import history and the full CSV history export. PDF logbooks include an imported-source section. Expense Pilot records the actual import date as the diary creation date; original report timestamps are evidence from that source, not independently verified dates. PDF source timestamp timezones are unspecified; Expense Pilot CSV source timestamps are UTC. Deleting the source document later removes its file but retains the import history.
+
+The import does not enable the fixed-rate claim or tick any claim confirmations. Existing claim settings are unchanged; review them separately when your records change. Importing older records does not itself establish that they were kept contemporaneously.

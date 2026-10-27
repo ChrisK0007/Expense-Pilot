@@ -9,7 +9,9 @@ Open **Reports → Documents** to keep tax-time records that are not expenses or
 3. Add optional notes and upload. Identical file contents are detected; a repeat upload keeps the original document and its existing details.
 4. Search by title, filename or notes and filter by category/year. **Edit details** changes the description, category, year and notes without modifying the original file. **Download** returns the original.
 
-Supported files are PDF, PNG, JPG/JPEG, WebP, DOCX, XLSX, UTF-8 CSV and UTF-8 TXT, up to 10 MB each. PDFs are not subject to the receipt page limit, and password-protected PDFs can be stored/downloaded. The server checks file signatures/containers but does not render or execute documents, perform malware scanning or send their contents to AI services. Documents download as attachments; open them using an appropriate application.
+Supported files are PDF, PNG, JPG/JPEG, WebP, DOCX, XLSX, UTF-8 CSV and UTF-8 TXT, up to 10 MB each. PDFs are not subject to the receipt page limit, and password-protected PDFs can be stored/downloaded. Choose **View** on a document to open its in-page preview. PDFs support page navigation (including a page-number jump) and zoom; images open in the same viewer. Word and TXT show text; Excel and CSV show cell values, with worksheet selection for Excel. Word formatting/images and spreadsheet charts/formatting are omitted. Saved formula results are displayed without calculating formulas; Excel dates may show stored serial numbers. Large previews are shortened and clearly labelled. Use **Download original** for the complete document.
+
+Previews and WFH PDF extraction run locally in bounded child processes. No content is sent to external viewers or AI services, and document macros, scripts, formulas and external relationships are not executed. This is not malware scanning. Password-protected, malformed, overly complex or unsupported previews retain a download option; upload an unencrypted PDF to preview/import it. PDF previews support 1–500 pages, independently of the receipt upload limit. The original file is unchanged and generated preview images are not retained.
 
 ## Access and accounting
 

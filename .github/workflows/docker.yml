@@ -29,6 +29,7 @@ jobs:
           node --check server/static/workspace-time.js
           node --check server/static/public-release.js
           node --check server/static/app.js
+          node tests/js/toast_timer.cjs
           node --check server/static/overnights.js
           node --check server/static/bank-feeds.js
           node --check server/static/billing.js
@@ -43,6 +44,8 @@ jobs:
           node --check server/static/planning.js
           node --check server/static/home-office.js
           node --check server/static/documents.js
+          node --check server/static/document-viewer.js
+          node --check server/static/home-office-import.js
           python -m compileall -q server tests
           bash -n prepare.sh backup.sh scripts/prepare.sh scripts/backup.sh
       - name: Release version
