@@ -15,7 +15,9 @@ class DocumentReadingTests(unittest.TestCase):
     setUp = base.AppTest.setUp
     login = base.AppTest.login
     call = base.AppTest.call
-    upload = income_tests.IncomeDocumentTests.upload
+    def upload(self, raw=None):
+        # These tests exercise the AI path; a complete labelled slip now bypasses it.
+        return income_tests.IncomeDocumentTests.upload(self, raw or payslip_pdf('PAYSLIP\nSynthetic layout requiring AI extraction.'))
 
     def wait(self, rid, token):
         for _ in range(300):
@@ -60,7 +62,7 @@ class DocumentReadingTests(unittest.TestCase):
         self.assertEqual(self.owner.get('/api/expenses').json, [])
 
     def test_failure_preserves_original_and_draft_then_allows_retry(self):
-        raw = payslip_pdf(); rid = self.upload(raw).json['id']
+        raw = payslip_pdf('PAYSLIP\nSynthetic layout requiring AI extraction.'); rid = self.upload(raw).json['id']
         self.call(self.owner, f'receipts/{rid}/draft', {'document_kind': 'payslip', 'notes': 'Keep my correction'}, 'PUT')
         with patch('ai_providers.configured', return_value=True), patch('ai_providers.extract', side_effect=ai_providers.AIError('AI provider timed out. Retry later.')):
             job = self.call(self.owner, f'receipts/{rid}/extract', {'background': True}).json

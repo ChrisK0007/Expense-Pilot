@@ -66,7 +66,7 @@ def local_payslip(text):
     patterns={'gross':r'(?:gross(?: taxable)? pay|taxable gross|gross earnings)',
               'withheld':r'(?:payg(?: tax)?(?: withheld)?|tax withheld|income tax)',
               'net':r'(?:net pay|net payment)', 'super':r'(?:employer super(?:annuation)?)'}
-    seen_dates=set();seen_employers=set();amounts={key:set() for key in patterns}
+    seen_dates=set();seen_employers=set();amounts={key:set() for key in patterns};explicit=set()
     for line in text.splitlines():
         line=line.strip()
         m=re.match(r'(?:employer|company)\s*:\s*(.+)$',line,re.I)
@@ -82,13 +82,21 @@ def local_payslip(text):
             if m:
                 value=cents_value(m.group(1).replace(',',''));amounts[key].add(value)
                 out[key]=value if len(amounts[key])==1 else None
+                if re.match(r'(?:this pay|current pay)\s+',line,re.I): explicit.add(key)
     # A YTD-only report cannot safely be read as a current pay statement.
-    if re.search(r'\b(ytd|year.to.date)\b',text,re.I) and not re.search(r'\b(this pay|current pay|current period)\b',text,re.I):
-        out['gross']=out['withheld']=None;out['amounts_basis']='unknown'
+    if re.search(r'\b(ytd|year.to.date)\b',text,re.I):
+        for key in ('gross','withheld','net','super'):
+            if key not in explicit: out[key]=None
+        if not {'gross','withheld'} <= explicit: out['amounts_basis']='unknown'
     if len(seen_dates)>1 or len(seen_employers)>1:
         out['date']=None;out['gross']=out['withheld']=None;out['amounts_basis']='unknown'
     out=clean(out)
     out['extraction_method']='local labels'
+    # Only the explicit current-pay layout can bypass AI. Other local results
+    # remain partial suggestions, including after a provider failure.
+    out['local_complete']=bool(out['employer'] and out['date'] and out['amounts_basis']=='period'
+        and {'gross','withheld'} <= explicit and out['gross'] is not None
+        and out['withheld'] is not None and out['withheld'] <= out['gross'])
     return out
 
 
