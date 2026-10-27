@@ -197,6 +197,12 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   // Imports are reviewed first, preserve the original, and never duplicate a retry.
   const importCSV=Buffer.from('Date,Start,End,Break minutes,Scope,Activity,Timezone,Created UTC,Updated UTC\n2026-07-02,09:00,11:00,0,,,Australia/Brisbane,2026-07-02 11:05:00,\n2026-07-03,09:00,10:00,0,,Bookkeeping,Australia/Brisbane,,\n2026-10-08,09:00,17:00,60,work,Already recorded,Australia/Brisbane,,\n');
   await page.goto(url+'/#/home_office');await page.locator('#home-office-import-open').click();
+  const invalidCSV=Buffer.from(importCSV.toString().replace('2026-07-02','<b id=import-injection>bad</b>'));
+  await page.getByLabel('Report file',{exact:true}).setInputFiles({name:'invalid-date.csv',mimeType:'text/csv',buffer:invalidCSV});
+  await page.getByRole('button',{name:'Review sessions',exact:true}).click();await page.locator('#wfh-import-review-form').waitFor();
+  assert.equal(await page.locator('#import-injection').count(),0);
+  assert.match(await page.locator('.wfh-import-row').first().innerText(),/<b id=import-injection>bad<\/b>/);
+  await page.locator('#wfh-import-back').click();
   await page.getByLabel('Report file',{exact:true}).setInputFiles({name:'test-diary.csv',mimeType:'text/csv',buffer:importCSV});
   await page.getByRole('button',{name:'Review sessions',exact:true}).click();
   await page.locator('#wfh-import-review-form').waitFor();
