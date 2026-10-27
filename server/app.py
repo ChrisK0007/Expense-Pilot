@@ -33,6 +33,7 @@ if not key.exists():
         key.chmod(0o600)
     except FileExistsError: pass
 app=Flask(__name__,static_folder='static')
+import client_address; client_address.install(app)
 app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(days=30))
 CATEGORIES=['Uncategorised','Meals','Accommodation','Transport','Vehicle expenses','Bank fees','Phone & internet','Equipment','Uniform','Training','Insurance','Subscriptions','Other']
 
@@ -304,6 +305,8 @@ import ai_providers
 ai_providers.register(app, auth)
 import public_release
 public_release.register(app, auth)
+import auto_backup
+auto_backup.register(app, auth)
 import source_access
 source_access.register(app, VERSION)
 workspace_time.register(app, auth)

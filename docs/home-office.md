@@ -23,3 +23,14 @@ These are deduction estimates, not refunds or a lodged return. The beta does not
 ## Updating and restoring
 
 Back up before installing this beta. Migration m020 adds five tables and retains existing records. Keep the pre-update backup: an older application image rejects the new migration and requires restoration of its matching backup to roll back.
+
+## Finding your records
+
+The overview shows hours recorded and the deduction actually included in the forecast. **Not set up** means no method is selected; **Pending** means the selected method still needs checks or evidence. Potential comparison figures are kept under **Claim → Compare fixed rate and actual costs**.
+
+- **Hours:** log and edit actual sessions, separately for employment and business.
+- **Bills & receipts:** link existing expenses, confirm automatically identified phone/internet bills and record their use.
+- **Claim:** see outstanding checks, compare methods and open detailed tax guidance. **Set up claim / Review claim settings** shows only confirmations relevant to the selected method.
+- **Allowances:** optional employer payments, with an explicit gross-pay inclusion choice.
+
+Your last view is remembered in the current browser tab. Financial-year selection, CSV export and edit history remain available above the records. Tax forecast also shows a short method/status note, with the calculation explanation expandable underneath. Calculations and evidence requirements are unchanged.

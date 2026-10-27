@@ -22,6 +22,9 @@ class BackupTest(unittest.TestCase):
             (data/'session.key').write_text('preserved-key')
             (data/'receipts').mkdir();(data/'receipts'/'receipt').write_bytes(b'receipt')
             (root/'.env').write_text('CONFIG=test\n')
+            (data/'backup-id').write_text('not-cloned')
+            (data/'backups').mkdir();(data/'backups'/'older.zip').write_bytes(b'old backup')
+            (data/'.backup-stage-old').mkdir();(data/'.backup-stage-old'/'rounded.sqlite').write_bytes(b'stale staging')
             binary = root/'bin';binary.mkdir()
             docker = binary/'docker'
             docker.write_text('''#!/usr/bin/env bash
@@ -47,6 +50,7 @@ fi
                     self.assertEqual(saved.extractfile('data/session.key').read(),b'preserved-key')
                     self.assertEqual(saved.extractfile('data/receipts/receipt').read(),b'receipt')
                     self.assertEqual(saved.extractfile('.env').read(),b'CONFIG=test\n')
+                    self.assertFalse(any(name.startswith(('data/backups', 'data/.backup-stage-', 'data/backup-id')) for name in saved.getnames()))
             return calls
 
     def test_custom_mount_and_running_container(self):
