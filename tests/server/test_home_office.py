@@ -53,6 +53,11 @@ class HomeOfficeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.json)
         return eid
 
+    def test_diary_notes_are_optional_and_stay_empty(self):
+        result,_=self.diary(activity='')
+        self.assertEqual(result.status_code,200,result.json)
+        self.assertEqual(self.owner.get('/api/home-office/2026').json['entries'][0]['activity'],'')
+
     def test_fixed_rate_replaces_covered_allocations_and_counts_each_scope_once(self):
         eid=self.bill()
         self.assertEqual(self.diary(start_time='07:00',end_time='17:00')[0].status_code,200)

@@ -98,11 +98,18 @@ def receipt_values(rid):
     return {**extracted, **draft_for(rid)}
 
 def clean_draft(d):
-    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip'}
+    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip','document_kind','employer','gross','withheld','period_start','period_end','amounts_basis','home_office_kind','bank_choice','bank_version','personally_paid'}
     if set(d)-allowed: fail('Unknown receipt draft field.')
     result = {}
     for key, value in d.items():
-        if key=='date': result[key] = day(value) if value else ''
+        if key=='document_kind':
+            from income_documents import KINDS
+            if value not in KINDS: fail('Invalid document type.')
+            result[key]=value
+        elif key in ('gross','withheld'): result[key]=money(value)/100 if value not in ('',None) else None
+        elif key in ('period_start','period_end'): result[key]=day(value) if value else ''
+        elif key=='personally_paid': result[key]=value is True
+        elif key=='date': result[key] = day(value) if value else ''
         elif key=='amount': result[key] = money(value)/100 if value not in ('',None) else None
         elif key in ('percent','work_percent','business_percent'):
             try: n = Decimal(str(value))
@@ -133,6 +140,7 @@ def clean_draft(d):
 @access
 def save_receipt_draft(rid):
     db().execute('BEGIN IMMEDIATE'); r=receipt(rid)
+    if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as income.',409)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already filed.',409)
     incoming=clean_draft(body());values={**draft_for(rid),**incoming}
     if 'percent' in incoming and 'work_percent' not in incoming and 'business_percent' not in incoming and values.get('scope')!='split':
@@ -161,10 +169,12 @@ def proposals(focus=None):
     focus_values=receipt_values(focus['id']) if focus else {}
     focus_scope=(focus_values.get('scope') or profile(focus['user_id'])['scope']) if focus else None
     where, args = ('r.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
-    receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id)',args)
+    receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id)',args)
     groups=[]
     for r in receipts:
-        d=receipt_values(r['id']); prefs=profile(r['user_id']); city=location_core.receipt_location(d)
+        d=receipt_values(r['id'])
+        if d.get('document_kind','expense')!='expense': continue
+        prefs=profile(r['user_id']); city=location_core.receipt_location(d)
         if not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
         assessment=location_core.local_assessment(prefs,city if 'merchant_location' in d else d.get('merchant_city',''),'' if 'merchant_location' in d else d.get('merchant_address',''),d.get('currency','AUD'))
         scope=d.get('scope') or prefs['scope']; when=d['date']
@@ -202,6 +212,7 @@ def proposal_api(): return jsonify(proposals())
 @access
 def receipt_trip_proposal(rid):
     r=receipt(rid)
+    if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as income.',409)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already filed.',409)
     values=receipt_values(rid)
     if values.get('category')!='Meals' or not values.get('date'): fail('Enter the receipt date and select Meals before reviewing a trip.')
@@ -220,6 +231,8 @@ def accept_proposal():
     db().execute('BEGIN IMMEDIATE')
     originals=[receipt(rid) for rid in ids]; uid=originals[0]['user_id']
     if any(r['user_id']!=uid for r in originals): fail('A trip can only contain receipts for one person.')
+    if any(one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)) for rid in ids): fail('A document was already filed as income.',409)
+    if any(receipt_values(rid).get('document_kind','expense')!='expense' for rid in ids): fail('Only expense documents can be added to a trip.')
     if any(one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)) for rid in ids): fail('A receipt was already filed. Reload the draft trips.',409)
     start,end=day(d.get('start')),day(d.get('end'));location=textval(d.get('location'),100);purpose=textval(d.get('purpose'),500);scope=d.get('scope')
     if end<=start or not location or not purpose: fail('Confirm an overnight date range, location and purpose.')
@@ -241,8 +254,13 @@ def accept_proposal():
             values.pop('work_percent',None);values.pop('business_percent',None)
         if not values.get('meal'): fail('Confirm a meal type for each receipt.')
         if values.get('percent') in ('',None): values['percent']=100
+        import bank_matching
+        match=bank_matching.choose(uid,values)
+        if match and match['expense_id']: fail('This meal already has a bank-linked expense. Attach its document from the inbox first.',409)
+        if match: values['account_id']=match['local_account_id']
         p=payload(values,{'user_id':uid,'account_id':None})
         eid=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p).lastrowid
+        bank_matching.attach(eid,match,values.get('bank_choice')=='cash')
         saved.append(eid);audit('receipt trip meal accepted',eid)
     audit('receipt trip accepted',tid);db().commit();return jsonify(trip_id=tid,expense_ids=saved)
 

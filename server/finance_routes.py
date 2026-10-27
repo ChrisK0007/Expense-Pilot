@@ -81,8 +81,10 @@ def export():
 def employment_income():
     from app import audit, db, employment_values, jsonify, request, rows
     if request.method=='GET': return jsonify(rows('SELECT * FROM employment_income ORDER BY date DESC,id DESC'))
-    d=request.get_json();values=employment_values(d)
-    c=db().execute('INSERT INTO employment_income(date,employer,gross_cents,withheld_cents,notes) VALUES (?,?,?,?,?)',values)
+    import income_documents
+    d=request.get_json();values=employment_values(d);meta=income_documents.metadata(d)
+    db().execute('BEGIN IMMEDIATE');income_documents.check_overlap(values,meta)
+    c=db().execute('INSERT INTO employment_income(date,employer,gross_cents,withheld_cents,notes,record_kind,period_start,period_end) VALUES (?,?,?,?,?,?,?,?)',values+meta)
     audit('employment income created',c.lastrowid);db().commit();return jsonify(id=c.lastrowid)
 
 
@@ -97,9 +99,17 @@ def employment_values(d):
 @auth('owner','tax_agent')
 def edit_employment(eid):
     from app import audit, db, employment_values, fail, jsonify, one, request
-    if not one('SELECT id FROM employment_income WHERE id=?',(eid,)): fail('Income record not found.',404)
+    import income_documents
+    db().execute('BEGIN IMMEDIATE')
+    existing=one('SELECT * FROM employment_income WHERE id=?',(eid,))
+    if not existing: fail('Income record not found.',404)
     if request.method=='DELETE': db().execute('DELETE FROM employment_income WHERE id=?',(eid,))
-    else: db().execute('UPDATE employment_income SET date=?,employer=?,gross_cents=?,withheld_cents=?,notes=? WHERE id=?',employment_values(request.get_json())+(eid,))
+    else:
+        d=request.get_json() or {}
+        if 'version' in d and d['version']!=existing['version']: fail('Income changed. Reopen it before saving.',409)
+        values=employment_values(d);meta=income_documents.metadata(d,existing)
+        income_documents.check_overlap(values,meta,eid)
+        db().execute('UPDATE employment_income SET date=?,employer=?,gross_cents=?,withheld_cents=?,notes=?,record_kind=?,period_start=?,period_end=?,version=version+1 WHERE id=?',values+meta+(eid,))
     audit('employment income updated',eid);db().commit();return jsonify(ok=True)
 
 

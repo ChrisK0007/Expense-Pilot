@@ -71,7 +71,7 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(self.annual()['entries'],[]);self.assertEqual(before,set((DATA/'documents').glob('*')))
         self.assertEqual(self.upload('save',raw=raw,filename='hours.pdf',entries=entries,confirmed='false').status_code,400)
         self.assertEqual(self.upload('save',raw=raw,filename='hours.pdf',entries=entries).status_code,400)
-        for e in entries: e['scope']='work';e['activity']=e['activity'] or 'Reviewed administration'
+        for e in entries: e['scope']='work'
         saved=self.upload('save',raw=raw,filename='hours.pdf',entries=entries)
         self.assertEqual(saved.status_code,200,saved.json);self.assertEqual(saved.json['imported'],2)
         did=saved.json['document_id'];self.assertEqual((DATA/'documents'/did).read_bytes(),raw)
@@ -136,7 +136,8 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(self.annual()['entries'],[]);self.assertEqual(before,set((DATA/'documents').glob('*')))
         invalid=[{**entries[0],'index':True}]
         self.assertEqual(self.upload('save',entries=invalid).status_code,400)
-        entries[0]['activity']='';self.assertEqual(self.upload('save',entries=entries).status_code,400)
+        entries[0]['activity']='';self.assertEqual(self.upload('save',entries=entries).status_code,200)
+        self.assertIn('',[e['activity'] for e in self.annual()['entries']])
 
     def test_same_file_overlaps_are_visible_during_review(self):
         raw=CSV.replace(b'2026-07-03,09:00,10:00',b'2026-07-02,10:00,12:00')

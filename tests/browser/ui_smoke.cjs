@@ -11,6 +11,7 @@ async function main() {
   fs.mkdirSync(output,{recursive:true});
   const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
   const page = await browser.newPage({viewport:{width:1440,height:1050}});
+  page.setDefaultTimeout(30000);page.setDefaultNavigationTimeout(30000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const acceptDialog=dialog=>dialog.accept();
   page.on('dialog', acceptDialog);
@@ -33,7 +34,8 @@ async function main() {
     assert.equal(await page.evaluate(()=>{try{dateISO('31/02/2026');return false;}catch{return true;}}),true);
     assert.equal(await page.evaluate(()=>{try{dateISO('10/31/2026');return false;}catch{return true;}}),true);
     // Save several receipts without creating expenses, close and return later.
-    await page.getByRole('button',{name:'Capture receipts',exact:false}).click();
+    await page.getByRole('button',{name:'Capture documents',exact:false}).click();
+    assert.equal(await page.locator('#auto-scan').isChecked(),false);
     const receiptPdf=Buffer.from('JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSIC9GMiAzIDAgUgo+PgplbmRvYmoKMiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYSAvRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZyAvTmFtZSAvRjEgL1N1YnR5cGUgL1R5cGUxIC9UeXBlIC9Gb250Cj4+CmVuZG9iagozIDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQgL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcgL05hbWUgL0YyIC9TdWJ0eXBlIC9UeXBlMSAvVHlwZSAvRm9udAo+PgplbmRvYmoKNCAwIG9iago8PAovQ29udGVudHMgOSAwIFIgL01lZGlhQm94IFsgMCAwIDMwMCA0MjAgXSAvUGFyZW50IDggMCBSIC9SZXNvdXJjZXMgPDwKL0ZvbnQgMSAwIFIgL1Byb2NTZXQgWyAvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJIF0KPj4gL1JvdGF0ZSAwIC9UcmFucyA8PAoKPj4gCiAgL1R5cGUgL1BhZ2UKPj4KZW5kb2JqCjUgMCBvYmoKPDwKL0NvbnRlbnRzIDEwIDAgUiAvTWVkaWFCb3ggWyAwIDAgMzAwIDQyMCBdIC9QYXJlbnQgOCAwIFIgL1Jlc291cmNlcyA8PAovRm9udCAxIDAgUiAvUHJvY1NldCBbIC9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUkgXQo+PiAvUm90YXRlIDAgL1RyYW5zIDw8Cgo+PiAKICAvVHlwZSAvUGFnZQo+PgplbmRvYmoKNiAwIG9iago8PAovUGFnZU1vZGUgL1VzZU5vbmUgL1BhZ2VzIDggMCBSIC9UeXBlIC9DYXRhbG9nCj4+CmVuZG9iago3IDAgb2JqCjw8Ci9BdXRob3IgKGFub255bW91cykgL0NyZWF0aW9uRGF0ZSAoRDoyMDI2MTAwODE3MTYwMSsxMScwMCcpIC9DcmVhdG9yIChhbm9ueW1vdXMpIC9LZXl3b3JkcyAoKSAvTW9kRGF0ZSAoRDoyMDI2MTAwODE3MTYwMSsxMScwMCcpIC9Qcm9kdWNlciAoUmVwb3J0TGFiIFBERiBMaWJyYXJ5IC0gXChvcGVuc291cmNlXCkpIAogIC9TdWJqZWN0ICh1bnNwZWNpZmllZCkgL1RpdGxlICh1bnRpdGxlZCkgL1RyYXBwZWQgL0ZhbHNlCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9Db3VudCAyIC9LaWRzIFsgNCAwIFIgNSAwIFIgXSAvVHlwZSAvUGFnZXMKPj4KZW5kb2JqCjkgMCBvYmoKPDwKL0ZpbHRlciBbIC9BU0NJSTg1RGVjb2RlIC9GbGF0ZURlY29kZSBdIC9MZW5ndGggMzkxCj4+CnN0cmVhbQpHYXJvPjpOKyooJSlxXTYnXnI5REw5clJWUmFOOCNrVSoqQzwkUlRNS3AmMCowV05QbWo0YzU/NT0uVkYuMG5WcnBEYltkQD4hP0BYRlBsQWRnTF5EXGNgMWMhMWI6YFNram5NRTxLVzwmUEU5bEFsPCZyQiZXXGpXPTItYitlU2xuIyVjLGUjVEw1O0ouMWAzSjFPR1xTIzpsdDFMdCVeLyk3JTBhXWtANXBkaCUrOzZEIjZeUy0jTyFOW19TcnRFbSNPSUsvJXIoWCtQNWxbXl5IPiwpL1htOVAwMlRYVylaP0NbZF5DWDwsS1pXLyNbZzxwI0tgKTFdVE0+ZzZiIjNlOU1mcTY+Tkk8PTRoPGNBcnAyTzU5S3UpbjJnI11iU2t1NilrT2cyZzo6QHNoRCMwV0BnTj10U1NIRTw7PUdxcDpFJzleWmI9U1lSMjtRLj87NlUlWDdRdSxcb1MqaS1JKy5GKGRCJUhbKmkiPCpFWy5ZLkpWUS9CLC5EMS1eMHBGV34+ZW5kc3RyZWFtCmVuZG9iagoxMCAwIG9iago8PAovRmlsdGVyIFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCAzOTEKPj4Kc3RyZWFtCkdhcm8+Ok4rKiglKXFdNidecjlETDlyUlZSYU44I2tVKipDPCRSVE1LcCYwKjBXTlBtajRjNT81PS5WRi4wblZycERiW2RAPiE/QFhGUGxBZGdMXkRcY2AxYyExYjpgU2tqbk1FPEtXPCZQRTlsQWw8JnJCJldcalc9Mi1iK2VTbG4jJWMsZSNUTDU7Si4xYDNKMU9HXFMjOmx0MUx0JV4vKTclMGFda0A1cGRoJSs7NkQiNl5TLSNPIU5bX1NydEVtI09JSy8lcihYK1A1bFteXkg+LCkvWG05UDAyVFhXKVo/Q1tkXkNYPCxLWlcvI1tnPHAjS2ApMV1UTT5nNmIiM2U5TWZxNj5OSTw9NGg8Y0FycDJPNTlLdSluMmcjXWJTa3U2KWtPZzJnOjpAc2hEIzBXQGdOPXRTU0hFPDs9R3FwOkUnOV5aYj1TWVIyO1EuPzs2VSVYN1F1LFxvUyppLUkrLkYmTk40JlUrR1hRPSpYbzFZQVdUczFOJExdJmc7ajk5fj5lbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCAxMQowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwNjEgMDAwMDAgbiAKMDAwMDAwMDEwMiAwMDAwMCBuIAowMDAwMDAwMjA5IDAwMDAwIG4gCjAwMDAwMDAzMjEgMDAwMDAgbiAKMDAwMDAwMDUxNCAwMDAwMCBuIAowMDAwMDAwNzA4IDAwMDAwIG4gCjAwMDAwMDA3NzYgMDAwMDAgbiAKMDAwMDAwMTAzNyAwMDAwMCBuIAowMDAwMDAxMTAyIDAwMDAwIG4gCjAwMDAwMDE1ODMgMDAwMDAgbiAKdHJhaWxlcgo8PAovSUQgCls8NDYwODNiZmI5YzBlNDNjYjMyNjM0MzgwNzk4OTYxNWM+PDQ2MDgzYmZiOWMwZTQzY2IzMjYzNDM4MDc5ODk2MTVjPl0KJSBSZXBvcnRMYWIgZ2VuZXJhdGVkIFBERiBkb2N1bWVudCAtLSBkaWdlc3QgKG9wZW5zb3VyY2UpCgovSW5mbyA3IDAgUgovUm9vdCA2IDAgUgovU2l6ZSAxMQo+PgpzdGFydHhyZWYKMjA2NQolJUVPRgo=','base64');
     await page.locator('#inbox-files').setInputFiles([{name:'receipt.pdf',mimeType:'application/pdf',buffer:receiptPdf},{name:'second.pdf',mimeType:'application/pdf',buffer:Buffer.concat([receiptPdf,Buffer.from('\n%second')])}]);
     await page.getByText('second.pdf — saved',{exact:true}).waitFor();
@@ -110,7 +112,7 @@ async function main() {
     assert.equal(await page.getByRole('button',{name:'Review & categorise',exact:false}).count(),1);
     await page.setViewportSize({width:390,height:844});
     await page.screenshot({path:output+'/receipts-mobile.png',fullPage:true});
-    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Receipt inbox overflows');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Document inbox overflows');
     await page.setViewportSize({width:1440,height:1050});
     await navigate(page,'dashboard');
     await page.locator('.comparison-chart').waitFor();
@@ -334,7 +336,7 @@ async function main() {
     await navigate(agent,'settings');assert.equal(await agent.locator('#manage-tax-agents').count(),0);
     await navigate(agent,'receipts');
     await agent.getByRole('button',{name:'View receipt',exact:false}).first().waitFor();
-    assert.equal(await agent.getByRole('button',{name:'Capture receipts',exact:false}).count(),0);
+    assert.equal(await agent.getByRole('button',{name:'Capture documents',exact:false}).count(),0);
     await navigate(agent,'invoices');
     await agent.getByRole('button',{name:'Open ↗',exact:true}).first().click();
     assert.equal(await agent.getByRole('button',{name:'Record payment',exact:true}).count(),0);

@@ -24,7 +24,7 @@ The native iPhone app is developed separately and remains in testing. It is opti
 
 - Split one expense between employment and business, with personal use calculated as the remainder. For example, a $100 receipt at 30% employment and 20% business records $30 and $20, with 50% personal. Percentages must be whole numbers and cannot total more than 100%. Reviewed allocations feed each corresponding tax forecast total. Refunds and reimbursements keep the same treatment; rounding reconciles to the combined allocated amount.
 - Existing expenses retain their previous allocations. CSV exports append separate employment/business/personal percentages and employment/business AUD allocations. Split records appear in both relevant report filters without duplicating the receipt.
-- Receipt inbox sits directly below Dashboard. Business, Tracking, Income and Reports open compact popup menus with keyboard and mobile support.
+- Document inbox sits directly below Dashboard. Business, Tracking, Income and Reports open compact popup menus with keyboard and mobile support.
 - Settings → Features saves choices per login, across devices. The Employment expenses only preset hides business tools, vehicles, bank imports and the tax forecast; individual switches can restore them. Records, permissions and tax calculations are preserved. Existing data remains available in expense reports.
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
@@ -259,7 +259,7 @@ The owner can switch automatic reminders on or off while creating an invoice or 
 
 Settings → Automatic invoice reminders controls the shared sending switch and dates. Choose a reminder before the due date, on the due date, and up to six separate days after it. The summary shows the schedule. Switching global sending off keeps the schedule saved. An invoice must also allow reminders, be issued, and have an unpaid balance and client email address. Dates use the workspace timezone. Changing the schedule can make an existing invoice eligible to send today; drafts, paid invoices and voided invoices are skipped.
 
-Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Receipt inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
+Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Document inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
 
 
 ## Invoice numbers and custom reminders
@@ -269,3 +269,20 @@ In v1.0.2, leave **Invoice number (optional)** blank when creating an invoice to
 Open an invoice's **Reminder options** to set a custom schedule and individual subject/message templates for before/on-due, overdue and manual reminders. Insert fields and preview the message using that invoice's values. Turn an override off to follow the latest shared settings. The shared signature remains included and automatic sending must still be enabled in Settings. Duplicates and newly created recurring schedules copy the invoice's reminder choices; each resulting invoice can be customised independently. Renumbering does not resend a reminder already attempted for the same due date and day.
 
 Trust only the actual forwarding proxy addresses. Do not trust an entire Docker subnet just because the proxy is on it. A trusted proxy must replace or append the real client address in `X-Forwarded-For`. If Docker NAT makes direct clients and the tunnel appear as the same gateway IP, first restrict the app port to the proxy or use a dedicated proxy network; trusting that gateway while allowing direct connections would let those clients forge their address. Leave `TRUSTED_PROXIES` blank until the forwarding path is verified.
+
+
+## Document inbox and payslips
+
+Use **Document inbox → Capture documents**, or **Employment income → Upload payslip / statement**. JPEG, PNG, WebP and PDFs (up to 8 pages) use the existing 12 MB upload limit. Select the document type if known. Uploading and reading only create drafts.
+
+Review a payslip’s employer, payment date, gross taxable pay and PAYG tax withheld. Use this pay’s amounts, not YTD or net pay, and exclude employer super. Missing or ambiguous figures stay blank. Confirm the amounts in AUD before saving. The original can be viewed from Employment income. Use an annual income statement instead of payslips for the same pay; select its tax year ending 30 June. Existing overlapping records must be reviewed first. Legacy manual totals may need their type updated before importing more pay. Duplicate detection uses the entered employer name; check differently spelled employer names yourself.
+
+Text payslips with explicit labels can be read locally. Complex layouts, photos and scans use your configured AI provider; with AI disabled, enter unsupported documents manually. Payroll originals are sensitive: the upload screen states when extraction sends a document to the configured provider. No extraction result becomes income until reviewed and saved. Tax returns and other reference-only files still belong in **Reports → Documents**.
+
+For a covered home-office bill, select **File as → Home-office bill evidence**, choose its cost type, confirm it was personally incurred and not reimbursed, then save. It is classified immediately, with no separate allocated deduction. Existing allocated expenses still need review through the Home office linking flow.
+
+## Matching receipt expenses to bank feeds
+
+Sync PocketSmith first. The inbox looks for posted AUD purchases with the same amount, a recognisable merchant and a date within three days. A unique match appears under **Bank account / transaction** and is linked when you save. If it is already represented by an expense without a document, the original attaches to that expense and its existing financial details are retained. A missing match falls back to Cash / other; multiple matches require an explicit choice. Pending items, transfers, credits, foreign-currency feeds, ignored items and changed/missing source transactions are excluded from automatic matching. These can still be reviewed through the existing bank-feed workflow.
+
+For older records, open **Bank accounts → Match previous expenses → Review suggested matches**. Filter by account, check the selected expense/transaction pairs and apply them. The preview checks up to 2,000 unmatched expenses and only offers unique matches in both directions. It does not create expenses or change their amounts/allocations. If anything changes during review, refresh the preview. Explicit Cash / other choices are excluded. Bank matching reads the local synced ledger and never sends changes to PocketSmith.

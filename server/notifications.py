@@ -19,10 +19,10 @@ from flask import g, jsonify, request, session
 import workspace_time
 
 KINDS = {'receipts', 'invoicePaid', 'invoiceOverdue', 'emailFailure', 'budgets', 'bank'}
-TITLES = {'receipts': 'Receipts ready for review', 'invoicePaid': 'Invoice marked paid',
+TITLES = {'receipts': 'Documents ready for review', 'invoicePaid': 'Invoice marked paid',
           'invoiceOverdue': 'Invoice overdue', 'emailFailure': 'Email delivery needs attention',
           'budgets': 'Budget threshold reached', 'bank': 'Bank feed needs attention'}
-BODIES = {'receipts': 'Open your receipt inbox to review the details.',
+BODIES = {'receipts': 'Open your document inbox to review the details.',
           'invoicePaid': 'An invoice has been marked paid. Tap to view it.',
           'invoiceOverdue': 'An invoice has an overdue balance. Tap to view it.',
           'emailFailure': 'An invoice email was not confirmed sent. Review its delivery status.',
@@ -51,10 +51,11 @@ def collect(user):
     # batch or a newly completed extraction gets a distinct fingerprint.
     receipts = rows('''SELECT r.id, d.scan_status FROM receipts r JOIN receipt_details d ON d.receipt_id=r.id
         WHERE r.user_id=? AND d.scan_status IN ('scanned','failed')
-        AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) ORDER BY r.id''', (user['id'],))
+        AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id)
+        AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id) ORDER BY r.id''', (user['id'],))
     if receipts:
         fingerprint = hashlib.sha256(json.dumps(receipts, sort_keys=True).encode()).hexdigest()[:24]
-        result.append(event('receipts.' + fingerprint, 'receipts', 'receipts', details=f"{len(receipts)} receipts need review. Open your inbox."))
+        result.append(event('receipts.' + fingerprint, 'receipts', 'receipts', details=f"{len(receipts)} documents need review. Open your inbox."))
     if user['role'] not in ('owner', 'tax_agent'):
         return result
     for raw in rows("SELECT * FROM billing_documents WHERE kind='invoice' AND state='issued' ORDER BY id DESC"):

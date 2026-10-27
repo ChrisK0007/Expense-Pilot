@@ -200,6 +200,7 @@ def payload(d,existing=None):
     if rid:
         r=one('SELECT * FROM receipts WHERE id=?',(rid,))
         if not r or r['user_id']!=uid: fail('Receipt does not belong to this person.')
+        if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as employment income.',409)
         linked=one('SELECT id FROM expenses WHERE receipt_id=?',(rid,))
         if linked and (not existing or linked['id']!=existing.get('id')): fail('This receipt is already linked to another expense.',409)
     if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']=='employee' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
@@ -226,7 +227,12 @@ def expenses():
         uid=t['user_id'];existing={'user_id':uid,'account_id':None}
     if not existing and d.get('vehicle_id'):
         v=tracking_vehicle(d['vehicle_id']);uid=v['user_id'];existing={'user_id':uid,'account_id':None}
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
+    automatic=None
+    if d.get('receipt_id') and not d.get('bank_transaction_id'):
+        automatic=bank_matching.choose(uid,d)
+        if automatic and automatic['expense_id']: fail('This document matches a bank-linked expense. Attach it from Document inbox to avoid a duplicate.',409)
+        if automatic: d['account_id']=automatic['local_account_id']
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);bank_matching.attach(c.lastrowid,automatic,d.get('bank_choice')=='cash');pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -292,6 +298,11 @@ features.register(app, db=db, one=one, fail=fail)
 import pocketsmith
 pocketsmith.register(app, db=db, one=one, rows=rows, fail=fail, audit=audit, auth=auth, can_write=can_write, day=day, DATA=DATA)
 
+
+import bank_matching
+bank_matching.register(app, auth)
+import income_documents
+income_documents.register(app, auth)
 
 import planning
 planning.register(app, db=db, rows=rows, one=one, fail=fail, audit=audit, body=tracking_body, category_names=category_names, money=money, day=day, textval=textval, vehicle=tracking_vehicle, expense=expense)
