@@ -39,6 +39,7 @@ function pdf(lines){
   await page.getByRole('button',{name:'Save home-office bill',exact:true}).click();await page.getByText('Home-office bill evidence saved.',{exact:true}).waitFor();
   const expense=(await get('expenses')).find(e=>e.receipt_id===rid);assert.ok(expense.account_id);assert.equal(expense.work_percent+expense.business_percent,0);assert.equal((await get('bank-transactions/'+bill.id)).transaction.expense_id,expense.id);
   await post('ai/settings',{mode:'remote_ollama',url:'http://ollama.browser.test',model:'synthetic-offline-model'},'PUT');
+  await page.reload();
   await page.setViewportSize({width:1440,height:1050});await page.goto(url+'/#/employment');await page.getByRole('button',{name:'Upload payslip / statement',exact:true}).click();
   assert.equal(await page.locator('#auto-scan').isChecked(),true);
   const slip=pdf(['PAYSLIP','Employer: Synthetic Aviation Pty Ltd','Payment date: 16/10/2026','Pay period: 01/10/2026 to 14/10/2026','This pay Gross taxable pay: AUD 3000.00','This pay PAYG tax withheld: AUD 650.00','Net pay: AUD 2350.00','YTD gross: AUD 21000.00','YTD tax: AUD 4550.00']);
@@ -71,7 +72,7 @@ function pdf(lines){
   const income=await get('employment');assert.equal(income.length,1);assert.equal(income[0].gross_cents,300000);assert.equal(income[0].withheld_cents,65000);assert.ok(income[0].receipt_id);assert.equal((await get('expenses')).filter(e=>e.receipt_id===income[0].receipt_id).length,0);
   await page.goto(url+'/#/employment');await page.getByRole('button',{name:'View document',exact:true}).click();await page.locator('#receipt-viewer img').waitFor();
   await page.screenshot({path:output+'/payslip-source-mobile.png',fullPage:true});
-  await page.locator('#close-modal').click();
+  await page.getByRole('button',{name:'Close receipt preview',exact:true}).click();
   const partial=await context.request.post(url+'/api/receipts',{headers:{'X-CSRF-Token':(await get('session')).csrf},multipart:{document_kind:'payslip',file:{name:'partial-payslip.pdf',mimeType:'application/pdf',buffer:pdf(['PAYSLIP','Employer: Partial Synthetic Employer','Payment date: 23/10/2026','This pay Gross taxable pay: AUD 1000.00','PAYG totals in unreadable columns'])}}});
   assert.equal(partial.status(),200,await partial.text());const partialId=(await partial.json()).id;
   const partialRead=await post('receipts/'+partialId+'/extract',{});
