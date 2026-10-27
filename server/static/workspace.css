@@ -156,3 +156,7 @@ button{transition:box-shadow .15s}
 }
 
 .document-card h2,.document-filename{overflow-wrap:anywhere}.document-notes{white-space:pre-wrap;overflow-wrap:anywhere}.document-card .settings-options{margin-top:16px}
+
+/* Document type controls hide expense-only fields while filing home-office evidence. */
+#receipt-review [hidden]{display:none!important}
+#income-document-form .notice,#receipt-bank-match{overflow-wrap:anywhere}

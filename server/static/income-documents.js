@@ -1,0 +1,28 @@
+'use strict';
+const IncomeDocuments=(()=>{
+ const kinds=[['expense','Expense'],['home_office','Home-office bill evidence'],['payslip','Payslip'],['income_statement','Annual income statement']];
+ const typeField=kind=>select('File as','document_kind',kinds,kind||'expense');
+ async function review(r){
+  const d={...r.extraction,...r.draft},kind=d.document_kind==='income_statement'?'income_statement':'payslip',annual=kind==='income_statement';
+  const records=await api('employment');
+  modal('Review employment document',`<form id="income-document-form"><div class="receipt-review-layout"><div class="receipt-preview"><img src="/api/receipts/${r.id}/preview?page=1" alt="Original employment document"><button type="button" class="secondary" id="income-original">View full document</button><p class="footnote">${esc(r.filename)}</p><button type="button" class="secondary" id="income-read" ${S.ai_configured||r.mime==='application/pdf'?'':'disabled'}>Read document again</button><p class="footnote">${S.ai_configured?'Uses your configured AI provider.':'Supported text payslips are read locally. Other layouts can be entered manually.'}</p></div><div>${typeField(kind)}<div class="notice">${annual?'Use the annual taxable gross and PAYG totals for the stated financial year. Existing payslips for the same pay must be reviewed first.':'Use this payment’s gross taxable pay and PAYG withholding. Year-to-date totals are not added as another payment.'} Employer super is excluded from gross pay.</div>${d.ytd_gross!=null||d.ytd_withheld!=null?`<p class="footnote">Year-to-date reference only: gross ${d.ytd_gross!=null?money(Math.round(d.ytd_gross*100)):'not read'} · tax ${d.ytd_withheld!=null?money(Math.round(d.ytd_withheld*100)):'not read'}. These figures are not saved as this payment.</p>`:''}${d.amounts_basis==='unknown'?'<p class="notice">The payment totals could not be distinguished reliably. Enter them from the original.</p>':''}<div class="grid2">${field('Employer','employer','text',d.employer||'','required maxlength="200"')}${field(annual?'Financial year ending (30 June)':'Payment date','date','date',d.date||'','required')}${field('Gross taxable pay (AUD)','gross','number',d.gross??'','required min="0" step="0.01"')}${field('PAYG tax withheld (AUD)','withheld','number',d.withheld??'','required min="0" step="0.01"')}${field('Pay period start (optional)','period_start','date',d.period_start||'')}${field('Pay period end (optional)','period_end','date',d.period_end||'')}</div>${d.currency&&d.currency!=='AUD'?`<p class="notice">The original is marked ${esc(d.currency)}. Enter the actual AUD taxable pay and withholding; no currency conversion is performed.</p>`:''}${field('Notes (optional)','notes','text',d.notes||'','maxlength="2000"')}<div id="income-existing"></div><label class="check"><input type="checkbox" id="income-reviewed" required>I checked the original: these AUD figures are ${annual?'the annual totals for this tax year':'for this payment, not year-to-date totals'}.</label><p class="footnote">Nothing affects income or the forecast until you save. The original remains available from Employment income.</p></div></div><div class="modal-footer"><button type="button" class="danger" id="income-delete-draft">Delete document</button><button type="button" class="secondary" id="income-save-draft">Save draft</button><button type="submit">Save employment income</button></div></form>`);
+  const form=$('#income-document-form');
+  const gather=()=>{const x=formData(form);return {document_kind:x.document_kind,employer:x.employer,date:x.date,gross:x.gross,withheld:x.withheld,period_start:x.period_start,period_end:x.period_end,notes:x.notes};};
+  const existing=()=>{
+   const v=gather(),matching=records.filter(x=>!x.receipt_id&&x.employer===v.employer&&x.date===v.date&&x.gross_cents===Math.round(Number(v.gross)*100)&&x.withheld_cents===Math.round(Number(v.withheld)*100));
+   $('#income-existing').innerHTML=matching.length?`<div class="notice">These figures already exist. Attach this original to the existing income record to avoid counting it twice.${select('Existing income record','existing_income_id',[['','Choose the existing record'],...matching.map(x=>[x.id,`${x.employer} · ${dateAU(x.date)} · ${money(x.gross_cents)}`])])}</div>`:'';
+  };
+  for(const key of ['employer','date','gross','withheld'])form.elements[key].addEventListener('change',existing);
+  existing();
+  bind('#income-original',()=>Receipts.preview(r.id));
+  bind('#income-delete-draft',async()=>{if(!confirm('Permanently delete this unfiled document?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await Receipts.reload();}catch(e){toast(e.message);}});
+  $('#document_kind').onchange=async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');await Receipts.reopen(r.id);}catch(e){toast(e.message);}};
+  bind('#income-save-draft',async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');$('#modal').close();await Receipts.reload();toast('Income draft saved.');}catch(e){toast(e.message);}});
+  bind('#income-read',async ev=>{ev.currentTarget.disabled=true;try{await api('receipts/'+r.id+'/extract',{unfiled_only:true});await Receipts.reopen(r.id);}catch(e){toast(e.message);ev.currentTarget.disabled=false;}});
+  formHandler('#income-document-form',async()=>{
+   const v=gather();await api('receipts/'+r.id+'/income',{...v,record_kind:v.document_kind,currency:'AUD',reviewed:$('#income-reviewed').checked,existing_income_id:Number($('#existing_income_id')?.value)||null});
+   $('#modal').close();await refresh();await Receipts.reload();toast('Employment income saved. Original available in Employment income.');
+  });
+ }
+ return {review,typeField};
+})();

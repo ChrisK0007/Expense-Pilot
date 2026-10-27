@@ -34,6 +34,8 @@ jobs:
           node --check server/static/bank-feeds.js
           node --check server/static/billing.js
           node --check server/static/billing-mail.js
+          node --check server/static/income-documents.js
+          node --check server/static/bank-matching.js
           node --check server/static/receipts.js
           node --check server/static/finance.js
           node --check server/static/workspace.js
@@ -137,6 +139,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_public_release.cjs
           docker run -d --memory 1g --name expense-pilot-home-office --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8792:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_home_office.cjs
+          APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_document_inbox.cjs
           docker run -d --name expense-pilot-onboarding --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8790:8788 -e SETUP_TOKEN= expense-pilot:test tests/browser_server.py
           NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_setup.cjs
       - name: Container memory evidence

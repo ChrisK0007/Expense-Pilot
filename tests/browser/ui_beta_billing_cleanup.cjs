@@ -48,7 +48,7 @@ async function main(){
   await navigate(page,'expenses');await page.getByLabel('Search expenses').fill('Delete accepted expense browser');await page.getByRole('button',{name:'Edit Delete accepted expense browser',exact:true}).click();
   page.once('dialog',d=>{assert.match(d.message(),/attached receipt/);d.accept();});await page.locator('#delete').click();await page.getByText('Expense deleted',{exact:true}).waitFor();
   for(const suffix of ['','/preview','/info'])assert.equal((await page.request.get(url+'/api/receipts/'+rid+suffix)).status(),404);
-  await page.reload();await page.locator('[data-page=dashboard]').waitFor();await navigate(page,'receipts');await page.getByRole('heading',{name:'Draft receipts',exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'Delete accepted expense browser',exact:true}).count(),0);
+  await page.reload();await page.locator('[data-page=dashboard]').waitFor();await navigate(page,'receipts');await page.getByRole('heading',{name:'Documents to review',exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'Delete accepted expense browser',exact:true}).count(),0);
   const remaining=await (await page.request.get(url+'/api/receipts?unfiled=1')).json();assert.ok(!remaining.some(r=>r.id===rid));assert.deepEqual(errors,[]);
   console.log('Beta billing cleanup passed: persistent navigation, email settings, per-invoice/recurring reminder choices, reminder schedule controls, permanent expense and receipt removal.');
  }catch(e){await page.screenshot({path:output+'/beta-billing-cleanup-failure.png',fullPage:true});throw e;}finally{await browser.close();}

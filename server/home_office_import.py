@@ -148,7 +148,7 @@ def register(app,auth):
         for item in parsed['entries']:
             item['timezone']=item.get('timezone') or zone;item['issues']=[]
             try:
-                value=entry_values({**item,'scope':item['scope'] or 'work','activity':item['activity'] or 'Pending review'})
+                value=entry_values({**item,'scope':item['scope'] or 'work','activity':item['activity']})
                 item['minutes']=(value['end_at']-value['start_at'])//60-value['break_minutes']
                 item['status'],item['existing']=duplicate_or_overlap(value,reference(digest,item['index']))
                 if item['status']=='ready' and any(value['start_at']<end and value['end_at']>start for start,end in intervals):

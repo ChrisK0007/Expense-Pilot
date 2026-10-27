@@ -2,8 +2,8 @@
 
 Open **Tracking → Home office** and choose the financial year. Home office supports the fixed-rate method only.
 
-1. **Log hours:** choose Employment or Business, describe the work, record start/finish times and subtract breaks. Times use your workspace timezone. Split work crossing midnight into two dates; `24:00` closes the first day. Overlapping sessions across either workspace are rejected.
-2. **Bills & receipts:** use **Add bill evidence** to attach a bill or receipt and enter its supplier, date, amount and cost type. No work-use percentages are needed. Confirm you personally incurred the cost and it was not reimbursed. If the bill is already in Expenses, use **Link a bill** instead of adding it again. Confirm automatically identified Phone & internet bills before using them as evidence.
+1. **Log hours:** choose Employment or Business, record start/finish times and subtract breaks. Notes are optional. Times use your workspace timezone. Split work crossing midnight into two dates; `24:00` closes the first day. Overlapping sessions across either workspace are rejected.
+2. **Bills & receipts:** use **Add bill evidence** to attach a bill or receipt and enter its supplier, date, amount and cost type. No work-use percentages are needed. Confirm you personally incurred the cost and it was not reimbursed. You can also upload it to **Document inbox**, choose **File as → Home-office bill evidence**, select its cost type and save; any clear bank match is linked at the same time. If the bill is already in Expenses, use **Link a bill** instead of adding it again. Confirm automatically identified Phone & internet bills before using them as evidence.
 3. **Set up claim:** enable the fixed-rate claim, review the eligibility/hours/bills confirmations and select the running-cost types you personally incurred. Keep at least one bill or receipt for each selected type. Save now and finish missing checks later. **Pending** means no home-office deduction is included yet; **Included in tax forecast** means the record checks are complete.
 4. **Allowances** is optional. Leave “Already included in gross pay” checked when your Employment income includes the allowance. Otherwise it is added once. An annual salary override replaces the complete recorded salary total.
 5. **Download logbook PDF** creates a financial-year report with a summary, monthly employment/business totals, hours diary, breaks, work notes, logged/updated timestamps and bill checklist. **Export CSV** retains the detailed calculations, allowances and full relevant edit history. Full backups also retain receipt originals.
@@ -22,7 +22,7 @@ Log sessions as they occur. Creation/update timestamps remain in the diary and P
 
 ## Existing records and updates
 
-The fixed-rate-only calculation change keeps all hours, bills, allowances and history. This beta also adds migration m021 for the Documents repository; the twenty earlier migrations are unchanged. A year previously set to actual costs is held pending until you review and save the fixed-rate claim checks. Its stored old settings remain unchanged until then and are retained in edit history when replaced.
+The fixed-rate-only calculation change keeps all hours, bills, allowances and history. The Documents repository was introduced in m021. The current beta adds m022 for employment document links and bank matching; the 21 earlier migrations are unchanged. A year previously set to actual costs is held pending until you review and save the fixed-rate claim checks. Its stored old settings remain unchanged until then and are retained in edit history when replaced.
 
 Turning off the fixed-rate claim restores ordinary expense treatment; review the forecast after doing so. New evidence-only bills remain unallocated. Back up before updating, keep the same data mount, and refresh the browser afterwards.
 
@@ -39,7 +39,7 @@ Only recorded journey odometer readings are printed. Missing readings are labell
 
 Choose **Home office → Import hours**. Select a WFH Logbook Australia PDF or an Expense Pilot diary CSV and confirm the session timezone. PDF uploads support text-based reports up to 10 MB and 500 pages; CSV uploads support UTF-8 files up to 2 MB. Imports accept up to 1,000 sessions. Scanned PDFs and other PDF layouts are not supported. The parser checks the PDF's session total against its reported hours; money in the report is ignored.
 
-Review the sessions, choose Employment or Business (individually or using Apply), and enter any missing work descriptions. Dates, times, breaks and timezones can be corrected before saving. Repeated daylight-saving times need an occurrence selection. Select only the correct sessions and tick the review confirmation. No hours or source document are stored during preview.
+Review the sessions, choose Employment or Business (individually or using Apply), and optionally add notes. Blank notes are accepted. Dates, times, breaks and timezones can be corrected before saving. Repeated daylight-saving times need an occurrence selection. Select only the correct sessions and tick the review confirmation. No hours or source document are stored during preview.
 
 Existing sessions and previously deleted rows from the same import are skipped, including a retry after a lost response. Overlaps with saved or selected sessions reject the whole selected batch. Import does not overwrite existing sessions or restore deleted imports. Review and edit existing hours from the diary instead.
 

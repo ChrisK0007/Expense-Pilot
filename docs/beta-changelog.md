@@ -2,6 +2,16 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.7 — Document inbox, payslips and bank matching (2026-10-27)
+
+- Make notes optional for manual WFH sessions and reviewed imports. Existing notes, original reports and history are retained.
+- Rename Receipt inbox to **Document inbox**. Add payslip and annual income-statement review, with automatic gross/PAYG extraction using the configured AI provider. Explicitly labelled text payslips can be read locally without AI. Keep uncertain fields blank and YTD figures separate; require review before saving income.
+- Link each employment original to its income record, prevent simultaneous expense/income filing, check duplicate and overlapping pay, and block annual statements that would overlap the same employer’s recorded pay. Deleting income returns its original to the inbox. Keep originals in full backups.
+- File covered home-office bills directly from the inbox, choosing the cost type and confirming personal payment. New evidence is unallocated, with no extra percentage or separate bill deduction.
+- Suggest bank matches from already-synced posted AUD purchases, using exact amounts, recognisable merchants and dates within three days. Link on filing; reuse a matching existing expense where possible. Ambiguity needs review, and explicit Cash / other choices remain excluded from later automatic matching.
+- Add **Bank accounts → Match previous expenses**, with a preview, account filter and selected-match confirmation. Match only unique pairs and recheck all selected records under a write lock before applying any changes.
+- Add migration m022 for employment document links, pay periods, record versions and explicit cash choices. Earlier migrations remain unchanged. Back up before updating; an older image requires its matching pre-update backup.
+
 ## 1.0.6-beta.6 — WFH import and document previews (2026-10-27)
 
 - Import WFH Logbook Australia PDFs and Expense Pilot diary CSVs through a review screen. Choose Employment or Business, complete missing work descriptions, and check dates, breaks and session timezones before saving.

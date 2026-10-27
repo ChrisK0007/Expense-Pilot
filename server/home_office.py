@@ -200,7 +200,7 @@ def entry_values(payload):
     when=day(payload.get('date'));start=payload.get('start_time');end=payload.get('end_time')
     bounds(financial_year(when))
     scope=payload.get('scope');activity=textval(payload.get('activity'),1000)
-    if scope not in ('work','business') or not activity: fail('Choose Employment or Business and describe the work performed.')
+    if scope not in ('work','business'): fail('Choose Employment or Business.')
     zone=workspace_time.validate(payload.get('timezone',workspace_time.name()))
     def stamp(clock, occurrence):
         try:

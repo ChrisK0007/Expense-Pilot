@@ -38,7 +38,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   assert.equal(await page.locator('#modal').evaluate(d=>d.open),false);
   await page.goForward();await check('budgets','Category budgets');
   await page.reload();await check('budgets','Category budgets');
-  for(const [key,title] of [['receipts','Receipt inbox'],['trips','Trips & meals'],['vehicles','Vehicles'],['banks','Bank accounts'],['employment','Employment income'],['tax','Tax forecast'],['reports','Expense reports'],['clients','Clients'],['services','Services & prices'],['time','Billable time'],['income','Income report']]){
+  for(const [key,title] of [['receipts','Document inbox'],['trips','Trips & meals'],['vehicles','Vehicles'],['banks','Bank accounts'],['employment','Employment income'],['tax','Tax forecast'],['reports','Expense reports'],['clients','Clients'],['services','Services & prices'],['time','Billable time'],['income','Income report']]){
    await navigate(page,key);await check(key,title);await page.reload();await check(key,title);
   }
   await page.goto(url+'/#/missing-page');await check('dashboard','Dashboard');
