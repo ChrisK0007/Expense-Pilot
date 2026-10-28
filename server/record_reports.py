@@ -12,6 +12,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
@@ -19,10 +20,13 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 import workspace_time
 
 FONT_LOCK = Lock()
-INK = colors.HexColor('#24352e')
-GREEN = colors.HexColor('#355c46')
-MUTED = colors.HexColor('#64716b')
-RULE = colors.HexColor('#dce4de')
+# Match the app's light palette while keeping reports easy to print.
+INK = colors.HexColor('#272732')
+ACCENT = colors.HexColor('#6150e9')
+MUTED = colors.HexColor('#70717e')
+RULE = colors.HexColor('#e3e3eb')
+SOFT = colors.HexColor('#f3f3f7')
+LOGO = Path(__file__).resolve().parent / 'static' / 'expense-pilot-logo.png'
 SCOPE = dict(work='Employment', business='Business', personal='Personal')
 
 
@@ -65,7 +69,7 @@ class NumberedCanvas(canvas.Canvas):
         count = len(self.states)
         for state in self.states:
             self.__dict__.update(state)
-            self.setFont('Helvetica', 8)
+            self.setFont(self._report_font, 8)
             self.setFillColor(MUTED)
             self.drawRightString(A4[0] - 18 * mm, 12 * mm, f'{self._pageNumber} of {count}')
             super().showPage()
@@ -85,8 +89,8 @@ class Report:
         self.styles = {
             'body': ParagraphStyle('record-body', fontName=font, fontSize=9, leading=13, textColor=INK, spaceAfter=7),
             'small': ParagraphStyle('record-small', fontName=font, fontSize=7, leading=10, textColor=INK),
-            'title': ParagraphStyle('record-title', fontName=font, fontSize=29, leading=35, textColor=GREEN, spaceAfter=14),
-            'heading': ParagraphStyle('record-heading', fontName=font, fontSize=14, leading=19, textColor=GREEN, spaceBefore=14, spaceAfter=9, keepWithNext=True),
+            'title': ParagraphStyle('record-title', fontName=font, fontSize=29, leading=35, textColor=ACCENT, spaceAfter=14),
+            'heading': ParagraphStyle('record-heading', fontName=font, fontSize=14, leading=19, textColor=ACCENT, spaceBefore=14, spaceAfter=9, keepWithNext=True),
             'label': ParagraphStyle('record-label', fontName=font, fontSize=8, leading=11, textColor=colors.white),
         }
         self.story = []
@@ -102,11 +106,11 @@ class Report:
         data = [[self.p(v, 'label') for v in headers]] + [[self.p(v, 'small') for v in row] for row in rows]
         table = Table(data, colWidths=[v * mm for v in widths], repeatRows=1, hAlign='LEFT', splitInRow=0)
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), GREEN), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 0), (-1, 0), ACCENT), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
             ('LINEBELOW', (0, 1), (-1, -1), .4, RULE),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f4f7f4')]),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, SOFT]),
         ]))
         self.story.append(table)
         self.story.append(Spacer(1, 3 * mm))
@@ -123,17 +127,21 @@ class Report:
         while self.story and isinstance(self.story[-1], Spacer):
             self.story.pop()
         out = io.BytesIO()
+        logo = ImageReader(str(LOGO))
         def decoration(c, doc):
+            c._report_font = self.styles['body'].fontName
             c.saveState()
-            c.setFillColor(GREEN)
-            c.setFont('Helvetica-Bold', 12)
-            c.drawString(18 * mm, A4[1] - 16 * mm, 'expense pilot')
-            c.setFont('Helvetica', 8)
+            c.drawImage(logo, 18 * mm, A4[1] - 21 * mm, width=12 * mm, height=12 * mm,
+                        preserveAspectRatio=True, mask='auto')
+            c.setFillColor(INK)
+            c.setFont(c._report_font, 12)
+            c.drawString(33 * mm, A4[1] - 16 * mm, 'expense pilot')
+            c.setFont(c._report_font, 8)
             c.setFillColor(MUTED)
             c.drawRightString(A4[0] - 18 * mm, A4[1] - 16 * mm, self.period)
             c.setStrokeColor(RULE)
             c.line(18 * mm, 19 * mm, A4[0] - 18 * mm, 19 * mm)
-            c.setFont('Helvetica', 7)
+            c.setFont(c._report_font, 7)
             c.drawString(18 * mm, 12 * mm, 'A clearer view of every dollar.  |  ' + self.title)
             c.restoreState()
         SimpleDocTemplate(out, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm,

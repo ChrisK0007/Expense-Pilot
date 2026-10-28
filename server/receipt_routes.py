@@ -188,7 +188,9 @@ def extract_document(rid, unfiled_only=False):
     from receipt_core import currency_fields
     safe.update(currency_fields(result,body))
     safe.update(income_documents.clean(result))
-    if used_local: safe['extraction_method']='local labels'
+    if used_local:
+        safe['extraction_method']='local labels'
+        if result.get('extraction_note'): safe['extraction_note']=result['extraction_note']
     if reading_warning: safe['extraction_warning']=reading_warning
     db().execute('BEGIN IMMEDIATE')
     from flask import g
@@ -207,6 +209,16 @@ def extract_document(rid, unfiled_only=False):
         value=Decimal(str(result.get('amount')))
         if value.is_finite() and abs(value)<=10000000: safe['amount']=float(value.quantize(Decimal('.01'),rounding=ROUND_HALF_UP))
     except (InvalidOperation,ValueError,TypeError): pass
+    # A retry may now read fields that an earlier blank draft masked. Remove
+    # only those empty overrides; keep all manual values, including zero, and
+    # read the current draft under the lock so concurrent edits are preserved.
+    draft=draft_for(rid)
+    if draft.get('document_kind') == safe.get('document_kind') and safe.get('document_kind') in income_documents.INCOME:
+        filled=[key for key in ('employer','date','gross','withheld','period_start','period_end')
+                if key in draft and draft[key] in ('',None) and safe.get(key) not in ('',None)]
+        if filled:
+            for key in filled: draft.pop(key)
+            db().execute('UPDATE receipt_drafts SET data=? WHERE receipt_id=?',(json.dumps(draft),rid))
     db().execute("UPDATE receipt_details SET extraction=?,scan_status='scanned',scan_error='' WHERE receipt_id=?",(json.dumps(safe),rid))
     audit('receipt AI requested',rid);db().commit();return safe
 

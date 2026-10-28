@@ -2,6 +2,14 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.10 — Payslip columns and branded reports (2026-10-28)
+
+- Read the supported Pay Slip Components layout locally, including wrapped employer names, payment/period dates and separate current-pay/YTD columns. Reconcile gross earnings, PAYG, net and super totals; subtract explicitly listed salary-sacrifice super from taxable pay. Unrecognised or inconsistent layouts retain the existing AI/manual review path.
+- Stop mistaking the payroll SG (super guarantee) row for a Singapore-dollar marker. Real SGD and SG$ currency markers remain supported.
+- Let successful rereads fill previously blank employment draft fields while retaining manual corrections, zero values and notes. Show the salary-sacrifice calculation during review. Extraction still never files income automatically.
+- Add the Expense Pilot logo to every WFH and mileage PDF page, with the app’s purple headings/table headers and neutral text, rules and alternating rows. Keep report calculations, evidence and pagination unchanged.
+- No database migration or iPhone build. Tests use synthetic payroll fixtures; private source documents are not distributed.
+
 ## 1.0.6-beta.9 — Faster payslip extraction with Ollama (2026-10-28)
 
 - Read complete, explicitly labelled current-pay text payslips locally even when AI is enabled. Keep YTD and ambiguous amounts out of current-pay fields. All extracted figures still require review before saving income.
