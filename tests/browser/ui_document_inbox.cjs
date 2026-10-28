@@ -85,6 +85,25 @@ function pdf(lines){
   assert.equal(await page.locator('#modal').evaluate(el=>el.scrollWidth>el.clientWidth),false);
   await page.screenshot({path:output+'/payslip-local-fallback-mobile.png',fullPage:true});
   await page.setViewportSize({width:1440,height:1050});await page.screenshot({path:output+'/payslip-local-fallback-desktop.png',fullPage:true});
+  await page.locator('#close-modal').click();
+  const components=pdf(['SYNTHETIC FLIGHT SERVICES PTY.','LTD.','ABN: 11111111111','Period Starting: 01/09/2026','Period Ending: 14/09/2026','Date Paid: 15/09/2026','Gross Earnings: $4,200.00','Net Payment: $3,150.00','Super Payments: $654.00','Pay Slip Components Hours/Units Rate This Pay Year To Date','Wages and Earnings','Salary 80.00 $50.00 $4,000.00 $20,000.00','Allowances - Meal 2.00 $100.00 $200.00 $1,000.00','$4,200.00 $21,000.00','Taxes','PAYG $900.00 $4,500.00','$900.00 $4,500.00','Superannuation Breakdown','SG $504.00 $2,520.00','Salary Sacrifice Super $150.00 $750.00','$654.00 $3,270.00','Bank Payments Account This Pay']);
+  const tableUpload=await context.request.post(url+'/api/receipts',{headers:{'X-CSRF-Token':(await get('session')).csrf},multipart:{document_kind:'payslip',file:{name:'synthetic-components.pdf',mimeType:'application/pdf',buffer:components}}});
+  assert.equal(tableUpload.status(),200,await tableUpload.text());const tableId=(await tableUpload.json()).id;
+  await post('receipts/'+tableId+'/draft',{document_kind:'payslip',date:'',gross:null,withheld:null,period_start:'',period_end:'',notes:'Keep this draft note'},'PUT');
+  await page.reload();await page.locator('.receipt-card').filter({hasText:'synthetic-components.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  await page.locator('#income-read').click();
+  await page.waitForFunction(()=>document.querySelector('#income-document-form #gross')?.value==='4050');
+  assert.equal(await page.getByLabel('PAYG tax withheld (AUD)',{exact:true}).inputValue(),'900');
+  assert.equal(await page.getByLabel('Payment date',{exact:true}).inputValue(),'15/09/2026');
+  assert.equal(await page.getByLabel('Pay period start (optional)',{exact:true}).inputValue(),'01/09/2026');
+  assert.equal(await page.getByLabel('Pay period end (optional)',{exact:true}).inputValue(),'14/09/2026');
+  assert.equal(await page.getByLabel('Notes (optional)',{exact:true}).inputValue(),'Keep this draft note');
+  await page.getByText('Gross taxable pay is gross earnings', {exact:false}).waitFor();
+  assert.equal(await page.getByText('The original is marked SGD.',{exact:false}).count(),0);
+  assert.equal((await get('employment')).length,1,'Reading a table must still require review before filing');
+  await page.screenshot({path:output+'/payslip-components-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.locator('#modal').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+  await page.screenshot({path:output+'/payslip-components-mobile.png',fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: document inbox, background payslip reading, HTML error recovery, saved-original retry, income source, home-office filing, automatic bank links and previous-expense matching on desktop/mobile.');
  }catch(e){console.error('Browser errors:',errors);await page.screenshot({path:output+'/document-inbox-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

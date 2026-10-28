@@ -13,7 +13,10 @@ For employment documents additionally return employer, date, period_start, perio
 ytd_withheld (numeric AUD amounts or null), amounts_basis (period, annual, unknown).
 For payslips use CURRENT PAY / THIS PAY figures for gross and withheld, NEVER YTD.
 Keep YTD figures separate. Gross is taxable pay before withholding, excludes employer
-superannuation; do not substitute net, package value or a component earnings line.
+superannuation and pre-tax salary-sacrifice super. If gross earnings includes salary
+sacrifice, remove only the explicitly printed current-pay sacrifice and reconcile
+against net pay, PAYG and any other deductions; never subtract it twice. Do not
+substitute net, package value or a component earnings line.
 If current-pay totals cannot be distinguished from YTD, leave gross/withheld null.
 One document must represent one payment or one annual statement. If it contains
 multiple distinct payments/employers, set amounts_basis unknown and leave the
@@ -52,9 +55,17 @@ def clean(result):
 
 
 def local_payslip(text):
-    """Read explicit labels only; ambiguous multi-column amounts remain blank."""
+    """Read explicit labels or a recognised, reconciled current-pay table."""
     if not re.search(r'\b(pay\s*slip|pay\s+advice|payroll\s+advice)\b',text,re.I):
         return None
+    from payroll_tables import read_components
+    table = read_components(text)
+    if table:
+        out = clean(table)
+        out.update(extraction_method='local labels', local_complete=bool(
+            out['gross'] is not None and out['withheld'] is not None))
+        if table.get('extraction_note'): out['extraction_note'] = table['extraction_note']
+        return out
     out=dict(document_kind='payslip',amounts_basis='period',employer='',currency='AUD')
     def parse_day(s):
         for fmt in ('%Y-%m-%d','%d/%m/%Y','%d-%m-%Y','%d %b %Y','%d %B %Y'):
