@@ -69,7 +69,8 @@ def export():
     def safe(v):
         s=str(v or '')
         return "'"+s if s.lstrip().startswith(('=','+','-','@','\t','\r')) else s
-    for e in data:
+    from expense_workflows import components
+    for e in [part for original in data for part in components(original)]:
         vehicle_record=one('SELECT name,registration FROM vehicles WHERE id=?',(e.get('vehicle_id'),)) or {}
         work,business=allocations(e);wp,bp=percentages(e);alloc=Decimal(work+business)/100
         writer.writerow([e['id'],date.fromisoformat(e['date']).strftime('%d/%m/%Y'),safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes']),safe(vehicle_record.get('name','')),safe(vehicle_record.get('registration','')),wp,bp,100-wp-bp,f'{work/100:.2f}',f'{business/100:.2f}'])
@@ -103,6 +104,7 @@ def edit_employment(eid):
     db().execute('BEGIN IMMEDIATE')
     existing=one('SELECT * FROM employment_income WHERE id=?',(eid,))
     if not existing: fail('Income record not found.',404)
+    if one('SELECT 1 FROM bank_reconciliations WHERE income_id=?',(eid,)): fail('Undo the bank deposit match before changing this payment.',409)
     if request.method=='DELETE': db().execute('DELETE FROM employment_income WHERE id=?',(eid,))
     else:
         d=request.get_json() or {}
@@ -141,7 +143,9 @@ def tax_forecast(year):
     expenses=rows("SELECT e.* FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.date BETWEEN ? AND ? AND e.status='ready' AND e.scope!='personal' AND e.reimbursed=0 AND (e.scope='business' OR u.role='owner')",(start,end))
     from overnights import is_overnight
     overnight_expenses=[e for e in expenses if is_overnight(e)]
-    expenses=[e for e in expenses if not is_overnight(e)]
+    from expense_workflows import components
+    capitalised={r['expense_id'] for r in rows('SELECT expense_id FROM equipment_assets WHERE expense_id IS NOT NULL')}
+    expenses=[part for e in expenses if not is_overnight(e) and e['id'] not in capitalised for part in components(e)]
     from home_office import forecast_adjustments
     home_office,work_deductions,business_deductions=forecast_adjustments(year,expenses)
     salary['gross']+=home_office['allowance_income_cents']
@@ -153,6 +157,11 @@ def tax_forecast(year):
         v=settings.get(key)
         return v if v is not None else rounded(Decimal(recorded)*factor)
     forecast=dict(salary_cents=value('annual_salary',salary['gross']),withheld_cents=value('annual_withheld',salary['withheld']),business_income_cents=value('annual_business_income',business_income),business_deductions_cents=value('annual_business_deductions',business_deductions),work_deductions_cents=value('annual_work_deductions',work_deductions))
+    import equipment
+    equipment_work,equipment_business=equipment.deductions(year)
+    work_deductions+=equipment_work;business_deductions+=equipment_business
+    if settings.get('annual_work_deductions') is None: forecast['work_deductions_cents']+=equipment_work
+    if settings.get('annual_business_deductions') is None: forecast['business_deductions_cents']+=equipment_business
     # A loss is carried for adviser review rather than silently offsetting salary.
     profit=forecast['business_income_cents']-forecast['business_deductions_cents']+(settings.get('gst_credits') or 0)
     taxable=forecast['salary_cents']+max(0,profit)-forecast['work_deductions_cents']+(settings.get('other_income') or 0)-(settings.get('other_deductions') or 0)

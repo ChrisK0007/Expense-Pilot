@@ -494,6 +494,7 @@ def reverse_payment(pid):
     if not reason:
         fail('Enter a reason for reversing this payment record.')
     db().execute('BEGIN IMMEDIATE')
+    if one('SELECT 1 FROM bank_reconciliations WHERE payment_id=?',(pid,)): fail('Undo this payment from Bank reconciliation first.',409)
     payment = one('SELECT * FROM billing_payments WHERE id=?', (pid,))
     if not payment or payment['reversed_at']:
         fail('Payment is missing or already reversed.', 409)

@@ -49,6 +49,8 @@ def scope_amount(expense, scope):
 def budget_list(month, period):
     start, end = budget_bounds(month, period)
     expenses = rows('SELECT * FROM expenses WHERE date>=? AND date<?', (start, end))
+    from expense_workflows import components
+    expenses = [part for e in expenses for part in components(e)]
     result = rows('SELECT * FROM category_budgets WHERE month=? AND period=? ORDER BY category,scope', (month,period))
     for item in result:
         spent = sum(scope_amount(e, item['scope']) for e in expenses if e['category']==item['category'])

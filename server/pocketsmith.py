@@ -206,6 +206,7 @@ def transaction(tid, version=None):
 
 
 def eligible(t):
+    if one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(t['id'],)): fail('This transaction has a reconciliation. Undo it from Review tools first.',409)
     if t['expense_id'] or t['missing'] or t['source_status']!='posted' or t['is_transfer'] or not t['amount_cents']:
         fail('Only an unlinked, posted purchase or refund can be added or matched.', 409)
     if not t['local_account_id']:
@@ -215,7 +216,7 @@ def eligible(t):
 def matches(t):
     if t['currency']!='AUD' or t['missing'] or t['source_status']!='posted' or t['is_transfer'] or not t['amount_cents']:
         return []
-    return rows("SELECT e.* FROM expenses e WHERE e.amount_cents=? AND abs(julianday(e.date)-julianday(?))<=3 AND (e.account_id=? OR e.account_id IS NULL) AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id) ORDER BY abs(julianday(e.date)-julianday(?)),e.id DESC LIMIT 30", (-t['amount_cents'], t['date'], t['local_account_id'], t['date']))
+    return rows("SELECT e.* FROM expenses e WHERE e.amount_cents=? AND abs(julianday(e.date)-julianday(?))<=3 AND (e.account_id=? OR e.account_id IS NULL) AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.expense_id=e.id) ORDER BY abs(julianday(e.date)-julianday(?)),e.id DESC LIMIT 30", (-t['amount_cents'], t['date'], t['local_account_id'], t['date']))
 
 
 def attach(t, eid):
@@ -352,6 +353,7 @@ def register(app, **helpers):
             fail('Reopen the transaction before continuing.', 409)
         t = transaction(tid, d['version'])
         action = d.get('action')
+        if action!='acknowledge' and one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(tid,)): fail('Undo this match from Bank reconciliation first.',409)
         if action=='link':
             eligible(t)
             eid = d.get('expense_id')
