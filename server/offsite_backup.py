@@ -49,8 +49,10 @@ def decrypt(source,target,key):
         inp.seek(-16,2);tag=inp.read(16);inp.seek(len(header))
         decryptor=Cipher(algorithms.AES(key),modes.GCM(header[-12:],tag)).decryptor();decryptor.authenticate_additional_data(header)
         remaining=length-len(header)-16
+        created=False
         try:
             with open(target,'xb') as out:
+                created=True
                 os.chmod(target,0o600)
                 while remaining:
                     chunk=inp.read(min(1024*1024,remaining))
@@ -58,7 +60,8 @@ def decrypt(source,target,key):
                     remaining-=len(chunk);out.write(decryptor.update(chunk))
                 out.write(decryptor.finalize())
         except Exception:
-            Path(target).unlink(missing_ok=True);raise
+            if created: Path(target).unlink(missing_ok=True)
+            raise
 
 
 def restore_test(path,key,staging):
