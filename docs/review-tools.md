@@ -1,6 +1,6 @@
 # Review workflows (beta)
 
-Beta 1.0.6-beta.12 places **Needs attention** immediately below Dashboard and moves optional tools into their existing sections. There is no separate Review tools menu. The iPhone API remains version 1; no new iPhone build is required.
+Beta 1.0.6-beta.13 places actionable items in the **notification bell** at the top right. Choose **View all / change year** for the full Needs attention queue. Optional tools stay in their existing sections. There is no separate Review tools menu. The iPhone API remains version 1; no new iPhone build is required.
 
 | Section | Optional tools |
 | --- | --- |
@@ -42,11 +42,13 @@ Import checks the extracted figures for one document. Optional payslip checks co
 
 Daily drive review supports bulk classification, merge, split and undo. Merges require matching vehicle, day, timezone, purpose and use, preserving recorded and estimated route sections separately. Distances are summed without inventing travel across gaps. Splits require an explicit location/distance, a timestamp for timed drives and a recorded-point boundary where available. Drives containing estimated sections must be split in the recording app or kept whole because the server cannot assign those sections reliably. Original records remain in change history; uploaded client IDs stay acknowledged to prevent repeat uploads.
 
-Equipment records retain original cost, use, linked purchase, annual depreciation and disposal details. Annual depreciation amounts and their basis are entered explicitly; the app does not select a tax method or effective life. The linked purchase remains in spending but is excluded from ordinary forecast deductions. Confirmed annual depreciation enters the forecast once, without annualising it; existing annual overrides take precedence. Carrying values reflect entered depreciation, including drafts. Disposal proceeds and balancing tax adjustments require adviser review and are not automatically posted as income.
+Equipment records retain original cost, use, linked purchase, annual depreciation and disposal details. Choose manual annual amounts or a reviewed automatic setup. Automatic schedules support prime cost, diminishing value and eligible immediate deductions; confirm the method, effective life and eligibility. See [equipment calculations](equipment-calculations.md). The linked purchase remains in spending but is excluded from ordinary forecast deductions. Confirmed annual depreciation and clearly labelled eligible automatic estimates enter the forecast once, without annualising them; existing annual overrides take precedence. Carrying values reflect entered depreciation, including drafts. Disposal proceeds and balancing tax adjustments require adviser review and are not automatically posted as income.
 
 Adviser questions link to an expense, pay record, receipt, supporting document, drive, asset or invoice. Read-only tax agents may ask, answer and resolve questions, but cannot modify financial records.
 
-The annual ZIP includes a branded PDF summary, CSV registers, outstanding items, adviser questions, linked receipt originals, supporting documents and SHA-256 manifest. Supporting documents with no year, unfiled inbox originals and older equipment evidence are included for review. The export snapshots and pins evidence before building the archive, and stops if an original is missing or fails its stored checksum. The original-file limit is 1 GB. It contains no session key or connection credentials.
+The owner’s full annual ZIP includes a branded PDF summary, CSV registers, outstanding items, adviser questions, linked receipt originals, supporting documents and SHA-256 manifest. Supporting documents with no year, unfiled inbox originals and older equipment evidence are included for review. The export snapshots and pins evidence before building the archive, and stops if an original is missing or fails its stored checksum. The original-file limit is 1 GB. It contains no session key or connection credentials.
+
+Tax agents instead receive a filtered tax handover for shared years and evidence; the full owner export is unavailable to them. See [access and sharing](tax-agent-access.md).
 
 Needs attention covers records already received by the server. Check the phone separately for unsent uploads.
 

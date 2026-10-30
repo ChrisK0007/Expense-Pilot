@@ -30,7 +30,7 @@ class PreviewTests(unittest.TestCase):
         for _ in range(12): writer.add_blank_page(width=100,height=100)
         raw=io.BytesIO();writer.write(raw);raw=raw.getvalue()
         did=self.upload(raw=raw,filename='return.pdf').json['id'];before=set((DATA/'documents').glob('*'))
-        response=self.agent.get(f'/api/documents/{did}/view')
+        response=self.owner.get(f'/api/documents/{did}/view')
         self.assertEqual(response.status_code,200,response.json);self.assertEqual(response.json['pages'],12)
         rendered=self.owner.get(f'/api/documents/{did}/page?page=12')
         self.assertEqual(rendered.status_code,200,rendered.json);self.assertEqual(rendered.mimetype,'image/png')
@@ -52,7 +52,7 @@ class PreviewTests(unittest.TestCase):
         did=self.upload().json['id']
         for route in ('view','page'):
             self.assertEqual(app.test_client().get(f'/api/documents/{did}/{route}').status_code,401)
-        self.assertEqual(self.agent.get(f'/api/documents/{did}/view').status_code,200)
+        self.assertEqual(self.agent.get(f'/api/documents/{did}/view').status_code,403)
         with app.app_context():
             uid=db().execute("SELECT id FROM users WHERE email='agent@example.test'").fetchone()[0]
             db().execute('UPDATE tax_documents SET user_id=? WHERE id=?',(uid,did));db().commit()

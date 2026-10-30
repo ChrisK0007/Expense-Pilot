@@ -35,30 +35,17 @@ class FinanceTest(unittest.TestCase):
     def permission(self,value):
         uid=next(u['id'] for u in self.owner.get('/api/users').json if u['email']=='agent@example.test')
         self.assertEqual(self.call(self.owner,f'users/{uid}/permission',{'permission':value},'PUT').status_code,200)
-    def test_permissions_apply_immediately_and_protect_owner_settings(self):
+    def test_permissions_do_not_enable_operational_finance(self):
         income={'date':'2026-10-08','employer':'Employer','gross':10000,'withheld':2500}
-        for path in ['employment','tax/2026','receipts','accounts','billing/clients']:
-            self.assertEqual(self.agent.get('/api/'+path).status_code,200,path)
-        for path in ['employment','tax/2026']:
-            self.assertEqual(self.staff2.get('/api/'+path).status_code,401,path)
-        self.assertEqual(self.call(self.agent,'employment',income).status_code,403)
-        self.permission('read_write')
-        self.assertEqual(self.call(self.agent,'employment',income).status_code,200)
-        eid=self.expense(self.agent,category='Other',scope='personal').json['id']
-        self.assertEqual(self.call(self.agent,f'expenses/{eid}',{},'DELETE').status_code,200)
-        self.call(self.owner,'billing/settings',{'name':'Example Business'},'PUT')
-        cid=self.call(self.agent,'billing/clients',{'name':'Agent-created client','email':'client@example.test'}).json['id']
-        r=self.call(self.agent,'billing/documents',{'kind':'invoice','client_id':cid,'issue_date':'2026-10-08','due_date':'2026-10-22','tax_mode':'none','lines':[{'description':'Work','quantity':1,'unit_price':100,'tax':'none'}]})
-        self.assertEqual(r.status_code,200,r.json)
-        did=r.json['id'];doc=self.agent.get(f'/api/billing/documents/{did}').json
-        self.assertEqual(self.call(self.agent,f'billing/documents/{did}/action',{'version':doc['version'],'action':'issue'}).status_code,200)
-        for path in ['users','billing/email-settings','billing/settings']:
-            self.assertEqual(self.call(self.agent,path,{},'PUT' if path!='users' else 'POST').status_code,403,path)
-        self.assertNotIn('email',self.agent.get('/api/billing/settings').json)
-        self.permission('read_only')
-        self.assertEqual(self.call(self.agent,'employment',income).status_code,403)
-        self.assertEqual(self.call(self.agent,f'billing/documents/{did}/payments',{}).status_code,403)
-        self.assertEqual(self.agent.get(f'/api/billing/documents/{did}/pdf').status_code,200)
+        for permission in ('read_only','read_write','read_only'):
+            self.permission(permission)
+            for path in ['employment','tax/2026','receipts','accounts','billing/clients','billing/settings']:
+                self.assertEqual(self.agent.get('/api/'+path).status_code,403,path)
+            self.assertEqual(self.call(self.agent,'employment',income).status_code,403)
+            self.assertEqual(self.expense(self.agent,category='Other').status_code,403)
+            for path in ['users','billing/email-settings','billing/settings']:
+                self.assertEqual(self.call(self.agent,path,{},'PUT' if path!='users' else 'POST').status_code,403,path)
+        self.assertEqual(self.agent.get('/api/adviser').status_code,200)
     def test_combined_forecast_review_filters_refunds_and_annual_replacement(self):
         self.call(self.owner,'employment',{'date':'2026-10-08','employer':'Employer','gross':100000,'withheld':20000})
         self.call(self.owner,'employment',{'date':'2026-06-30','employer':'Old year','gross':20000,'withheld':0})
@@ -96,16 +83,16 @@ class FinanceTest(unittest.TestCase):
         pdf=PdfWriter();pdf.add_blank_page(width=200,height=200);pdf.add_blank_page(width=300,height=300);buf=io.BytesIO();pdf.write(buf);buf.seek(0)
         r=self.owner.post('/api/receipts',data={'file':(buf,'two-pages.pdf')},headers={'X-CSRF-Token':self.owner.get('/api/session').json['csrf']})
         rid=r.json['id']
-        self.assertEqual(self.agent.get(f'/api/receipts/{rid}/info').json['pages'],2)
+        self.assertEqual(self.owner.get(f'/api/receipts/{rid}/info').json['pages'],2)
         for page in [1,2]:
-            r=self.agent.get(f'/api/receipts/{rid}/preview?page={page}')
+            r=self.owner.get(f'/api/receipts/{rid}/preview?page={page}')
             self.assertEqual(r.status_code,200);self.assertTrue(r.data.startswith(b'\x89PNG'))
             self.assertNotIn('attachment',r.headers.get('Content-Disposition',''))
-        self.assertEqual(self.agent.get(f'/api/receipts/{rid}/preview?page=3').status_code,404)
+        self.assertEqual(self.owner.get(f'/api/receipts/{rid}/preview?page=3').status_code,404)
         self.assertEqual(self.staff2.get(f'/api/receipts/{rid}/preview').status_code,401)
         self.assertEqual(app.test_client().get(f'/api/receipts/{rid}/preview').status_code,401)
     def test_owner_can_record_meal_and_readonly_agent_cannot(self):
         tid=self.call(self.owner,'trips',{'location':'Cairns','start':'2026-10-07','end':'2026-10-09','purpose':'Work','scope':'business'}).json['id']
         self.assertEqual(self.expense(self.agent,trip_id=tid,meal='Dinner').status_code,403)
         self.assertEqual(self.expense(self.owner,trip_id=tid,meal='Dinner').status_code,200)
-        self.assertEqual(len(self.agent.get('/api/expenses').json),1)
+        self.assertEqual(self.agent.get('/api/expenses').status_code,403)

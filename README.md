@@ -22,7 +22,7 @@ Development use of AI is separate from the app’s optional receipt-reading feat
 - Review receipt drafts with optional AI assistance and organise overnight trip spending.
 - Manage clients, quotes, invoices, payments, recurring drafts and email reminders.
 - Import bank CSVs or connect your own PocketSmith account, then review and match transactions.
-- Give a tax agent read-only or read/write access to your workspace and export records for tax time.
+- Share selected financial years and tax evidence with a tax agent, with read-only or limited tax-adjustment access.
 
 Records live in the Docker data volume. Optional AI, bank feeds and email use the services you configure. There is no required Expense Pilot cloud account or central relay. Expense Pilot records and estimates amounts; it does not lodge tax returns or decide which expenses are deductible.
 

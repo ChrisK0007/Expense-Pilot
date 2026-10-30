@@ -2,6 +2,18 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.13 — Focused tax access and daily workflow improvements (2026-10-30)
+
+- Replace the Needs attention sidebar item with a top-right notification bell, showing actionable items and a link to the full queue.
+- Allow simultaneous Employment, Business and Personal workspace filters on Expenses. Mixed-use records appear once if any selected allocation matches.
+- Give tax agents a separate tax-preparation workspace with owner-selected financial years and supporting documents. Default to no shared years, including existing accounts. Enforce the boundary on APIs, originals, questions and exports; hide personal spending, full bank feeds, private routes, drafts, contacts and operational settings.
+- Restrict Read & write agents to shared ordinary-expense classification and annual equipment adjustments. Owner corrections remain necessary for original income, billing and specialist expense treatments.
+- Add permanent tax-agent account removal with email confirmation, immediate session revocation and preservation of financial records and history.
+- Add reviewed automatic equipment schedules, eligible immediate deductions, GST-adjusted cost, private-use periods, annual use changes, carry-forward balances and reasoned overrides. Confirmed history remains fixed. See [calculation scope and sources](equipment-calculations.md).
+- Accept formatted signature paste with supported fonts, colours, table layouts, links and clipboard images. Sanitize before insertion, embed images in outgoing mail, and flag unavailable images for replacement.
+- Keep the invoice calendar open while changing months in Safari; preserve keyboard focus and existing due-date rules.
+- Apply migration m025 without changing the owner iPhone API. No iPhone build is required. See [tax-agent sharing](tax-agent-access.md) before granting access after the update.
+
 ## 1.0.6-beta.12 — Simpler reviews and invoice corrections (2026-10-30)
 
 - Put Needs attention below Dashboard; reserve it for actionable exceptions. Respect valid phone drive classifications and keep ordinary unmatched bank transactions in Bank accounts.

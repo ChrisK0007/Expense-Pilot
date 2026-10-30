@@ -90,7 +90,7 @@ class BillingEmailTest(unittest.TestCase):
         token = self.owner.get('/api/session').json['csrf']
         result = self.owner.post('/api/billing/signature-image', data={'file':(io.BytesIO(raw.getvalue()), 'logo.png')}, headers={'X-CSRF-Token':token})
         self.assertEqual(result.status_code, 200)
-        signature = '<div><b>Chris &amp; Co</b><br><font color="#123456" size="4">Pilot</font><br><a href="https://example.test">Website</a><img src="' + result.json['src'] + '" alt="Business logo"></div><script>alert(1)</script><img src="https://tracker.invalid/pixel" onerror="alert(1)"><a href="javascript:alert(1)">Bad link</a>'
+        signature = '<table><tr><td style="padding-right:12px;font-family:Arial"><div><b>Chris &amp; Co</b><br><font color="#123456" size="4">Pilot</font><br><a href="https://example.test">Website</a><img src="' + result.json['src'] + '" alt="Business logo"></div><script>alert(1)</script><img src="https://tracker.invalid/pixel" onerror="alert(1)"><a href="javascript:alert(1)">Bad link</a>'
         result = self.call(self.owner, 'billing/email-templates', {'signature_html':signature}, 'PUT')
         self.assertEqual(result.status_code, 200, result.json)
         cleaned = result.json['signature_html']
@@ -104,6 +104,7 @@ class BillingEmailTest(unittest.TestCase):
         message = smtp.return_value.send_message.call_args.args[0]
         self.assertIn('Chris & Co', message.get_body(preferencelist=('plain',)).get_content())
         html = message.get_body(preferencelist=('html',)).get_content()
+        self.assertIn('<table', html)
         self.assertIn('cid:expense-pilot-signature-0', html)
         self.assertNotIn('data:image', html)
         self.assertEqual(len([part for part in message.walk() if part.get_content_type()=='image/png']), 1)
@@ -128,7 +129,7 @@ class BillingEmailTest(unittest.TestCase):
         doc = self.get(doc['id']); draft = self.draft(doc, 'receipt')
         self.assertEqual(draft['subject'], '$110.00 payment receipt')
         self.assertNotIn('outstanding balance', draft['body'])
-        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/receipt").status_code, 200)
+        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/receipt").status_code, 403)
         self.assertEqual(self.call(self.owner, f'billing/payments/{last}/reverse', dict(version=doc['version'],reason='Correction')).status_code, 200)
         self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}/send", draft).status_code, 409)
         self.assertEqual(self.draft(self.get(doc['id']), 'receipt')['subject'], '$40.00 payment receipt')
@@ -144,7 +145,8 @@ class BillingEmailTest(unittest.TestCase):
         self.issue(self.create(issue_date=self.day(1), due_date=self.day(2)))
         start = self.day(-10)
         url = f'/api/billing/clients/{self.cid}/statement?mode=all&start={start}&end={self.today}'
-        result = self.agent.get(url)
+        self.assertEqual(self.agent.get(url).status_code,403)
+        result = self.owner.get(url)
         self.assertEqual(result.status_code, 200)
         statement = result.json
         self.assertEqual((statement['opening_cents'], statement['invoice_cents'], statement['payment_cents'], statement['closing_cents']), (9900,11000,3300,17600))

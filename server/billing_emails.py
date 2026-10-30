@@ -107,7 +107,25 @@ def upload_signature_image():
     upload = request.files.get('file')
     if not upload:
         fail('Choose a signature image.')
-    return jsonify(src=signature_image(upload.read(100 * 1024 + 1)))
+    return jsonify(src=signature_image(upload.read(2 * 1024 * 1024 + 1)))
+
+
+@bp.post('/signature-paste')
+@owner
+def paste_signature():
+    from billing import body, jsonify, request, fail
+    from billing_email_core import SignatureParser
+    value=request.form.get('html','') if request.mimetype=='multipart/form-data' else body().get('html','')
+    cleaned,plain=clean_signature(value)
+    parser=SignatureParser();parser.feed(value)
+    uploads=request.files.getlist('images')
+    if len(uploads)>3: fail('Use at most three signature images.')
+    # Clipboard image order is usable only when every missing HTML image has bytes.
+    if uploads and len(uploads)==parser.missing_images:
+        images=[signature_image(upload.read(2*1024*1024+1)) for upload in uploads]
+        cleaned,plain=clean_signature(value,images);missing=0
+    else: missing=parser.missing_images
+    return jsonify(html=cleaned,missing_images=missing)
 
 
 @bp.route('/reminder-settings', methods=['GET', 'PUT'])

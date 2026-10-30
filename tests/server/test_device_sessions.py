@@ -95,7 +95,7 @@ class DeviceSessionTest(unittest.TestCase):
 
     def test_browser_agent_permissions_still_apply_after_renewal(self):
         with patch('security.clock', return_value=time.time() + 2*86400):
-            self.assertEqual(self.agent.get('/api/expenses').status_code, 200)
+            self.assertEqual(self.agent.get('/api/adviser').status_code, 200)
             self.assertEqual(self.call(self.agent, 'expenses', {}).status_code, 403)
 
     def test_signature_age_accepts_device_after_twelve_hours(self):
