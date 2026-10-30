@@ -7,6 +7,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
  const post=async(path,data,method='POST')=>{const s=await(await context.request.get(url+'/api/session')).json();const r=await context.request.fetch(url+'/api/'+path,{method,data,headers:{'X-CSRF-Token':s.csrf}});assert.equal(r.status(),200,await r.text());return r.json();};
  try{
   await post('login',{email:'owner@example.test',password:'Browser-test-password-123'});
+  await post('billing/settings',{name:'Calendar test business',gst_registered:false,email:'owner@example.test'},'PUT');
   const c=await post('billing/clients',{name:'Calendar test client',email:'calendar@example.test',terms:14});
   await page.goto(url+'/#/invoices');await page.getByRole('button',{name:'New invoice',exact:false}).click();await page.getByLabel('Client',{exact:true}).selectOption(String(c.id));
   const issue=page.getByLabel('Issue date',{exact:true}),due=page.getByLabel('Due date',{exact:true});
