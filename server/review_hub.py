@@ -25,7 +25,7 @@ def attention(year):
         add('receipt',r['id'],r['filename'],r['scan_error'] or 'Review the saved original and extracted draft.',(r['uploaded_at'] or '')[:10],priority=1 if r['scan_error'] else 2)
     for e in rows("SELECT * FROM expenses WHERE status='review' AND date BETWEEN ? AND ?",(start,end)):
         add('expense',e['id'],e['merchant'],'Check category, allocations and evidence.',e['date'],e['amount_cents'],page='expenses')
-    for b in rows("SELECT b.* FROM bank_transactions b JOIN pocketsmith_accounts a ON a.id=b.feed_account_id WHERE a.enabled=1 AND (b.changed=1 OR b.missing=1) AND (b.expense_id IS NOT NULL OR EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.bank_id=b.id)) AND b.date BETWEEN ? AND ? AND b.source_status='posted' AND b.is_transfer=0",(start,end)):
+    for b in rows("SELECT b.* FROM bank_transactions b JOIN pocketsmith_accounts a ON a.id=b.feed_account_id WHERE a.enabled=1 AND (b.changed=1 OR b.missing=1) AND (b.expense_id IS NOT NULL OR EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.bank_id=b.id)) AND b.date BETWEEN ? AND ?",(start,end)):
         add('bank',b['id'],b['payee'],'Bank source changed or disappeared; review the linked record.' if b['changed'] or b['missing'] else 'Match, categorise or ignore this transaction.',b['date'],abs(b['amount_cents']),1 if b['changed'] or b['missing'] else 2,'banks')
     for j in rows("SELECT j.* FROM vehicle_journeys j JOIN vehicles v ON v.id=j.vehicle_id WHERE v.user_id=? AND j.date BETWEEN ? AND ? AND j.scope IN ('work','business') AND trim(j.purpose)=''",(uid,start,end)):
         add('journey',j['id'],j['origin']+' → '+j['destination'],'Employment or business travel is missing its purpose.',j['date'],page='drive_review')

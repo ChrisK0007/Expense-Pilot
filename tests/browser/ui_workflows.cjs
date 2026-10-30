@@ -7,7 +7,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
  try{
   await post('login',{email:'owner@example.test',password:'Browser-test-password-123'});
   const e=await post('expenses',{date:'2026-10-08',merchant:'Workflow Stationery',amount:100,scope:'business',work_percent:0,business_percent:100,category:'Other',status:'ready'});
-  await page.goto(url+'/#/banks');await page.locator('#content h1').filter({hasText:'Bank accounts'}).waitFor();
+  await page.goto(url+'/#/banks');await page.locator('#content h1').filter({hasText:'Your accounts, together.'}).waitFor();
   assert.equal(await page.locator('nav [data-page=review_tools]').count(),0);await page.locator('.section-tools summary').click();await page.getByRole('link',{name:'Reconcile payments',exact:true}).click();await page.locator('#content h1').filter({hasText:'Bank reconciliation'}).waitFor();
   await page.goto(url+'/#/expenses');await page.locator('.section-tools summary').click();await page.getByRole('link',{name:'Categorisation rules',exact:true}).click();await page.getByRole('button',{name:'Create rule',exact:true}).click();
   await page.getByLabel('Merchant (exact name)').fill('Workflow Stationery');await page.locator('#rule-form #category').selectOption('Training');await page.locator('#rule-form #work_percent').fill('80');await page.locator('#rule-form #business_percent').fill('10');await page.getByRole('button',{name:'Save rule',exact:true}).click();

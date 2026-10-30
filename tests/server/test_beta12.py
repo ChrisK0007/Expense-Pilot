@@ -135,6 +135,9 @@ class AutomaticMatchTest(unittest.TestCase):
         r=self.call(self.owner,'workflows/reconciliation/apply',{**payload,'token':p.json['token']});self.assertEqual(r.status_code,200,r.json)
         FakeClient.transactions=[{**purchase(),'amount':-14}];self.assertEqual(self.sync().status_code,200)
         self.assertEqual(len([i for i in self.attention() if i['kind']=='bank']),1)
+        for change in [dict(status='pending'),dict(is_transfer=True)]:
+            FakeClient.transactions=[{**purchase(),**change}];self.assertEqual(self.sync().status_code,200)
+            self.assertEqual(len([i for i in self.attention() if i['kind']=='bank']),1)
         FakeClient.transactions=[];self.assertEqual(self.sync().status_code,200)
         self.assertEqual(len([i for i in self.attention() if i['kind']=='bank']),1)
 
