@@ -24,8 +24,8 @@ def plan(data):
         seen.add(ident)
         if kind=='invoice':
             record=billing.document(ident)
-            if record['kind']!='invoice' or record['state'] not in ('issued','sent') or amount>record['balance_cents']:
-                fail('Choose an issued invoice and do not exceed its unpaid balance.')
+            if record['kind']!='invoice' or record['needs_reissue'] or record['state'] not in ('issued','sent') or amount>record['balance_cents']:
+                fail('Choose an issued invoice with no pending revisions and do not exceed its unpaid balance.')
             if bank['date']<record['issue_date']: fail('Payment predates this invoice. Check the document and bank date.')
         elif kind=='salary':
             record=one('SELECT e.*,d.net_cents,d.version AS details_version FROM employment_income e JOIN income_details d ON d.income_id=e.id WHERE e.id=?',(ident,))
@@ -58,7 +58,7 @@ def register(app,auth):
         from app import rows, record_user_id
         import billing
         return jsonify(banks=rows("SELECT b.* FROM bank_transactions b JOIN pocketsmith_accounts a ON a.id=b.feed_account_id WHERE a.enabled=1 AND a.available=1 AND b.currency='AUD' AND b.state='review' AND b.expense_id IS NULL AND b.changed=0 AND b.missing=0 AND b.source_status='posted' AND b.is_transfer=0 ORDER BY b.date DESC,b.id DESC LIMIT 500"),
-                       invoices=[billing.hydrate(r) for r in rows("SELECT * FROM billing_documents WHERE kind='invoice' AND state='issued' ORDER BY issue_date DESC LIMIT 500")],
+                       invoices=[billing.hydrate(r) for r in rows("SELECT * FROM billing_documents WHERE kind='invoice' AND state='issued' AND needs_reissue=0 ORDER BY issue_date DESC LIMIT 500")],
                        income=rows("SELECT e.*,d.net_cents FROM employment_income e LEFT JOIN income_details d ON d.income_id=e.id WHERE record_kind!='income_statement' AND NOT EXISTS(SELECT 1 FROM bank_reconciliations b WHERE b.income_id=e.id) ORDER BY date DESC LIMIT 500"),
                        expenses=rows('SELECT * FROM expenses WHERE user_id=? AND amount_cents>0 ORDER BY date DESC,id DESC LIMIT 1000',(record_user_id(),)),
                        links=rows('SELECT r.*,b.payee,b.date,b.changed,b.missing FROM bank_reconciliations r JOIN bank_transactions b ON b.id=r.bank_id ORDER BY r.id DESC LIMIT 300'))

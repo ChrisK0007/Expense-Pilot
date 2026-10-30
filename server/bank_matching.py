@@ -117,29 +117,45 @@ def attach(eid, match, cash=False):
         db().execute('UPDATE expenses SET bank_match_excluded=1 WHERE id=?',(eid,))
 
 
-def backfill_plan(account_id=None):
+def backfill_plan(account_id=None, user_id=None, strict=True):
     from app import record_user_id, rows, fail
-    uid = record_user_id()
+    uid = user_id if user_id is not None else record_user_id()
     expenses = rows('''SELECT e.* FROM expenses e WHERE e.user_id=? AND e.bank_match_excluded=0
         AND e.amount_cents>0 AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.expense_id=e.id)
         AND (? IS NULL OR e.account_id=? OR e.account_id IS NULL) ORDER BY e.date,e.id LIMIT 2001''', (uid,account_id,account_id))
     if len(expenses)>2000:
+        if not strict: return None
         fail('More than 2,000 unmatched expenses. Select a bank account or match older records in smaller groups.',400)
     plans=[]; uses={}
     for e in expenses:
         matches=candidates(uid,e['date'],e['amount_cents'],e['merchant'],e['account_id'] or account_id)
         for t in matches: uses[t['id']]=uses.get(t['id'],0)+1
         plans.append((e,matches))
-    clear=[];ambiguous=0;unmatched=0
+    clear=[];conflicts=[];ambiguous=0;unmatched=0
     for e,matches in plans:
         if len(matches)==1 and uses[matches[0]['id']]==1:
             t=matches[0]
             clear.append(dict(expense_id=e['id'],expense_stamp=expense_stamp(e),merchant=e['merchant'],
                 date=e['date'],amount_cents=e['amount_cents'],transaction_id=t['id'],version=t['version'],
                 bank_date=t['date'],payee=t['payee'],account_name=t['account_name']))
-        elif matches: ambiguous+=1
+        elif matches:
+            ambiguous+=1
+            conflicts.append({k:e[k] for k in ('id','merchant','date','amount_cents')})
         else: unmatched+=1
-    return dict(matches=clear,ambiguous=ambiguous,unmatched=unmatched,checked=len(expenses))
+    return dict(matches=clear,conflicts=conflicts,ambiguous=ambiguous,unmatched=unmatched,checked=len(expenses))
+
+
+def link_after_sync():
+    """Caller holds the sync write lock; ambiguous matches never write a link."""
+    from app import one
+    import pocketsmith
+    owner=one("SELECT id FROM users WHERE role='owner' AND active=1 ORDER BY id LIMIT 1")
+    if not owner: return 0
+    plan=backfill_plan(user_id=owner['id'], strict=False)
+    if plan is None: return 0
+    for match in plan['matches']:
+        pocketsmith.attach(pocketsmith.transaction(match['transaction_id']), match['expense_id'])
+    return len(plan['matches'])
 
 
 def register(app, auth):

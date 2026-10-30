@@ -350,10 +350,6 @@ review_hub.register(app, auth)
 import document_evidence
 document_evidence.register(app, auth)
 
-import mail_intake
-mail_intake.register(app, auth)
-import offsite_backup
-offsite_backup.register(app, auth)
 
 import annual_handover
 annual_handover.register(app, auth)

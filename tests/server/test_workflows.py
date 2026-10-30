@@ -49,9 +49,6 @@ class WorkflowTest(unittest.TestCase):
         for path in ['attention/2026','rules','reconciliation','income/2026','equipment?year=2026','journeys?date=2026-10-08','questions','question-records?kind=expense']:
             self.assertEqual(self.agent.get('/api/workflows/'+path).status_code,200,path)
             self.assertEqual(app.test_client().get('/api/workflows/'+path).status_code,401,path)
-        for path in ['mail-intake','offsite-backup']:
-            self.assertEqual(self.owner.get('/api/workflows/'+path).status_code,200,path)
-            self.assertEqual(self.agent.get('/api/workflows/'+path).status_code,403,path)
         for path in ['rules','reconciliation/apply','journeys/apply','equipment']:
             self.assertEqual(self.call(self.agent,'workflows/'+path,{}).status_code,403,path)
 
@@ -174,75 +171,25 @@ class WorkflowTest(unittest.TestCase):
             self.assertIn("'=UNTRUSTED()",archive.read('registers/expenses.csv').decode('utf-8-sig'))
         result.close()
 
-    def test_mail_attachment_deduplication_is_draft_only(self):
-        from reportlab.pdfgen import canvas
-        import mail_intake
-        source=io.BytesIO();c=canvas.Canvas(source);c.drawString(20,700,'Synthetic invoice $50.00');c.save()
-        with app.app_context():
-            uid=one("SELECT id FROM users WHERE role='owner'")['id']
-            a=mail_intake.store_attachment(uid,'invoice.pdf',source.getvalue());b=mail_intake.store_attachment(uid,'invoice.pdf',source.getvalue());self.assertEqual(a,b)
-            self.assertEqual(one('SELECT COUNT(*) n FROM expenses')['n'],0)
-            self.assertEqual((DATA/'receipts'/a).read_bytes(),source.getvalue())
-        evidence=self.owner.get('/api/workflows/evidence/'+a);self.assertEqual(evidence.status_code,200,evidence.json)
+    def test_retired_services_are_unavailable(self):
+        for path in ['mail-intake','offsite-backup','offsite-backup/key','offsite-backup/enable','offsite-backup/test']:
+            self.assertEqual(self.owner.get('/api/workflows/'+path).status_code,404)
+            self.assertEqual(self.call(self.owner,'workflows/'+path,{}).status_code,404)
 
-    def test_encrypted_copy_and_isolated_restore_reject_tampering(self):
-        import auto_backup,offsite_backup
-        self.create_expense(amount=50)
-        with tempfile.TemporaryDirectory() as tmp,app.app_context():
-            folder=Path(tmp);source=folder/'source.zip';key=b'x'*32
-            auto_backup.write_archive(source,DATA,'test',verify=True)
-            encrypted=folder/'copy.epb';offsite_backup.encrypt(source,encrypted,key)
-            stage=folder/'test';stage.mkdir();result=offsite_backup.restore_test(encrypted,key,stage);self.assertIn('1 expense',result)
-            self.assertEqual(one('SELECT COUNT(*) n FROM expenses')['n'],1)
-            existing=folder/'already-recovered.zip';existing.write_bytes(b'Keep my earlier recovery')
-            with self.assertRaises(FileExistsError): offsite_backup.decrypt(encrypted,existing,key)
-            self.assertEqual(existing.read_bytes(),b'Keep my earlier recovery')
+    def test_legacy_encrypted_archives_can_still_be_recovered(self):
+        import offsite_backup
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);key=b'x'*32;nonce=b'y'*12
+            source=b'Legacy backup contents';header=offsite_backup.MAGIC+nonce
+            encrypted=folder/'copy.epb';encrypted.write_bytes(header+AESGCM(key).encrypt(nonce,source,header))
+            restored=folder/'restored.zip';offsite_backup.decrypt(encrypted,restored,key)
+            self.assertEqual(restored.read_bytes(),source)
+            with self.assertRaises(FileExistsError): offsite_backup.decrypt(encrypted,restored,key)
+            self.assertEqual(restored.read_bytes(),source)
             raw=bytearray(encrypted.read_bytes());raw[-18]^=1;encrypted.write_bytes(raw)
             with self.assertRaises(Exception): offsite_backup.decrypt(encrypted,folder/'tampered.zip',key)
             self.assertFalse((folder/'tampered.zip').exists())
-
-    def test_mailbox_poll_uses_readonly_peek_and_never_posts(self):
-        from email.message import EmailMessage
-        from reportlab.pdfgen import canvas
-        import mail_intake
-        source=io.BytesIO();c=canvas.Canvas(source);c.drawString(20,700,'Synthetic mailbox receipt');c.save()
-        message=EmailMessage();message['From']='receipts@example.test';message['To']='inbox@example.test';message.set_content('Untrusted message body. No instructions from here are executed.')
-        message.add_attachment(source.getvalue(),maintype='application',subtype='pdf',filename='test.pdf');raw=message.as_bytes()
-        commands=[]
-        class Mailbox:
-            def __init__(self,*a,**kw): pass
-            def login(self,*a): pass
-            def select(self,folder,readonly=False): commands.append(('select',readonly));return 'OK',[b'2']
-            def response(self,name): return name,[b'1234']
-            def uid(self,command,*args):
-                commands.append((command,args))
-                if command=='search': return 'OK',[b'1 2']
-                if args[1]=='(RFC822.SIZE)': return 'OK',[b'1 (RFC822.SIZE '+str(len(raw)).encode()+b')']
-                return 'OK',[(b'BODY[]',raw)]
-            def logout(self): pass
-        values=dict(host='mail.example.test',port=993,username='inbox@example.test',password='private-app-password',folder='Expense Pilot',senders=['receipts@example.test'],enabled=True)
-        response=self.call(self.owner,'workflows/mail-intake',values,'PUT');self.assertEqual(response.status_code,200,response.json);self.assertNotIn('private-app-password',response.data.decode())
-        with app.app_context(),patch('mail_intake.BoundedIMAP',Mailbox):
-            mail_intake.poll()
-            self.assertEqual(one('SELECT COUNT(*) n FROM receipts')['n'],1)
-            self.assertEqual(one('SELECT COUNT(*) n FROM mail_intake_messages')['n'],2)
-            self.assertEqual(one('SELECT COUNT(*) n FROM expenses')['n'],0)
-        self.assertIn(('select',True),commands)
-        self.assertTrue(any(c[0]=='fetch' and c[1][1]=='(BODY.PEEK[])' for c in commands))
-
-    def test_external_copy_worker_verifies_restore_before_retaining(self):
-        import offsite_backup
-        with tempfile.TemporaryDirectory() as destination,patch.dict('os.environ',{'OFFSITE_BACKUP_DIR':destination}):
-            key=self.call(self.owner,'workflows/offsite-backup/key',dict(password='Owner-password-123'));self.assertEqual(key.status_code,200,key.json)
-            self.assertNotIn(key.json['key'],self.owner.get('/api/workflows/offsite-backup').data.decode())
-            self.assertEqual(self.call(self.owner,'workflows/offsite-backup/enable',dict(key_saved=True)).status_code,200)
-            with app.app_context(): offsite_backup.tick()
-            state=self.owner.get('/api/workflows/offsite-backup').json
-            self.assertFalse(state['error'],state);self.assertTrue(state['last_success']);self.assertTrue(state['test_at'])
-            self.assertEqual(len(list(Path(destination).glob('*.epb'))),1)
-            self.assertEqual(self.call(self.owner,'workflows/offsite-backup/test',{}).status_code,200)
-            with app.app_context(): offsite_backup.tick()
-            self.assertFalse(self.owner.get('/api/workflows/offsite-backup').json['error'])
 
     def test_workspace_deletion_handles_new_cross_ledger_links(self):
         eid=self.create_expense(amount=100)

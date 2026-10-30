@@ -188,6 +188,8 @@ def validate_message_kind(doc, kind):
         fail('Choose an invoice, reminder or payment receipt email.')
     if kind != 'document' and (doc['kind'] != 'invoice' or doc['state'] != 'issued'):
         fail('Reminders and receipts require an issued invoice.', 409)
+    if kind!='document' and doc.get('needs_reissue'):
+        fail('Reissue the amended invoice before sending a reminder or receipt.',409)
     if kind.startswith('reminder_') and doc['balance_cents'] <= 0:
         fail('This invoice has no outstanding balance.', 409)
     if kind == 'receipt' and doc['paid_cents'] <= 0:
@@ -238,6 +240,9 @@ def queue_document_email(doc, recipient, subject, message, key, kind='document',
     if doc['state'] == 'draft':
         db().execute("UPDATE billing_documents SET state='issued' WHERE id=?", (doc['id'],))
         doc['state'] = 'issued'
+    if kind=='document':
+        db().execute('UPDATE billing_documents SET needs_reissue=0 WHERE id=?',(doc['id'],))
+        doc['needs_reissue']=0
     attachment, filename = document_attachment(doc, kind)
     cur = db().execute("INSERT INTO billing_outbox(document_id,recipient,subject,body,state,request_key,created_at,message_kind,signature_html,automation_key) VALUES (?,?,?,?,'sending',?,?,?,?,?)",
                        (doc['id'], recipient, subject, message, key, now(), kind, signature, automation_key))
@@ -276,7 +281,7 @@ def run_reminders(today=None):
             schedule = effective_reminder_schedule(doc, config)
             difference = (date.fromisoformat(today) - date.fromisoformat(doc['due_date'])).days
             scheduled = (schedule['before_days'] > 0 and difference == -schedule['before_days']) or (schedule['on_due_date'] and difference == 0) or difference in schedule['after_days']
-            if not scheduled or not doc['reminders_enabled'] or doc['state'] != 'issued' or doc['balance_cents'] <= 0 or not doc['client']['email']:
+            if doc.get('needs_reissue') or not scheduled or not doc['reminders_enabled'] or doc['state'] != 'issued' or doc['balance_cents'] <= 0 or not doc['client']['email']:
                 db().rollback()
                 continue
             key = f"invoice:{doc['id']}:{doc['due_date']}:{today}"

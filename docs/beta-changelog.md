@@ -2,6 +2,17 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.12 — Simpler reviews and invoice corrections (2026-10-30)
+
+- Put Needs attention below Dashboard; reserve it for actionable exceptions. Respect valid phone drive classifications and keep ordinary unmatched bank transactions in Bank accounts.
+- Automatically link clear existing-expense matches after bank sync, including receipts filed before the transaction arrived. Surface ambiguous matches and changed linked sources without altering expense amounts.
+- Move optional review tools into Bank accounts, Expenses, Employment income, Vehicles and Reports. Keep adviser questions; explain the distinction between import validation and optional cross-payslip checks.
+- Remove IMAP email intake and the encrypted external backup service. Operators manage external appdata backups on Unraid. Existing originals, local backups and offline recovery of beta.11 encrypted archives remain available.
+- Add accessible calendar popups to AU date fields while retaining typed dates. Invoice due dates follow issue dates and payment terms until explicitly overridden; the choice persists when reopened.
+- Replace invoice wording/number actions with one Edit form. Issued invoices can be corrected and reissued, with previous revisions retained. Fully paid invoices are locked; partial payments constrain client, date and minimum total. Pending amendments pause reminders and payment recording until reissued.
+- Display month, year and amount on comparison chart hover, keyboard focus and touch.
+- Apply migration m024 without changing the iPhone API. Regression coverage includes migration adoption, invoice revisions, both matching arrival orders, focused attention, retired services and desktop/mobile calendar/chart workflows.
+
 ## 1.0.6-beta.11 — Review workflows and sign-in alerts (2026-10-30)
 
 - Add Needs attention and Review tools, with invoice/payslip/purchase/refund bank reconciliation, partial and combined payments, stale-preview protection and reversal history.

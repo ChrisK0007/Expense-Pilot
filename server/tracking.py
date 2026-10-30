@@ -347,7 +347,7 @@ def journeys_api():
                 db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],old['id'],fingerprint))
                 db().commit();return jsonify(journey_routes.acknowledgement(old['id'],meta[2],route))
         jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent,started_at,ended_at,client_ref,route_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',values+meta+(route,)).lastrowid
-        db().execute('UPDATE vehicle_journeys SET date_timezone=? WHERE id=?', (vehicle_logbook.date_timezone(d), jid))
+        db().execute('UPDATE vehicle_journeys SET date_timezone=?,review_confirmed=1 WHERE id=?', (vehicle_logbook.date_timezone(d), jid))
         if meta[2]: db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],jid,fingerprint))
         audit('vehicle journey created',jid);db().commit();return jsonify(journey_routes.acknowledgement(jid,meta[2],route))
     where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
@@ -406,7 +406,7 @@ def journey_api(jid):
         meta=vehicle_logbook.metadata(d,j)
         route=journey_routes.archive(d['route']) if 'route' in d else j['route_json']
         db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=?,started_at=?,ended_at=?,client_ref=?,route_json=? WHERE id=?',values+meta+(route,jid))
-        db().execute('UPDATE vehicle_journeys SET date_timezone=? WHERE id=?', (vehicle_logbook.date_timezone(d,j), jid))
+        db().execute('UPDATE vehicle_journeys SET date_timezone=?,review_confirmed=1 WHERE id=?', (vehicle_logbook.date_timezone(d,j), jid))
     audit('vehicle journey updated',jid);db().commit();return jsonify(ok=True)
 
 def register(app, **deps):

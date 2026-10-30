@@ -158,11 +158,13 @@ async function main() {
     await page.getByRole('button',{name:'Record payment',exact:true}).click();
     await page.locator('#modal').getByText('Part paid',{exact:true}).waitFor();
     assert.match(await page.locator('#modal').innerText(),/845\.00/);
-    await page.getByRole('button',{name:'Edit wording',exact:true}).click();
-    await page.getByLabel('Line 1 description',{exact:true}).fill('Flight examiner services — updated description');
+    await page.getByRole('button',{name:'Edit',exact:true}).click();
+    await page.getByLabel('Line description',{exact:true}).fill('Flight examiner services — updated description');
     await page.getByLabel('Notes & terms',{exact:true}).fill('Updated invoice wording');
-    await page.getByRole('button',{name:'Save wording',exact:true}).click();
+    await page.getByRole('button',{name:'Save changes',exact:true}).click();
     await page.locator('#modal').getByText('Updated invoice wording',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Reissue invoice',exact:true}).click();
+    await page.getByRole('button',{name:'Record payment',exact:true}).waitFor();
     assert.match(await page.locator('#modal').innerText(),/845\.00/);
     await page.screenshot({path:output+'/invoice-detail.png',fullPage:true});
     const downloadPromise=page.waitForEvent('download');
