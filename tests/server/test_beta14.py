@@ -170,6 +170,13 @@ class Beta14Test(unittest.TestCase):
         with app.app_context():
             self.assertTrue((equipment_import.tax_documents.folder()/r.json['document_id']).exists());self.assertEqual(one('SELECT count(*) n FROM equipment_assets')['n'],0)
 
+    def test_abandoned_import_original_can_be_deleted(self):
+        source=self.imported()
+        docs=self.owner.get('/api/documents').json['documents'];doc=next(x for x in docs if x['id']==source['document_id'])
+        r=self.call(self.owner,'documents/'+doc['id'],dict(version=doc['version']),'DELETE');self.assertEqual(r.status_code,200,r.json)
+        self.assertEqual(self.owner.get('/api/workflows/equipment/imports/'+source['id']).status_code,404)
+        with app.app_context(): self.assertFalse((equipment_import.tax_documents.folder()/source['document_id']).exists())
+
     def test_shared_category_labels_export_as_safe_values(self):
         import csv,zipfile
         self.assertEqual(self.call(self.owner,'categories',dict(name='=SUM(1,2)')).status_code,200)
