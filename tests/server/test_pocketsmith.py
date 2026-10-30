@@ -80,7 +80,7 @@ class FeedTest(unittest.TestCase):
         self.assertEqual(self.owner.post('/api/pocketsmith/sync',json={}).status_code,403)
         self.assertEqual(self.agent.get('/api/pocketsmith').status_code,403)
         self.assertEqual(self.call(self.agent,'pocketsmith/sync',{}).status_code,403)
-        self.assertEqual(self.agent.get('/api/bank-transactions').status_code,200)
+        self.assertEqual(self.agent.get('/api/bank-transactions').status_code,403)
         self.assertEqual(app.test_client().get('/api/bank-transactions').status_code,401)
         self.assertEqual(self.call(self.owner,'pocketsmith',{'key':'bad-key-invalid'}).status_code,400)
         self.assertTrue(self.owner.get('/api/pocketsmith').json['connected'])
@@ -212,7 +212,7 @@ class FeedTest(unittest.TestCase):
             db().execute("UPDATE users SET permission='read_write' WHERE email='staff@example.test'");db().commit()
         data={'version':t['version'],'action':'ignore'}
         self.assertEqual(self.call(self.agent,'bank-transactions/'+str(t['id']),data).status_code,403)
-        self.assertEqual(self.call(self.staff,'bank-transactions/'+str(t['id']),data).status_code,200)
+        self.assertEqual(self.call(self.staff,'bank-transactions/'+str(t['id']),data).status_code,403)
         self.assertEqual(self.call(self.staff,'pocketsmith/sync',{}).status_code,403)
         self.assertEqual(self.staff.get('/api/pocketsmith').status_code,403)
     def test_duplicate_ids_and_invalid_mapping_atomic(self):

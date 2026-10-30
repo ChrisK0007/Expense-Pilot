@@ -27,7 +27,12 @@ async function main(){
   const secret=await page.locator('.auth-secret').textContent();
   await page.screenshot({path:output+'/authenticator-qr.png',fullPage:true});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/authenticator-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1050});
   await page.getByLabel('Six-digit authenticator code').fill(code(secret));await page.getByRole('button',{name:'Verify and enable 2FA'}).click();await page.getByRole('heading',{name:'Save your recovery codes'}).waitFor();
-  const recovery=await page.locator('.recovery-codes code').allTextContents();assert.equal(recovery.length,10);await page.getByRole('button',{name:'I have saved my codes'}).click();await page.getByText('Enabled — sign-in requires a code from your authenticator.',{exact:true}).waitFor();
+  const recovery=await page.locator('.recovery-codes code').allTextContents();assert.equal(recovery.length,10);
+  // Hold a background settings request across the sign-out click. Its old cookie
+  // must finish before logout and the next sign-in session are created.
+  await page.route('**/api/data/auto-backup',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.continue();});
+  const pendingBackup=page.waitForRequest('**/api/data/auto-backup');
+  await page.getByRole('button',{name:'I have saved my codes'}).click();await pendingBackup;await page.getByText('Enabled — sign-in requires a code from your authenticator.',{exact:true}).waitFor();
   await page.locator('#logout').click();await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();await page.getByRole('heading',{name:'Verify your sign-in'}).waitFor();
   assert.equal((await page.request.get(url+'/api/expenses')).status(),401);
   await page.getByLabel('Authenticator or recovery code').fill('bad-code');await page.getByRole('button',{name:'Verify and sign in'}).click();await page.getByText(/Invalid or already used code/).waitFor();

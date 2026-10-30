@@ -54,7 +54,7 @@ class RecordReportTests(unittest.TestCase):
         self.assertIn('15 min',text);self.assertIn('Bill attached; type confirmed',text)
         self.assertIn('recorded forecast: $0.00',text)
         self.method()
-        text,_=self.pdf_text(self.agent.get('/api/home-office/2026/report.pdf'))
+        text,_=self.pdf_text(self.owner.get('/api/home-office/2026/report.pdf'))
         self.assertIn('Included in tax forecast',text);self.assertIn('recorded forecast: $2.10',text)
         self.assertEqual(app.test_client().get('/api/home-office/2026/report.pdf').status_code,401)
         self.assertEqual(self.owner.get('/api/home-office/2000/report.pdf').status_code,400)
@@ -81,7 +81,7 @@ class RecordReportTests(unittest.TestCase):
         self.journey(vid,date='2026-09-01',purpose='Outside date range')
         other=self.vehicle();self.journey(other,purpose='Other vehicle secret')
         url=f'/api/vehicles/{vid}/report.pdf?from=2026-08-01&to=2026-08-31&rate=0.91'
-        text,_=self.pdf_text(self.agent.get(url))
+        text,_=self.pdf_text(self.owner.get(url))
         for value in ('130.000 km','60.000 km','10.000 km','$63.70','1,000.000','1,100.000','Not recorded','TEST42'):
             self.assertIn(value,text)
         self.assertNotIn('Outside date range',text);self.assertNotIn('Other vehicle secret',text)

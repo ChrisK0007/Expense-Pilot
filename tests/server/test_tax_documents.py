@@ -34,7 +34,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(document['year'],2025);self.assertEqual(document['category'],'health')
         self.assertEqual(document['sha256'],hashlib.sha256(raw).hexdigest())
         self.assertEqual((DATA/'documents'/did).stat().st_mode&0o777,0o600)
-        download=self.agent.get(f'/api/documents/{did}/download')
+        download=self.owner.get(f'/api/documents/{did}/download')
         self.assertEqual(download.status_code,200);self.assertEqual(download.data,raw)
         self.assertIn('attachment;',download.headers['Content-Disposition'])
         self.assertEqual(download.mimetype,'application/octet-stream')
@@ -59,7 +59,7 @@ class DocumentTests(unittest.TestCase):
         with app.app_context():
             uid=db().execute("SELECT id FROM users WHERE email='agent@example.test'").fetchone()[0]
             db().execute("UPDATE users SET permission='read_write' WHERE id=?",(uid,));db().commit()
-        self.assertEqual(self.upload(client=self.agent,raw=b'Agent document').status_code,200)
+        self.assertEqual(self.upload(client=self.agent,raw=b'Agent document').status_code,403)
         with app.app_context():
             db().execute('UPDATE tax_documents SET user_id=? WHERE id=?',(uid,did));db().commit()
         self.assertNotIn(did,[d['id'] for d in self.records()])

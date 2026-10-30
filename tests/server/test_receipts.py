@@ -30,7 +30,7 @@ class ReceiptTest(unittest.TestCase):
         row=self.owner.get('/api/receipts').json[0]
         self.assertEqual(row['id'],rid);self.assertEqual(row['scan_status'],'captured')
         self.assertIsNone(row['expense_id'])
-        self.assertEqual(self.agent.get('/api/receipts').status_code,200)
+        self.assertEqual(self.agent.get('/api/receipts').status_code,403)
 
     def test_duplicate_upload_same_user_only(self):
         first=self.upload().json;second=self.upload().json
@@ -148,7 +148,8 @@ class ReceiptTest(unittest.TestCase):
         response=self.owner.get(route);self.assertEqual(response.status_code,200)
         im=Image.open(io.BytesIO(response.data));self.assertLessEqual(max(im.size),420)
         with patch('app.subprocess.run',side_effect=AssertionError('Cached thumbnail must not re-render')):
-            self.assertEqual(self.agent.get(route).data,response.data)
+            self.assertEqual(self.owner.get(route).data,response.data)
+            self.assertEqual(self.agent.get(route).status_code,403)
             self.assertEqual(self.staff2.get(route).status_code,401)
             self.assertEqual(app.test_client().get(route).status_code,401)
         self.assertTrue((DATA/'receipt_previews'/(rid+'-thumb-v1.png')).exists())

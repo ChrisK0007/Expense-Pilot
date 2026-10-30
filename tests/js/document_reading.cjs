@@ -1,7 +1,7 @@
 // Exercise HTTP failures and polling without a live AI service or real-time waits.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync(path.resolve(__dirname,'../../server/static/app.js'),'utf8');
-const code=source.slice(source.indexOf('async function api('),source.indexOf('\nfunction bind('));
+const code=source.slice(source.indexOf('const apiRequests='),source.indexOf('\nfunction bind('));
 let requests=[],responses=[];
 const context={S:{csrf:'synthetic-token'},FormData,AbortController,TypeError,Date,encodeURIComponent,
  setTimeout:(fn,ms)=>{if(ms===1500)queueMicrotask(fn);return 1;},clearTimeout:()=>{},

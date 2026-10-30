@@ -75,8 +75,9 @@ def guard():
         session.clear(); g.user=None
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
+    adviser.guard()
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/workflows/questions'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/workflows/questions') and not (request.endpoint=='adviser_questions'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -119,6 +120,8 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
+    if g.user and g.user['role']=='tax_agent':
+        return jsonify(user=g.user,csrf=session['csrf'],setup=False,version=VERSION,timezone=workspace_time.name(),api_version=1,minimum_client_api=1,capabilities={'tax_workspace':True,'account_deletion':True},features={},categories=sorted(CATEGORIES,key=str.casefold),business_name='Tax preparation',mfa_required=False)
     return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'review_workflows':True,'receipt_items':True,'signin_alerts':True,'documents':True,'home_office':True,'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
@@ -353,3 +356,6 @@ document_evidence.register(app, auth)
 
 import annual_handover
 annual_handover.register(app, auth)
+
+import adviser
+adviser.register(app, auth)

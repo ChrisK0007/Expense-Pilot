@@ -31,9 +31,13 @@ jobs:
           node --check server/static/public-release.js
           node --check server/static/workflows.js
           node --check server/static/date-picker.js
+          node --check server/static/adviser.js
+          node --check server/static/equipment.js
+          node --check server/static/notifications.js
           node --check server/static/app.js
           node tests/js/toast_timer.cjs
           node tests/js/document_reading.cjs
+          node tests/js/session_requests.cjs
           node --check server/static/overnights.js
           node --check server/static/bank-feeds.js
           node --check server/static/billing.js
@@ -128,30 +132,21 @@ jobs:
           UI_OUTPUT: ${{ runner.temp }}/expense-pilot-ui
         run: |
           npm install --prefix "$RUNNER_TEMP/expense-pilot-browser" playwright@1.62.1
-          node "$RUNNER_TEMP/expense-pilot-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          node "$RUNNER_TEMP/expense-pilot-browser/node_modules/playwright/cli.js" install --with-deps chromium webkit
           docker run -d --memory 1g --memory-swap 1g --name expense-pilot-ui --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8788:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_smoke.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_tracking.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_receipt_trip.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_security.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_splits.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_bank_feeds.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_beta_billing_cleanup.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_billing_controls.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_vehicle_logbook.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_planning.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_routing.cjs
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_public_release.cjs
+          browser_failures=0
+          for browser_suite in tests/browser/ui_smoke.cjs tests/browser/ui_tracking.cjs tests/browser/ui_receipt_trip.cjs tests/browser/ui_security.cjs tests/browser/ui_splits.cjs tests/browser/ui_bank_feeds.cjs tests/browser/ui_beta_billing_cleanup.cjs tests/browser/ui_billing_controls.cjs tests/browser/ui_vehicle_logbook.cjs tests/browser/ui_planning.cjs tests/browser/ui_routing.cjs tests/browser/ui_public_release.cjs; do
+            NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node "$browser_suite" || browser_failures=1
+          done
           docker run -d --memory 1g --name expense-pilot-home-office --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8792:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_home_office.cjs
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_document_inbox.cjs
-          browser_failures=0
-          for browser_suite in tests/browser/ui_workflows.cjs tests/browser/ui_simplified.cjs; do
+          for browser_suite in tests/browser/ui_workflows.cjs tests/browser/ui_simplified.cjs tests/browser/ui_beta13.cjs; do
             APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node "$browser_suite" || browser_failures=1
           done
-          exit "$browser_failures"
           docker run -d --name expense-pilot-onboarding --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8790:8788 -e SETUP_TOKEN= expense-pilot:test tests/browser_server.py
-          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_setup.cjs
+          NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_setup.cjs || browser_failures=1
+          exit "$browser_failures"
       - name: Container memory evidence
         if: always() && steps.browser.outcome != 'skipped'
         run: |

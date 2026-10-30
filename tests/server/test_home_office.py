@@ -199,11 +199,11 @@ class HomeOfficeTests(unittest.TestCase):
 
     def test_authorization_and_csv_formula_escape(self):
         self.assertEqual(app.test_client().get('/api/home-office/2026').status_code,401)
-        self.assertEqual(self.agent.get('/api/home-office/2026').status_code,200)
+        self.assertEqual(self.agent.get('/api/home-office/2026').status_code,403)
         self.assertEqual(self.call(self.agent,'home-office/2026/settings',{},'PUT').status_code,403)
         self.assertEqual(self.owner.post('/api/home-office/entries',json={}).status_code,403)
         self.diary(activity='=HYPERLINK("example")')
-        export=self.agent.get('/api/home-office/2026/export')
+        export=self.owner.get('/api/home-office/2026/export')
         self.assertEqual(export.status_code,200)
         records=list(csv.reader(io.StringIO(export.data.decode('utf-8-sig'))))
         self.assertTrue(any("'=HYPERLINK" in cell for row in records for cell in row))

@@ -63,7 +63,7 @@ class SecurityTest(unittest.TestCase):
         self.assertEqual(self.call(client,'password',{'current':temp,'password':'My-permanent-pass-123'}).status_code,200)
         self.assertEqual(self.call(client,'login',{'email':'invited@example.test','password':temp}).status_code,401)
         self.login(client,'invited@example.test','My-permanent-pass-123')
-        self.assertEqual(client.get('/api/expenses').status_code,200)
+        self.assertEqual(client.get('/api/adviser').status_code,200)
         with app.app_context():
             row=one('SELECT * FROM users WHERE id=?',(result['id'],))
             self.assertFalse(row['must_change_password']);self.assertEqual(row['invite_status'],'accepted')

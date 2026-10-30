@@ -11,3 +11,5 @@
 .invoice-email-options textarea{min-height:150px}
 .template-example,.signature-toolbar,.email-template-tabs{border-color:var(--line)}
 .template-token{background:var(--hover);color:var(--accent);border-color:var(--line)}
+
+.signature-editor table,.email-signature-preview table{width:auto;max-width:100%;white-space:normal;border-collapse:collapse}.signature-editor td,.email-signature-preview td{border:0;padding:0;vertical-align:top;background:transparent}.signature-editor img,.email-signature-preview img{max-width:100%;height:auto}.signature-editor,.email-signature-preview{overflow:auto}

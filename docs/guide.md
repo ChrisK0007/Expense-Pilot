@@ -6,7 +6,7 @@ For release changes, see [the changelog](CHANGELOG.md); for help, see [support](
 
 ## Security and supported accounts
 
-Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner and tax agent. Legacy role checks elsewhere in this repository support those historical records only.
+Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner. Tax-agent access follows the selected sharing scope. Legacy role checks elsewhere in this repository support those historical records only.
 
 Website and supported iPhone sessions expire after 30 days without authenticated activity. Using the app renews the server session and persistent cookie. Explicit sign-out, password/security changes and account disabling still revoke access. Use Sign out on a shared computer. After upgrading from a release with the old 12-hour browser expiry, an already-expired session needs one fresh sign-in. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
 
@@ -56,7 +56,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 - Separate overnight spending with linked breakfast/lunch/dinner/incidentals, allowance records and comparison estimates.
 - Monthly, quarterly or yearly category budgets, vehicle odometer records and vehicle-method comparison estimates.
 - Owner and tax-agent logins, with per-agent Read only / Read & write permissions.
-- Automatic tax-agent access to all financial records, including personal expenses and unfiled receipts.
+- Owner-selected tax-agent financial years and supporting documents, with a focused tax-preparation workspace.
 - Financial-year CSV exports, activity history, password changes and account disabling.
 - Persistent SQLite database, Docker health check and backup helper.
 
@@ -135,9 +135,9 @@ Extraction runs when you choose **Read with AI** or enable **Read with AI after 
 | Role | Access |
 | --- | --- |
 | Owner | All records, invoicing, clients, SMTP settings, imports, people and reports |
-| Tax agent | Read all financial records; optionally create/edit financial records with Read & write permission |
+| Tax agent | View shared tax records; optionally adjust ordinary-expense classification and annual equipment amounts |
 
-All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in Tax agent access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation sends an invitation through the configured SMTP account. The generated password expires after 48 hours and must be replaced on first sign-in. All people can manage their own password and authenticator 2FA in Settings.
+Tax agents have a dedicated workspace for shared tax records. Choose years and supporting documents in **Settings → Tax agent access → Sharing**; new and upgraded accounts start with no shared years. Read & write permits bounded tax adjustments, not operational banking or billing. Sharing and permission changes apply on the next request. Disable revokes sessions; **Remove account** permanently removes the login while retaining financial records and history. Invitations use configured SMTP, expire after 48 hours and require a new password. Each agent manages their own password and 2FA. See [tax-agent access](tax-agent-access.md).
 
 For terminal-only recovery:
 
@@ -176,7 +176,7 @@ SMTP passwords are encrypted in the database and never returned to the browser. 
 
 Fields include `{kind}`, `{number}`, `{client}`, `{business}`, `{total}`, `{balance}`, `{due_date}`, `{full_name}`, `{latest_payment}` and `{date_range}` where relevant. Client contact name falls back to the client business name; full name uses the owner's profile; latest payment excludes reversed records. The default manual reminder avoids saying overdue before the due date has passed.
 
-The signature supports bold, italic, underline, text size, colour, highlighting, links and up to three embedded images (no wider than 300 px, no taller than 600 px and under 100 KB). Images are included in the email rather than fetched from a remote server. A plain-text alternative is included. Signatures apply to client billing emails, not invitations or SMTP test messages. You can omit the signature in an individual send preview.
+Paste a formatted signature into the Signature editor. Supported font families, sizes, colours, table layouts, borders, spacing, links and clipboard images are retained; scripts and unsupported styles are removed. If the clipboard only contains an unavailable external image reference, replace its labelled placeholder using Add image. The signature also supports bold, italic, underline, highlighting and up to three embedded images (no wider than 300 px, no taller than 600 px and under 100 KB). Images are included in the email rather than fetched from a remote server. A plain-text alternative is included. Signatures apply to client billing emails, not invitations or SMTP test messages. You can omit the signature in an individual send preview.
 
 **Settings → Automatic reminders** is off by default. The owner can enable reminders for a chosen number of days before due, on the due date, and up to six overdue dates. Only issued, unpaid invoices with a client email are eligible. **Reminder options** on an invoice allows an individual pause. Dates use the workspace timezone; the container checks once per minute. Each scheduled date is claimed once across workers/restarts; missed days are not sent as a batch after downtime. Failed/uncertain sends are not automatically retried. Pause the schedule before changing templates if you do not want scheduled sends during editing.
 
@@ -187,7 +187,7 @@ Each outgoing document has a delivery history. **Sent / mail server accepted** m
 ### Billing records and access
 
 - Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued line items and business/client details are locked, so changing a client address or business name does not rewrite old invoices. Stable v1.0.2 allows the invoice number to be amended separately.
-- Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
+- Tax agents see issued, non-void invoices and in-year payments relevant to shared financial years. Quotes, drafts, internal client notes, contact management, operational billing and email settings remain unavailable to agents.
 - Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
 - Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. **Delete invoice** permanently removes the invoice and its payment, wording and email history after confirmation. Payment totals and income reports update, linked time is released, the original quote returns to Accepted, and recurring schedules continue. In v1.0.2, permanent deletion makes that number available for the next automatically numbered invoice; when several are available the most recently deleted is used first. Voiding does not release the number. This applies to deletions made after upgrading to 1.0.2. Pending or uncertain email delivery must be resolved first. Credit notes and actual refund processing are not yet implemented.
 - **Services & prices** keeps common line items ready to use. In v1.0.2, choose **Edit** to update a saved description, unit price or GST treatment. Changes apply when the service is next added to an invoice or quote; existing lines retain their saved values.

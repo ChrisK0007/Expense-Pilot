@@ -47,7 +47,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_read_routes_and_permissions(self):
         for path in ['attention/2026','rules','reconciliation','income/2026','equipment?year=2026','journeys?date=2026-10-08','questions','question-records?kind=expense']:
-            self.assertEqual(self.agent.get('/api/workflows/'+path).status_code,200,path)
+            self.assertEqual(self.agent.get('/api/workflows/'+path).status_code,403,path)
             self.assertEqual(app.test_client().get('/api/workflows/'+path).status_code,401,path)
         for path in ['rules','reconciliation/apply','journeys/apply','equipment']:
             self.assertEqual(self.call(self.agent,'workflows/'+path,{}).status_code,403,path)
@@ -134,7 +134,9 @@ class WorkflowTest(unittest.TestCase):
 
     def test_readonly_agent_questions_are_the_only_financial_exception(self):
         eid=self.create_expense()
-        r=self.call(self.agent,'workflows/questions',dict(record_type='expense',record_id=eid,question='What was the business purpose?'));self.assertEqual(r.status_code,200,r.json)
+        aid=next(u['id'] for u in self.owner.get('/api/users').json if u['email']=='agent@example.test')
+        self.call(self.owner,f'users/{aid}/sharing',dict(years=[2026],documents=[]),'PUT')
+        r=self.call(self.agent,'adviser/2026/questions',dict(record_type='expense',record_id=eid,question='What was the business purpose?'));self.assertEqual(r.status_code,200,r.json)
         q=self.owner.get('/api/workflows/questions').json[0]
         self.assertEqual(self.call(self.owner,'workflows/questions',dict(id=q['id'],version=q['version'],answer='Client meeting',resolved=True),'PUT').status_code,200)
         self.assertEqual(self.call(self.owner,'workflows/questions',dict(id=q['id'],version=q['version'],answer='Stale',resolved=True),'PUT').status_code,409)

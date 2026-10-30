@@ -47,11 +47,11 @@ class AppTest(unittest.TestCase):
             self.assertEqual(self.staff2.get('/api/'+path).status_code,401)
     def test_agent_all_records_read_only(self):
         self.expense(self.owner,shared=False);eid=self.expense(self.owner,shared=True).json['id']
-        self.assertEqual(len(self.agent.get('/api/expenses').json),2)
+        self.assertEqual(self.agent.get('/api/expenses').status_code,403)
         self.assertEqual(self.expense(self.agent).status_code,403)
         self.assertEqual(self.call(self.agent,f'expenses/{eid}',{},'DELETE').status_code,403)
-        self.assertEqual(self.agent.get('/api/accounts').status_code,200)
-        self.assertEqual(len(list(csv.reader(io.StringIO(self.agent.get('/api/export').data.decode('utf-8-sig'))))),3)
+        self.assertEqual(self.agent.get('/api/accounts').status_code,403)
+        self.assertEqual(self.agent.get('/api/export').status_code,403)
     def test_historical_employee_records_survive_retirement(self):
         import security
         with app.app_context():
@@ -60,7 +60,7 @@ class AppTest(unittest.TestCase):
             security.migrate();security.migrate()
             self.assertEqual(db().execute('SELECT active FROM users WHERE id=?',(uid,)).fetchone()['active'],0)
         self.assertEqual(len(self.owner.get('/api/expenses').json),1)
-        self.assertEqual(len(self.agent.get('/api/expenses').json),1)
+        self.assertEqual(self.agent.get('/api/expenses').status_code,403)
     def test_personal_visible_but_not_allocated(self):
         self.expense(self.owner,scope='personal',shared=True,percent=100)
         e=self.owner.get('/api/expenses').json[0];self.assertEqual(e['shared'],1);self.assertEqual(e['percent'],0)
@@ -106,7 +106,7 @@ class AppTest(unittest.TestCase):
         self.assertEqual(r.status_code,400);self.assertEqual(self.owner.get('/api/expenses').json,[])
     def test_csv_formula_escaping_and_reimbursement(self):
         self.expense(self.owner,merchant='=HYPERLINK("bad")',reimbursed=True,shared=True)
-        data=list(csv.reader(io.StringIO(self.agent.get('/api/export').data.decode('utf-8-sig'))))
+        data=list(csv.reader(io.StringIO(self.owner.get('/api/export').data.decode('utf-8-sig'))))
         self.assertTrue(data[1][3].startswith("'="));self.assertEqual(data[1][9],'0.00')
     def test_receipt_access_and_ai_not_configured(self):
         from PIL import Image
@@ -114,7 +114,7 @@ class AppTest(unittest.TestCase):
         csrf=self.owner.get('/api/session').json['csrf']
         r=self.owner.post('/api/receipts',data={'file':(buf,'receipt.png')},headers={'X-CSRF-Token':csrf});self.assertEqual(r.status_code,200);rid=r.json['id']
         self.assertEqual(self.staff2.get('/api/receipts/'+rid).status_code,401)
-        self.assertEqual(self.agent.get('/api/receipts/'+rid).status_code,200)
+        self.assertEqual(self.agent.get('/api/receipts/'+rid).status_code,403)
         self.assertEqual(self.expense(self.agent,receipt_id=rid).status_code,403)
         self.assertEqual(self.expense(self.owner,receipt_id=rid).status_code,200)
     def test_export_date_filter(self):

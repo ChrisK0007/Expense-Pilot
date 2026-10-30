@@ -27,7 +27,7 @@ class NotificationTest(AppTest):
         events = self.owner.get('/api/notifications/events').json
         self.assertEqual([x['kind'] for x in events], ['receipts'])
         self.assertNotIn('private.pdf', json.dumps(events))
-        self.assertEqual(self.agent.get('/api/notifications/events').json, [])
+        self.assertEqual(self.agent.get('/api/notifications/events').status_code,403)
         with app.app_context():
             db().execute("DELETE FROM receipts WHERE id='receipt'"); db().commit()
         self.assertEqual(self.owner.get('/api/notifications/events').json, [])
@@ -75,8 +75,8 @@ class NotificationTest(AppTest):
         value = self.registration()
         self.assertEqual(self.owner.put('/api/notifications/device', json=value).status_code, 403)
         self.assertEqual(self.call(self.owner, 'notifications/device', value, 'PUT').status_code, 200)
-        self.assertEqual(self.call(self.agent, 'notifications/device', value, 'PUT').status_code, 409)
-        self.assertEqual(self.call(self.agent, 'notifications/device', value, 'DELETE').status_code, 200)
+        self.assertEqual(self.call(self.agent, 'notifications/device', value, 'PUT').status_code, 403)
+        self.assertEqual(self.call(self.agent, 'notifications/device', value, 'DELETE').status_code, 403)
         with app.app_context(): self.assertEqual(db().execute('SELECT COUNT(*) FROM notification_devices').fetchone()[0], 1)
         for change in ({'token':'bad'}, {'quietStart':True}, {'enabled':'true'}, {'timezone':'Missing/Place'}):
             self.assertEqual(self.call(self.owner,'notifications/device',{**value,**change},'PUT').status_code,400)
