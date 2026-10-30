@@ -131,7 +131,10 @@ def export(year,agent_id=None):
             checks={};total=0
             def add(name,content): out.writestr(name,content);checks[name]=hashlib.sha256(content).hexdigest()
             add('tax-summary.pdf',report.build())
-            for name,values in records.items(): add('registers/'+name+'.csv',csv_bytes(values if isinstance(values,list) else [values]))
+            for name,values in records.items():
+                if name=='category_labels': values=[dict(category=k,label=v) for k,v in values.items()]
+                elif name=='expenses': values=[dict(v,category_key=v['category'],category=records['category_labels'].get(v['category'],v['category'])) for v in values]
+                add('registers/'+name+'.csv',csv_bytes(values if isinstance(values,list) else [values]))
             for group,values in [('receipts',records['originals']),('documents',records['documents'])]:
                 for r in values:
                     path=DATA/group/r['id']

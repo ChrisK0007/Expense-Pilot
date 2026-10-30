@@ -75,6 +75,25 @@ class Beta14Test(unittest.TestCase):
         self.assertEqual(r.status_code,409)
         with app.app_context(): self.assertEqual(one('SELECT count(*) n FROM expenses')['n'],0)
 
+    def test_receipt_treatment_is_atomic_and_rejects_different_existing_payment(self):
+        from PIL import Image
+        raw=io.BytesIO();Image.new('RGB',(12,12),'white').save(raw,'PNG');raw.seek(0)
+        token=self.owner.get('/api/session').json['csrf']
+        uploaded=self.owner.post('/api/receipts',data={'file':(raw,'equipment.png')},headers={'X-CSRF-Token':token})
+        self.assertEqual(uploaded.status_code,200,uploaded.json);rid=uploaded.json['id']
+        self.profile('simplified');d=self.inputs();tax=self.treatment(d)
+        existing=self.expense(self.owner,date=d['date'],amount=600,category='Equipment',work_percent=50,business_percent=25).json['id']
+        data=dict(d,merchant='Electronic store',scope='split',status='ready',tax_treatment=tax)
+        r=self.call(self.owner,f'receipts/{rid}/expense',dict(data,existing_expense_id=existing));self.assertEqual(r.status_code,409,r.json)
+        with app.app_context():
+            self.assertIsNone(one('SELECT receipt_id FROM expenses WHERE id=?',(existing,))['receipt_id'])
+            self.assertEqual(one('SELECT count(*) n FROM equipment_assets')['n'],0)
+        r=self.call(self.owner,f'receipts/{rid}/expense',data);self.assertEqual(r.status_code,200,r.json)
+        with app.app_context():
+            self.assertEqual(one('SELECT receipt_id FROM expenses WHERE id=?',(r.json['id'],))['receipt_id'],rid)
+            self.assertEqual(one('SELECT expense_id FROM equipment_assets')['expense_id'],r.json['id'])
+        self.assertEqual(self.call(self.owner,f'receipts/{rid}/expense',data).status_code,409)
+
     def test_profile_and_import_access_owner_only(self):
         for client in (self.agent,app.test_client()):
             for path in ('workflows/equipment/imports','workflows/equipment/tax-profile/2026'):
@@ -150,6 +169,20 @@ class Beta14Test(unittest.TestCase):
         self.assertEqual(r.status_code,200,r.json);self.assertEqual(r.json['status'],'failed');self.assertIn('complete schedule',r.json['error'])
         with app.app_context():
             self.assertTrue((equipment_import.tax_documents.folder()/r.json['document_id']).exists());self.assertEqual(one('SELECT count(*) n FROM equipment_assets')['n'],0)
+
+    def test_shared_category_labels_export_as_safe_values(self):
+        import csv,zipfile
+        self.assertEqual(self.call(self.owner,'categories',dict(name='=SUM(1,2)')).status_code,200)
+        self.expense(self.owner,category='=SUM(1,2)',work_percent=100,business_percent=0)
+        self.assertEqual(self.call(self.owner,'categories/rename',dict(category='=SUM(1,2)',previous='=SUM(1,2)',name='Custom equipment'),'PUT').status_code,200)
+        with app.app_context(): aid=one("SELECT id FROM users WHERE email='agent@example.test'")['id']
+        self.assertEqual(self.call(self.owner,f'users/{aid}/sharing',dict(years=[2026],documents=[]),'PUT').status_code,200)
+        exported=self.agent.get('/api/adviser/2026/export');self.assertEqual(exported.status_code,200)
+        with zipfile.ZipFile(io.BytesIO(exported.data)) as z:
+            labels=list(csv.reader(io.StringIO(z.read('registers/category_labels.csv').decode('utf-8-sig'))))
+            self.assertEqual(labels[0],['category','label']);self.assertEqual(labels[1],["'=SUM(1,2)",'Custom equipment'])
+            rows=list(csv.DictReader(io.StringIO(z.read('registers/expenses.csv').decode('utf-8-sig'))))
+            self.assertEqual(rows[0]['category'],'Custom equipment');self.assertEqual(rows[0]['category_key'],"'=SUM(1,2)")
 
     def test_category_rename_retains_identity_and_prevents_collisions(self):
         eid=self.expense(self.owner,category='Equipment').json['id']

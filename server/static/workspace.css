@@ -175,7 +175,7 @@ button{transition:box-shadow .15s}
 /* Expense tools stay visible; sorting controls work with keyboard and touch. */
 .expense-tools {margin: 0 0 1rem; padding: .65rem 0;}
 .sort-expenses {background:transparent;color:inherit;padding:.3rem 0;border:0;font:inherit;display:inline-flex;gap:.5rem;align-items:center;white-space:nowrap;}
-.sort-expenses:hover,.sort-expenses:focus-visible {color:var(--accent);text-decoration:underline;}
+.sort-expenses:hover,.sort-expenses:focus-visible {background:transparent;color:var(--accent);text-decoration:underline;}
 .category-entry {display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.35rem .6rem;border-bottom:1px solid var(--line);}
 .category-list {display:block;max-height:45vh;overflow:auto;margin-bottom:1rem;}
 .tax-treatment {margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:12px;}
