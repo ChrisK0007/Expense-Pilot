@@ -21,7 +21,7 @@ def suggest(d):
     if credit<0 or credit>=cost: fail('GST credit must be non-negative and less than the original cost.')
     try: work,business=split_values(d)
     except ValueError as exc: fail(str(exc))
-    net=cost-credit;year=calc.fy(first);settings=profile(year)
+    net=cost-credit;year=integer(calc.fy(first),'financial year',1900,2098);settings=profile(year)
     result=dict(year=year,profile=settings,ruleset=calc.RULESET,full_cost_cents=net,work_cents=calc.cents(Decimal(net)*work/100),business_cents=calc.cents(Decimal(net)*business/100),method=None,ready=False,reason='',life_suggestion=None)
     def stop(reason,status='needs_information'):
         return dict(result,reason=reason,status=status)
@@ -67,7 +67,10 @@ def attach(eid,d):
     if e['items_json']!='[]' or one('SELECT 1 FROM home_office_costs WHERE expense_id=?',(eid,)): fail('This purchase already has another deduction treatment.',409)
     inputs={**treatment,**{k:e[k] for k in ('date','category','work_percent','business_percent','reimbursed','trip_id','meal','vehicle_id')},'amount':str(Decimal(e['amount_cents'])/100)}
     basis=treatment.get('expense_basis')
-    if not isinstance(basis,dict) or basis.get('date')!=e['date'] or money(basis.get('amount'))!=e['amount_cents'] or tuple(split_values(basis))!=(e['work_percent'],e['business_percent']): fail('The matched expense differs from the reviewed amount, date or use. Open that expense and check its treatment there.',409)
+    if not isinstance(basis,dict): fail('Check the expense basis again.',409)
+    try: shares=split_values(basis)
+    except ValueError as exc: fail(str(exc))
+    if basis.get('date')!=e['date'] or money(basis.get('amount'))!=e['amount_cents'] or shares!=(e['work_percent'],e['business_percent']): fail('The matched expense differs from the reviewed amount, date or use. Open that expense and check its treatment there.',409)
     decision=suggest(inputs)
     if treatment.get('confirmed') is not True or not decision['ready']: fail(decision['reason'])
     if treatment.get('profile_version')!=decision['profile']['version'] or treatment.get('method')!=decision['method']: fail('Tax settings or treatment changed. Check the suggestion again.',409)

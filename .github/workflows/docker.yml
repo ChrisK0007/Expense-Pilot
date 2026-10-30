@@ -77,7 +77,9 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
         run: |
-          echo "refresh=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          # Debian can replace source packages within a day. Refresh installed binaries
+          # per run so retained source versions match the current signed indexes.
+          echo "refresh=$(date -u +%F)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_BASE_REF" == "main" ]]; then
             echo "fresh=true" >> "$GITHUB_OUTPUT"
           else

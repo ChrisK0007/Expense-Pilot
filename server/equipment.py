@@ -12,7 +12,7 @@ def listing(year):
     assets=rows('SELECT a.*,e.receipt_id FROM equipment_assets a LEFT JOIN expenses e ON e.id=a.expense_id WHERE a.user_id=? ORDER BY acquired,id',(record_user_id(),))
     for a in assets:
         history=rows('SELECT * FROM equipment_depreciation WHERE asset_id=? ORDER BY year',(a['id'],))
-        carried=json.loads(a.get('import_json') or '{}');a['imported']=carried
+        carried=json.loads(a.get('import_json') or '{}');a['imported']=carried;a['history_unavailable']=bool(carried and year<carried['year'])
         opening=carried.get('opening_cents',a['cost_cents'])-sum(h['amount_cents'] for h in history if h['year']<year)
         if carried and year<carried['year']: opening=0
         current=next((h for h in history if h['year']==year),None)
@@ -162,7 +162,8 @@ def register(app,auth):
         config=json.loads(a['calculation_json'])
         if not config: fail('Set up automatic calculation first.')
         if config['method'].startswith('immediate_'): fail('Changed use after an immediate deduction needs a reviewed annual adjustment.')
-        if year<calc.fy(config['first_use']): fail('Choose a year from first use onward.')
+        imported=json.loads(a.get('import_json') or '{}')
+        if year<max(calc.fy(config['first_use']),imported.get('year',1900)): fail('Choose a year from first use or the imported schedule onward.')
         try: work,business=split_values(d)
         except ValueError as exc: fail(str(exc))
         notes=textval(d.get('notes'),2000)

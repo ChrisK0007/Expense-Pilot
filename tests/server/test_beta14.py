@@ -108,6 +108,20 @@ class Beta14Test(unittest.TestCase):
         docs=self.owner.get('/api/documents').json['documents'];doc=next(x for x in docs if x['id']==source['document_id'])
         self.assertEqual(self.call(self.owner,'documents/'+doc['id'],dict(version=doc['version']),'DELETE').status_code,409)
 
+    def test_import_requires_matching_expense_resolution_and_links_once(self):
+        e=self.expense(self.owner,date='2025-07-01',amount=600,category='Equipment',work_percent=50,business_percent=25).json['id']
+        source=self.imported([dict(name='New equipment',acquired='2025-07-01',cost='600',opening='600',decline='240',closing='360',method='diminishing_value',rate='40',work_percent='50',business_percent='25')])
+        self.assertEqual(self.commit(source).status_code,409)
+        rows=[dict(source['data']['rows'][0],expense_id=e)]
+        result=self.commit(source,rows);self.assertEqual(result.status_code,200,result.json)
+        asset=self.owner.get('/api/workflows/equipment?year=2026').json['assets'][0]
+        self.assertEqual(asset['expense_id'],e)
+        self.assertEqual(self.owner.get('/api/tax/2025').json['recorded']['work_deductions_cents'],12000)
+        old=self.owner.get('/api/workflows/equipment?year=2024').json['assets'][0]
+        self.assertTrue(old['history_unavailable'])
+        r=self.call(self.owner,f"workflows/equipment/{asset['id']}/use/2024",dict(version=asset['version'],work_percent=60,business_percent=20,notes='Before cutover'),'PUT')
+        self.assertEqual(r.status_code,400)
+
     def test_bad_import_is_atomic_and_duplicate_schedule_reuses_original(self):
         source=self.imported();rows=source['data']['rows'];bad=dict(rows[0],name='Broken',closing='119')
         self.assertEqual(self.commit(source,rows+[bad]).status_code,400)
