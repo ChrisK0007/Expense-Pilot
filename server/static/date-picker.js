@@ -4,7 +4,7 @@
  let input=null,popup=null,month='',restoreFocus=false;
  const iso=d=>d.toISOString().slice(0,10),day=value=>new Date(value+'T12:00:00Z');
  function close(){if(input){input.removeAttribute('aria-controls');input.setAttribute('aria-expanded','false');}popup?.remove();popup=null;input=null;}
- function position(){if(!popup||!input?.isConnected)return close();const r=input.getBoundingClientRect();popup.style.left=Math.max(8,Math.min(innerWidth-popup.offsetWidth-8,r.left))+'px';popup.style.top=Math.max(8,r.bottom+popup.offsetHeight+8>innerHeight?r.top-popup.offsetHeight-6:r.bottom+6)+'px';}
+ function position(){if(!popup||!input?.isConnected)return close();const r=input.getBoundingClientRect();if(r.bottom<0||r.top>innerHeight||r.right<0||r.left>innerWidth)return close();popup.style.left=Math.max(8,Math.min(innerWidth-popup.offsetWidth-8,r.left))+'px';popup.style.top=Math.max(8,r.bottom+popup.offsetHeight+8>innerHeight?r.top-popup.offsetHeight-6:r.bottom+6)+'px';}
  function choose(value){const target=input;target.value=dateAU(value);normaliseDateInput(target);target.dispatchEvent(new Event('input',{bubbles:true}));target.dispatchEvent(new Event('change',{bubbles:true}));close();restoreFocus=true;target.focus({preventScroll:true});restoreFocus=false;}
  function draw(focusDate=''){
   let selected='';try{selected=dateISO(input.value);}catch(_){}
@@ -32,6 +32,6 @@
  document.addEventListener('pointerdown',e=>{if(popup&&e.target!==input&&!popup.contains(e.target))close();},true);
  document.addEventListener('input',e=>{if(e.target===input)close();});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popup){e.preventDefault();e.stopPropagation();close();}else if(e.altKey&&e.key==='ArrowDown'&&e.target.matches('[data-date=au]')){e.preventDefault();open(e.target);popup?.querySelector('.calendar-day[tabindex="0"]')?.focus();}},true);
- document.addEventListener('close',close,true);window.addEventListener('resize',close);window.addEventListener('scroll',e=>{if(popup&&!popup.contains(e.target))close();},true);
+ document.addEventListener('close',close,true);window.addEventListener('resize',position);window.addEventListener('scroll',e=>{if(popup&&!popup.contains(e.target))position();},true);
  new MutationObserver(()=>{if(input&&!input.isConnected)close();}).observe(document.documentElement,{childList:true,subtree:true});
 })();
