@@ -8,7 +8,7 @@ Dependencies, datasets and fonts retain their own licences and copyright notices
 | Flask | 3.1.3 | BSD-3-Clause |
 | Gunicorn | 26.2.0 | MIT |
 | Pillow | 13.0.0 | MIT-CMU; bundled libraries have additional notices |
-| pypdf | 6.21.2 | BSD-3-Clause |
+| pypdf | 6.21.4 | BSD-3-Clause |
 | ReportLab | 5.0.1 | BSD; bundled fonts retain their notices |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause; bundled libraries retain their notices |
 | SQLite library used by Python | 3.54.1 | Public domain; https://www.sqlite.org/copyright.html |
