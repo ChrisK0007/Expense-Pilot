@@ -109,7 +109,7 @@ class Beta13Test(unittest.TestCase):
         data['cost']=300;data['work_percent']=60
         self.assertEqual(self.call(self.owner,'workflows/equipment',data).status_code,200)
         data['calculation'].update(method='immediate_business',small_business=True,first_use='2027-07-01',income_use='2027-07-01')
-        self.assertEqual(self.call(self.owner,'workflows/equipment',data).status_code,400)
+        self.assertEqual(self.call(self.owner,'workflows/equipment',data).status_code,200)
 
     def test_pasted_signature_preserves_layout_and_sanitises(self):
         raw='<table cellpadding="0"><tr><td style="padding-right:12px;border-right:1px solid #123456"><b>Name</b></td><td><span style="font-family:Arial;font-size:12pt;color:#123456">Pilot</span><br><a href="mailto:pilot@example.test">Email</a></td></tr></table><script>private()</script><img src="http://127.0.0.1/secrets" onerror="alert(1)">'

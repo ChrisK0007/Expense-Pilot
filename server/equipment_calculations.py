@@ -7,10 +7,14 @@ from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import json
 
-RULESET = 'AU-equipment-2026-10-30'
-# Explicit financial years (start-year convention). Later years require a rules update.
+RULESET = 'AU-equipment-2026-10-31'
+# Temporary thresholds plus the permanent threshold enacted from 1 July 2026.
 INSTANT_LIMITS = {2024: 2000000, 2025: 2000000, 2026: 2000000}
 METHODS = {'prime_cost', 'diminishing_value', 'immediate_employee', 'immediate_business'}
+
+
+def instant_limit(year):
+    return 2000000 if 2026<=year<=2098 else INSTANT_LIMITS.get(year)
 
 
 def fy(value):
@@ -24,6 +28,7 @@ def cents(value):
 def validate(asset, payload, history):
     from app import day, money, fail, textval
     if not isinstance(payload,dict): fail('Choose equipment calculation settings.')
+    if json.loads(asset.get('import_json') or '{}'): fail('Imported method, rate and opening balance are retained from the reviewed schedule. Use annual overrides or remove and re-import the record.',409)
     method=payload.get('method')
     if method not in METHODS: fail('Choose a supported calculation method.')
     first=day(payload.get('first_use'));tax=day(payload.get('income_use'))
@@ -47,7 +52,7 @@ def validate(asset, payload, history):
         if cost>30000 or asset['work_percent']<=50: fail('Employee immediate deduction requires cost of $300 or less and mainly non-business income use.')
         if payload.get('not_grouped') is not True: fail('Confirm this is not part of a set or identical-item group costing over $300.')
     if method=='immediate_business':
-        limit=INSTANT_LIMITS.get(fy(first))
+        limit=instant_limit(fy(first))
         if not limit or cost>=limit: fail('This year/cost is outside supported instant write-off rules. Use reviewed manual treatment or pooling.')
         if payload.get('small_business') is not True: fail('Confirm eligibility as a small business and election to use simplified depreciation.')
     if asset.get('calculation_json','{}')!='{}' and any(h['confirmed'] for h in history): fail('Confirmed annual history locks the setup. Use an annual override with a reason.',409)
@@ -58,7 +63,8 @@ def validate(asset, payload, history):
 def schedule(asset, history, usage, through):
     config=json.loads(asset.get('calculation_json') or '{}')
     if not config: return []
-    start=fy(config['first_use']);cost=asset['cost_cents']-config['gst_credit_cents'];remaining=cost
+    carried=json.loads(asset.get('import_json') or '{}')
+    start=carried.get('year',fy(config['first_use']));cost=asset['cost_cents']-config['gst_credit_cents'];remaining=carried.get('opening_cents',cost)
     existing={h['year']:h for h in history};result=[];work=asset['work_percent'];business=asset['business_percent']
     use={u['year']:u for u in usage}
     for year in range(start, min(through,2098)+1):
@@ -71,7 +77,7 @@ def schedule(asset, history, usage, through):
             if method.startswith('immediate_'):
                 gross=remaining if year==start else 0;claim=gross
             else:
-                rate=Decimal(cost if method=='prime_cost' else opening)/Decimal(config['life'])/365*(2 if method=='diminishing_value' else 1)
+                rate=(Decimal(cost if method=='prime_cost' else opening)*Decimal(carried['rate'])/100/365 if carried.get('rate') else Decimal(cost if method=='prime_cost' else opening)/Decimal(config['life'])/365*(2 if method=='diminishing_value' else 1))
                 gross=min(opening,cents(rate*days))
                 private_before=min(gross,cents(rate*(days-taxdays)))
                 claim=max(0,gross-private_before)

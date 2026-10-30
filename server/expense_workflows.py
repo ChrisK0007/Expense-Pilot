@@ -41,7 +41,7 @@ def guard_edit(existing, values, data=None):
         for key,index in [('amount_cents',2),('scope',3),('category',4),('percent',5),('trip_id',8),('meal',9),('work_percent',14),('business_percent',15)]:
             if existing[key]!=values[index]: fail('Edit the item breakdown first, or clear it before changing the payment amount or allocation.',409)
     if one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(existing['id'],)):
-        if any(existing[k]!=values[i] for k,i in [('date',0),('amount_cents',2),('work_percent',14),('business_percent',15)]):
+        if any(existing[k]!=values[i] for k,i in [('date',0),('amount_cents',2),('reimbursed',6),('trip_id',8),('meal',9),('work_percent',14),('business_percent',15)]):
             fail('This purchase is in the equipment register. Remove its register entry before changing its cost, date or use.',409)
 
 

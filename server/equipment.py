@@ -12,10 +12,12 @@ def listing(year):
     assets=rows('SELECT a.*,e.receipt_id FROM equipment_assets a LEFT JOIN expenses e ON e.id=a.expense_id WHERE a.user_id=? ORDER BY acquired,id',(record_user_id(),))
     for a in assets:
         history=rows('SELECT * FROM equipment_depreciation WHERE asset_id=? ORDER BY year',(a['id'],))
-        opening=a['cost_cents']-sum(h['amount_cents'] for h in history if h['year']<year)
+        carried=json.loads(a.get('import_json') or '{}');a['imported']=carried
+        opening=carried.get('opening_cents',a['cost_cents'])-sum(h['amount_cents'] for h in history if h['year']<year)
+        if carried and year<carried['year']: opening=0
         current=next((h for h in history if h['year']==year),None)
         a.update(history=history,opening_cents=opening,closing_cents=opening-(current['amount_cents'] if current else 0),current=current,
-                 needs_review=a['acquired']<=end and (not a['disposal_date'] or a['disposal_date']>=f'{year}-07-01') and opening>0 and (not current or not current['confirmed']))
+                 needs_review=(not carried or year>=carried['year']) and a['acquired']<=end and (not a['disposal_date'] or a['disposal_date']>=f'{year}-07-01') and opening>0 and (not current or not current['confirmed']))
         usage=rows('SELECT * FROM equipment_usage WHERE asset_id=? ORDER BY year',(a['id'],))
         a['calculation']=json.loads(a['calculation_json']);a['usage']=usage
         a['schedule']=calc.schedule(a,history,usage,min(2098,max(year+5,calc.fy(a['acquired'])+5)))
@@ -85,7 +87,8 @@ def register(app,auth):
         if not a: fail('Equipment not found.',404)
         if d.get('version')!=a['version']: fail('Equipment changed. Reload the register.',409)
         if request.method=='DELETE':
-            if one('SELECT 1 FROM equipment_depreciation WHERE asset_id=?',(aid,)): fail('Remove the annual depreciation records before removing this asset.',409)
+            imported=json.loads(a.get('import_json') or '{}')
+            if one('SELECT 1 FROM equipment_depreciation WHERE asset_id=? AND year!=?',(aid,imported.get('year',-1))): fail('Remove the annual depreciation records before removing this asset.',409)
             db().execute('DELETE FROM equipment_assets WHERE id=?',(aid,))
         else:
             disposal=day(d['disposal_date']) if d.get('disposal_date') else '';proceeds=money(d.get('proceeds',0))
@@ -103,6 +106,8 @@ def register(app,auth):
         a=one('SELECT * FROM equipment_assets WHERE id=? AND user_id=?',(aid,record_user_id()))
         if not a: fail('Equipment not found.',404)
         if d.get('version')!=a['version']: fail('Equipment changed. Reload the register.',409)
+        imported=json.loads(a.get('import_json') or '{}')
+        if imported and year<=imported['year']: fail('The imported year and earlier history are fixed by the original schedule. Remove and re-import to correct its balances.',409)
         before=one('SELECT * FROM equipment_depreciation WHERE asset_id=? AND year=?',(aid,year))
         if request.method=='DELETE':
             if json.loads(a['calculation_json']):
@@ -115,7 +120,7 @@ def register(app,auth):
             amount=money(d.get('amount'));claimable=money(d.get('income_use_amount',d.get('amount')));basis=textval(d.get('notes'),2000)
             others=one('SELECT COALESCE(SUM(amount_cents),0) AS total FROM equipment_depreciation WHERE asset_id=? AND year!=?',(aid,year))['total']
             if a['acquired']>end or a['disposal_date'] and a['disposal_date']<start: fail('Choose a year when the equipment was held.')
-            if amount<0 or claimable<0 or claimable>amount or amount+others>a['cost_cents'] or not basis: fail('Enter the depreciation basis and an amount within the remaining original cost.')
+            if amount<0 or claimable<0 or claimable>amount or amount+others>imported.get('opening_cents',a['cost_cents']) or not basis: fail('Enter the depreciation basis and an amount within the remaining original cost.')
             if json.loads(a['calculation_json']):
                 view=next(x for x in listing(year) if x['id']==aid)
                 current=view['current']
