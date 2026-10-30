@@ -42,6 +42,11 @@ def attention(year):
         add('question',q['id'],'Open question: '+q['record_type']+' #'+q['record_id'],q['question'],q['created_at'][:10],priority=1,page='review_tools')
     for e in rows("SELECT * FROM signin_events WHERE user_id=? AND state IN ('failed','unknown') ORDER BY id DESC LIMIT 5",(g.user['id'],)):
         add('security',e['id'],'Sign-in email needs attention',e['error'],priority=1,page='settings')
+    if g.user['role']=='owner':
+        from mail_intake import config as mail_config
+        from offsite_backup import config as backup_config
+        for service,state,key in [('Mailbox intake',mail_config(),'last_error'),('Encrypted backup',backup_config(),'error')]:
+            if state.get(key): add('connection',service,service,state[key],priority=1,page='review_tools')
     return sorted(items,key=lambda r:(r['priority'],r['date'] or '9999',-r['amount_cents'],str(r['id'])))
 
 

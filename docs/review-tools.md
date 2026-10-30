@@ -34,7 +34,7 @@ Equipment records retain original cost, use, linked purchase, annual depreciatio
 
 Adviser questions link to an expense, pay record, receipt, supporting document, drive, asset or invoice. Read-only tax agents may ask, answer and resolve questions, but cannot modify financial records.
 
-The annual ZIP includes a branded PDF summary, CSV registers, outstanding items, adviser questions, linked receipt originals, supporting documents and SHA-256 manifest. Supporting documents with no year and older equipment evidence are included for review. The export snapshots and pins evidence before building the archive, and stops if an original is missing or fails its stored checksum. The original-file limit is 1 GB. It contains no session key or connection credentials.
+The annual ZIP includes a branded PDF summary, CSV registers, outstanding items, adviser questions, linked receipt originals, supporting documents and SHA-256 manifest. Supporting documents with no year, unfiled inbox originals and older equipment evidence are included for review. The export snapshots and pins evidence before building the archive, and stops if an original is missing or fails its stored checksum. The original-file limit is 1 GB. It contains no session key or connection credentials.
 
 Needs attention covers records already received by the server. Check the phone separately for unsent uploads.
 

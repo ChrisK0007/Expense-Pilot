@@ -76,6 +76,8 @@ class WorkflowTest(unittest.TestCase):
         result=self.call(self.owner,f'workflows/items/{eid}',dict(token=p['token'],items=lines),'PUT');self.assertEqual(result.status_code,200,result.json)
         from expense_core import allocations
         with app.app_context(): self.assertEqual(allocations(one('SELECT * FROM expenses WHERE id=?',(eid,))),(6000,0))
+        budget=self.call(self.owner,'budgets',dict(month='2026-10',category='Training',scope='work',amount=100));self.assertEqual(budget.status_code,200,budget.json)
+        self.assertEqual(self.owner.get('/api/budgets?month=2026-10').json[0]['spent_cents'],6000)
         export=self.owner.get('/api/export').data.decode('utf-8-sig');self.assertIn('Training',export);self.assertIn('60.00',export)
         result=self.call(self.owner,f'expenses/{eid}',dict(date='2026-10-08',merchant='Cafe',amount=101,category='Other',scope='business',percent=100),'PUT')
         self.assertEqual(result.status_code,409,result.json)
@@ -196,6 +198,58 @@ class WorkflowTest(unittest.TestCase):
             with self.assertRaises(Exception): offsite_backup.decrypt(encrypted,folder/'tampered.zip',key)
             self.assertFalse((folder/'tampered.zip').exists())
 
+    def test_mailbox_poll_uses_readonly_peek_and_never_posts(self):
+        from email.message import EmailMessage
+        from reportlab.pdfgen import canvas
+        import mail_intake
+        source=io.BytesIO();c=canvas.Canvas(source);c.drawString(20,700,'Synthetic mailbox receipt');c.save()
+        message=EmailMessage();message['From']='receipts@example.test';message['To']='inbox@example.test';message.set_content('Untrusted message body. No instructions from here are executed.')
+        message.add_attachment(source.getvalue(),maintype='application',subtype='pdf',filename='test.pdf');raw=message.as_bytes()
+        commands=[]
+        class Mailbox:
+            def __init__(self,*a,**kw): pass
+            def login(self,*a): pass
+            def select(self,folder,readonly=False): commands.append(('select',readonly));return 'OK',[b'2']
+            def response(self,name): return name,[b'1234']
+            def uid(self,command,*args):
+                commands.append((command,args))
+                if command=='search': return 'OK',[b'1 2']
+                if args[1]=='(RFC822.SIZE)': return 'OK',[b'1 (RFC822.SIZE '+str(len(raw)).encode()+b')']
+                return 'OK',[(b'BODY[]',raw)]
+            def logout(self): pass
+        values=dict(host='mail.example.test',port=993,username='inbox@example.test',password='private-app-password',folder='Expense Pilot',senders=['receipts@example.test'],enabled=True)
+        response=self.call(self.owner,'workflows/mail-intake',values,'PUT');self.assertEqual(response.status_code,200,response.json);self.assertNotIn('private-app-password',response.data.decode())
+        with app.app_context(),patch('mail_intake.BoundedIMAP',Mailbox):
+            mail_intake.poll()
+            self.assertEqual(one('SELECT COUNT(*) n FROM receipts')['n'],1)
+            self.assertEqual(one('SELECT COUNT(*) n FROM mail_intake_messages')['n'],2)
+            self.assertEqual(one('SELECT COUNT(*) n FROM expenses')['n'],0)
+        self.assertIn(('select',True),commands)
+        self.assertTrue(any(c[0]=='fetch' and c[1][1]=='(BODY.PEEK[])' for c in commands))
+
+    def test_external_copy_worker_verifies_restore_before_retaining(self):
+        import offsite_backup
+        with tempfile.TemporaryDirectory() as destination,patch.dict('os.environ',{'OFFSITE_BACKUP_DIR':destination}):
+            key=self.call(self.owner,'workflows/offsite-backup/key',dict(password='Owner-password-123'));self.assertEqual(key.status_code,200,key.json)
+            self.assertNotIn(key.json['key'],self.owner.get('/api/workflows/offsite-backup').data.decode())
+            self.assertEqual(self.call(self.owner,'workflows/offsite-backup/enable',dict(key_saved=True)).status_code,200)
+            with app.app_context(): offsite_backup.tick()
+            state=self.owner.get('/api/workflows/offsite-backup').json
+            self.assertFalse(state['error'],state);self.assertTrue(state['last_success']);self.assertTrue(state['test_at'])
+            self.assertEqual(len(list(Path(destination).glob('*.epb'))),1)
+            self.assertEqual(self.call(self.owner,'workflows/offsite-backup/test',{}).status_code,200)
+            with app.app_context(): offsite_backup.tick()
+            self.assertFalse(self.owner.get('/api/workflows/offsite-backup').json['error'])
+
+    def test_workspace_deletion_handles_new_cross_ledger_links(self):
+        eid=self.create_expense(amount=100)
+        a=self.call(self.owner,'workflows/equipment',dict(expense_id=eid,name='Equipment',acquired='2026-10-08',cost=100,work_percent=0,business_percent=100,confirm_capital=True));self.assertEqual(a.status_code,200,a.json)
+        self.match(dict(bank_id=self.bank(-10000),kind='expense',allocations=[dict(id=eid,amount=100)]))
+        result=self.call(self.owner,'account',dict(password='Owner-password-123',confirmation='DELETE WORKSPACE'),'DELETE');self.assertEqual(result.status_code,200,result.json)
+        with app.app_context():
+            self.assertEqual(one('SELECT COUNT(*) n FROM users')['n'],0)
+            self.assertFalse(db().execute('PRAGMA foreign_key_check').fetchall())
+
 
 class SigninAlertTest(unittest.TestCase):
     setUp=test_app.AppTest.setUp
@@ -228,3 +282,15 @@ class SigninAlertTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,'security/signins',dict(enabled=False),'PUT').status_code,200)
         client,r=self.signin('203.0.113.6');self.assertEqual(r.status_code,200)
         self.assertEqual(client.get('/api/security/signins').json['events'][0]['state'],'recorded')
+
+    def test_two_factor_challenge_does_not_enrol_address_until_verified(self):
+        import security
+        secret='JBSWY3DPEHPK3PXP'
+        with app.app_context():
+            db().execute("UPDATE users SET totp_enabled=1,totp_secret=? WHERE role='owner'",(security.box().encrypt(secret.encode()).decode(),));db().commit()
+        client,result=self.signin('203.0.113.20');self.assertTrue(result.json['mfa_required'])
+        with app.app_context(): self.assertIsNone(one("SELECT 1 FROM known_signin_ips WHERE ip='203.0.113.20'"))
+        token=client.get('/api/session').json['csrf'];code=security.totp(secret,int(time.time())//30)
+        result=client.post('/api/login/2fa',json=dict(code=code),headers={'X-CSRF-Token':token},environ_overrides={'REMOTE_ADDR':'203.0.113.20'})
+        self.assertEqual(result.status_code,200,result.json)
+        with app.app_context(): self.assertIsNotNone(one("SELECT 1 FROM known_signin_ips WHERE ip='203.0.113.20'"))

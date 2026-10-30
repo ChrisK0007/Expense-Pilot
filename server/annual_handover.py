@@ -50,14 +50,14 @@ def report(year,data,outstanding,owner):
         r.add(f"{q['record_type']} #{q['record_id']} — {'Resolved' if q['resolved'] else 'Open'}")
         r.add(q['question']);r.add('Response: '+(q['answer'] or 'Awaiting response'))
     r.add('Evidence and integrity','heading')
-    r.add('The ZIP includes the selected year’s linked receipt originals and supporting documents, CSV registers, source checksums and a JSON manifest. Documents without a financial year are included for adviser review. Passwords, session keys and email credentials are excluded.')
+    r.add('The ZIP includes the selected year’s linked receipt originals and supporting documents, CSV registers, source checksums and a JSON manifest. Documents without a financial year and unfiled inbox originals are included for adviser review. Passwords, session keys and email credentials are excluded.')
     return r.build()
 
 
 def build(year):
     from app import DATA, VERSION, db, rows, one, record_user_id, fail
     import review_hub
-    year,start,end=fiscal(year);uid=record_user_id();output=tempfile.SpooledTemporaryFile(max_size=16*1024*1024,mode='w+b')
+    year,start,end=fiscal(year);uid=record_user_id();output=tempfile.SpooledTemporaryFile(max_size=16*1024*1024,mode='w+b',dir=DATA)
     try:
         with tempfile.TemporaryDirectory(prefix='.handover-',dir=DATA) as staging:
             db().execute('BEGIN IMMEDIATE')
@@ -87,14 +87,18 @@ def build(year):
                     if asset['expense_id']:
                         receipt=one('SELECT receipt_id FROM expenses WHERE id=?',(asset['expense_id'],))
                         if receipt and receipt['receipt_id']: receipt_ids.add(receipt['receipt_id'])
+                receipt_ids.update(r['id'] for r in rows('SELECT r.id FROM receipts r WHERE r.user_id=? AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income e WHERE e.receipt_id=r.id)',(uid,)))
                 receipts=[one('SELECT * FROM receipts WHERE id=?',(rid,)) for rid in sorted(receipt_ids)]
+                data['receipt_originals']=receipts
                 outstanding=review_hub.attention(year)
                 originals=[];total=0
                 for group,records in [('receipts',receipts),('documents',data['supporting_documents'])]:
                     for record in records:
                         rid=record['id']
                         if not re.fullmatch(r'[0-9a-f]{40}',rid): fail('Invalid original identifier. Review the evidence before exporting.',409)
-                        source=DATA/group/rid;total+=source.stat().st_size
+                        source=DATA/group/rid
+                        if not source.is_file(): fail('A saved original is missing. Restore the evidence before exporting this handover.',409)
+                        total+=source.stat().st_size
                         if total>1024**3: fail('This handover exceeds 1 GB of originals. Export smaller document groups separately.',413)
                         target=Path(staging)/(group+'-'+rid)
                         try: os.link(source,target)

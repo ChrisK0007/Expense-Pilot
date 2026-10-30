@@ -75,5 +75,5 @@ def register(app,auth):
         if not employer or gross<0 or not 0<=withheld<=gross: fail('Enter an employer and valid annual gross/withheld figures.')
         if d.get('reference_only') is not True: fail('Confirm this is a comparison only, not another income payment.')
         db().execute('INSERT INTO annual_income_checks(user_id,year,employer,gross_cents,withheld_cents,notes) VALUES (?,?,?,?,?,?) ON CONFLICT(user_id,year,employer) DO UPDATE SET gross_cents=excluded.gross_cents,withheld_cents=excluded.withheld_cents,notes=excluded.notes',
-                     (record_user_id(),year,employer.lower(),gross,withheld,textval(d.get('notes'),2000)))
+                     (record_user_id(),year,employer.casefold(),gross,withheld,textval(d.get('notes'),2000)))
         audit('annual statement comparison saved',year);db().commit();return jsonify(summary(year))

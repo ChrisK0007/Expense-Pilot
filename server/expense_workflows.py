@@ -31,10 +31,12 @@ def validate_items(value, expense):
     return lines
 
 
-def guard_edit(existing, values):
+def guard_edit(existing, values, data=None):
     from app import fail, one
     if one('SELECT 1 FROM bank_reconciliations WHERE expense_id=? OR refund_id=?',(existing['id'],existing['id'])):
         if any(existing[k]!=values[i] for k,i in [('amount_cents',2),('account_id',11)]): fail('Undo the bank reconciliation before changing the matched amount or account.',409)
+    if (existing.get('items_json','[]')!='[]' or one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(existing['id'],))) and (data or {}).get('vehicle_id'):
+        fail('Remove itemisation or equipment treatment before linking a vehicle.',409)
     if existing.get('items_json','[]')!='[]':
         for key,index in [('amount_cents',2),('scope',3),('category',4),('percent',5),('trip_id',8),('meal',9),('work_percent',14),('business_percent',15)]:
             if existing[key]!=values[index]: fail('Edit the item breakdown first, or clear it before changing the payment amount or allocation.',409)
@@ -46,7 +48,7 @@ def guard_edit(existing, values):
 def rules_data():
     from app import rows, record_user_id
     rules=rows('SELECT * FROM categorisation_rules WHERE user_id=? ORDER BY merchant,id',(record_user_id(),))
-    suggestions=rows("SELECT lower(trim(merchant)) AS merchant,category,work_percent,business_percent,COUNT(*) AS count FROM expenses WHERE user_id=? AND status='ready' AND items_json='[]' AND trip_id IS NULL AND meal='' AND category NOT IN ('Meals','Uncategorised') GROUP BY lower(trim(merchant)),category,work_percent,business_percent HAVING COUNT(*)>=2 ORDER BY count DESC LIMIT 30",(record_user_id(),))
+    suggestions=rows("SELECT ep_casefold(merchant) AS merchant,category,work_percent,business_percent,COUNT(*) AS count FROM expenses WHERE user_id=? AND status='ready' AND items_json='[]' AND trip_id IS NULL AND meal='' AND category NOT IN ('Meals','Uncategorised') GROUP BY ep_casefold(merchant),category,work_percent,business_percent HAVING COUNT(*)>=2 ORDER BY count DESC LIMIT 30",(record_user_id(),))
     known={r['merchant'].casefold() for r in rules}
     return dict(rules=rules,suggestions=[r for r in suggestions if r['merchant'].casefold() not in known],
                 history=rows("SELECT id,kind,at,undone FROM workflow_changes WHERE user_id=? AND kind='categorisation rule applied' ORDER BY id DESC LIMIT 30",(record_user_id(),)))
@@ -56,7 +58,9 @@ def rule_plan(rid, ids):
     from app import one, rows, fail, record_user_id
     rule=one('SELECT * FROM categorisation_rules WHERE id=? AND user_id=?',(rid,record_user_id()))
     if not rule or not rule['enabled']: fail('Choose an enabled rule.',404)
-    candidates=rows("SELECT * FROM expenses WHERE user_id=? AND lower(trim(merchant))=? AND items_json='[]' AND trip_id IS NULL AND meal='' AND vehicle_id IS NULL AND category!='Meals' AND NOT EXISTS(SELECT 1 FROM home_office_costs h WHERE h.expense_id=expenses.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets a WHERE a.expense_id=expenses.id) ORDER BY date,id LIMIT 501",(record_user_id(),rule['merchant']))
+    from app import category_names
+    if rule['category'] not in category_names(): fail('The rule category no longer exists. Edit the rule first.',409)
+    candidates=rows("SELECT * FROM expenses WHERE user_id=? AND ep_casefold(merchant)=? AND items_json='[]' AND trip_id IS NULL AND meal='' AND vehicle_id IS NULL AND category!='Meals' AND NOT EXISTS(SELECT 1 FROM home_office_costs h WHERE h.expense_id=expenses.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets a WHERE a.expense_id=expenses.id) ORDER BY date,id LIMIT 501",(record_user_id(),rule['merchant']))
     if ids is not None:
         ids=selected_ids(ids);candidates=[r for r in candidates if r['id'] in ids]
         if len(candidates)!=len(ids): fail('Some selected expenses no longer match this rule.',409)
@@ -94,7 +98,7 @@ def register(app,auth):
     def rules():
         from app import db, one, fail, textval, category_names, record_user_id, audit
         if request.method=='GET': return jsonify(rules_data())
-        write_access();d=body();merchant=textval(d.get('merchant'),200).lower()
+        write_access();d=body();merchant=textval(d.get('merchant'),200).casefold()
         try: work,business=split_values(d)
         except ValueError as exc: fail(str(exc))
         if not merchant or d.get('category') not in category_names() or d['category']=='Meals': fail('Choose a merchant and an ordinary expense category.')

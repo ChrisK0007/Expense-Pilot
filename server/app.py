@@ -41,6 +41,7 @@ def db():
     if 'db' not in g:
         g.db=sqlite3.connect(DATA/'rounded.sqlite',timeout=30); g.db.row_factory=sqlite3.Row
         g.db.execute('PRAGMA foreign_keys=ON')
+        g.db.create_function('ep_casefold',1,lambda value:str(value or '').strip().casefold(),deterministic=True)
     return g.db
 @app.teardown_appcontext
 def close(_):
@@ -244,7 +245,7 @@ def update_expense(eid):
         db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
         if e['receipt_id']: delete_receipt_record(e['receipt_id'])
     else:
-        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
+        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p,d);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
     db().commit()
     if request.method=='DELETE' and e['receipt_id']: remove_receipt_files(e['receipt_id'])
     return jsonify(ok=True)

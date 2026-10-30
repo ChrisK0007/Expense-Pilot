@@ -21,6 +21,7 @@ def record(user, token_hash, device, at, sign_in):
     db().execute('UPDATE login_sessions SET ip_address=?,user_agent=? WHERE token_hash=?', (ip, agent, token_hash))
     if not sign_in:
         return
+    db().execute('DELETE FROM known_signin_ips WHERE last_seen<?',(at-180*86400,))
     previous = one('SELECT last_seen FROM known_signin_ips WHERE user_id=? AND ip=?', (user['id'], ip))
     fresh = not previous or previous['last_seen'] < at - 180*86400
     pref = one('SELECT signin_emails FROM security_preferences WHERE user_id=?', (user['id'],))
@@ -90,7 +91,7 @@ def register(app, auth):
             audit('session signed out', target[:12]); db().commit()
             if target == digest: session.clear()
             return jsonify(ok=True)
-        records = rows("SELECT token_hash AS id,device_name,ip_address,user_agent,created_at,last_used,expires FROM login_sessions WHERE user_id=? AND kind='auth' AND expires>? AND (user_version=? OR device_name='') ORDER BY last_used DESC", (g.user['id'], time.time(), g.user['version']))
+        records = rows("SELECT token_hash AS id,device_name,ip_address,user_agent,created_at,last_used,expires FROM login_sessions WHERE user_id=? AND kind='auth' AND expires>? AND (user_version=? OR (device_name='' AND user_version=0)) ORDER BY last_used DESC", (g.user['id'], time.time(), g.user['version']))
         for r in records: r['current'] = r['id'] == digest
         return jsonify(records)
 

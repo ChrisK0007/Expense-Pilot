@@ -27,9 +27,16 @@ def plan(data):
         if len(records)<2: fail('Select at least two drives to merge.')
         first,last=records[0],records[-1]
         if any(any(r[k]!=first[k] for k in ('vehicle_id','date','date_timezone','scope','percent','purpose')) for r in records): fail('Merged drives must have the same vehicle, day, timezone, classification and purpose.')
+        timed=[r['started_at'] is not None and r['ended_at'] is not None for r in records]
+        if any(timed) and not all(timed): fail('Keep timed and untimed drives separate, or record the missing times before merging.')
+        if all(timed):
+            from app import one
+            if one('SELECT 1 FROM vehicle_odometer WHERE vehicle_id=? AND recorded_at>? AND recorded_at<?',(first['vehicle_id'],first['started_at'],last['ended_at'])): fail('These drives cross an actual odometer reading. Keep them separate to preserve the reconciliation.')
         for previous,current in zip(records,records[1:]):
             if previous['ended_at'] and current['started_at'] and previous['ended_at']>current['started_at']: fail('Overlapping drives cannot be merged.')
         merged=dict(first,id=None,client_ref=None,destination=last['destination'],ended_at=last['ended_at'],distance_m=sum(r['distance_m'] for r in records),odometer_start=None,odometer_end=None)
+        if any(r['started_at'] is None or r['ended_at'] is None for r in records):
+            merged['started_at']=merged['ended_at']=None
         if all(r['odometer_start'] is not None for r in records) and all(a['odometer_end']==b['odometer_start'] for a,b in zip(records,records[1:])):
             merged.update(odometer_start=first['odometer_start'],odometer_end=last['odometer_end'])
         routes=[json.loads(r['route_json']) for r in records if r['route_json']]
@@ -49,6 +56,9 @@ def plan(data):
         if original['started_at'] is not None and original['ended_at'] is not None:
             cut=integer(data.get('split_at'),'split time',int(original['started_at'])+1,int(original['ended_at'])-1)
             parts[0]['ended_at']=parts[1]['started_at']=cut
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+            for part in parts: part['date']=datetime.fromtimestamp(part['started_at'],ZoneInfo(part['date_timezone'])).date().isoformat()
         if original['odometer_start'] is not None:
             parts[0]['odometer_end']=parts[1]['odometer_start']=original['odometer_start']+distance
         if original['route_json']:
