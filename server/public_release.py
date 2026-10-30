@@ -89,6 +89,7 @@ def register(app, auth):
             document_files = list(folder().iterdir())
             db().execute('PRAGMA defer_foreign_keys=ON')
             tables = [x['name'] for x in rows("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name!='schema_migrations'")]
+            tables.sort(key=lambda t: 0 if t=='bank_reconciliations' else 1 if t=='equipment_assets' else 2)
             for table in tables:
                 db().execute('DELETE FROM "'+table.replace('"', '""')+'"')
             from billing import save_settings

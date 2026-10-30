@@ -6,7 +6,7 @@ const Workspace=(()=>{
  let reportYear=String(fy),reportScope='all',reportGroup='category';
  const sum=(items,key)=>items.reduce((n,x)=>n+(typeof key==='function'?key(x):x[key]||0),0);
  const go=p=>navigate(p);
- function grouped(items,key,value){const totals=new Map();for(const item of items){const name=typeof key==='function'?key(item):item[key]||'Other';totals.set(name,(totals.get(name)||0)+value(item));}return [...totals].map(([name,amount])=>({name,amount})).sort((a,b)=>b.amount-a.amount);}
+ function grouped(items,key,value){if(key==='category')items=items.flatMap(e=>{const lines=JSON.parse(e.items_json||'[]');return lines.length?lines.map(line=>({...e,...line,items_json:'[]'})):[e];});const totals=new Map();for(const item of items){const name=typeof key==='function'?key(item):item[key]||'Other';totals.set(name,(totals.get(name)||0)+value(item));}return [...totals].map(([name,amount])=>({name,amount})).sort((a,b)=>b.amount-a.amount);}
  function breakdown(items,empty='No records in this period'){
   if(!items.length)return `<p class="empty compact-empty">${empty}</p>`;
   const total=sum(items,x=>Math.max(0,x.amount));let at=0;

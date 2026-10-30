@@ -117,6 +117,22 @@ def worker(raw, extension, mode, page):
         if mode == 'info': return dict(kind='pdf', pages=count)
         with tempfile.TemporaryDirectory(prefix='expense-pilot-document-') as directory:
             source = Path(directory) / 'document.pdf'; source.write_bytes(raw)
+            if mode == 'evidence':
+                from xml.etree import ElementTree as ET
+                output=Path(directory)/'words.html'
+                subprocess.run(['pdftotext','-f','1','-l','20','-bbox','-enc','UTF-8',str(source),str(output)],check=True,timeout=15,capture_output=True)
+                if output.stat().st_size>4*1024*1024: raise ValueError('This text layer is too large to highlight.')
+                root=ET.fromstring(output.read_bytes());pages=[];count=0
+                for page in root.iter():
+                    if page.tag.rsplit('}',1)[-1]!='page': continue
+                    words=[]
+                    for word in page.iter():
+                        if word.tag.rsplit('}',1)[-1]!='word': continue
+                        count+=1
+                        if count>20000: break
+                        words.append(dict(text=word.text or '',x=float(word.attrib['xMin']),y=float(word.attrib['yMin']),right=float(word.attrib['xMax']),bottom=float(word.attrib['yMax'])))
+                    pages.append(dict(width=float(page.attrib['width']),height=float(page.attrib['height']),words=words))
+                return dict(pages=pages)
             if mode == 'extract':
                 output = Path(directory) / 'document.txt'
                 subprocess.run(['pdftotext', '-layout', '-enc', 'UTF-8', str(source), str(output)],

@@ -2,6 +2,18 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.11 — Review workflows and sign-in alerts (2026-10-30)
+
+- Add Needs attention and Review tools, with invoice/payslip/purchase/refund bank reconciliation, partial and combined payments, stale-preview protection and reversal history.
+- Add editable merchant rules, suggestions from repeated reviewed allocations, preview/apply/undo, and receipt line itemisation feeding allocations, budgets, reports and exports.
+- Add source-text evidence highlights, missing/inconsistent figure flags, payslip period/YTD checks and non-posting annual statement comparisons.
+- Add daily drive review, bulk classification, conservative merge/split and undo; preserve recording gaps and uploaded journey identities.
+- Add an equipment register, explicit annual depreciation and disposal review, excluding linked capital purchases from ordinary forecast deductions.
+- Add record-linked adviser questions and a branded annual handover ZIP with registers, outstanding items, originals and checksums.
+- Add opt-in IMAP attachment intake into drafts, and encrypted copies to an operator-mounted external destination with isolated restore tests.
+- Add successful new-IP sign-in email alerts, grouped/capped delivery, history and browser/app session revocation. Existing SMTP configuration is required.
+- Apply migration m023 while preserving prior records and the iPhone API. No iPhone build is included. See [Review tools](review-tools.md) for setup, limits and recovery steps.
+
 ## 1.0.6-beta.10 — Payslip columns and branded reports (2026-10-28)
 
 - Read the supported Pay Slip Components layout locally, including wrapped employer names, payment/period dates and separate current-pay/YTD columns. Reconcile gross earnings, PAYG, net and super totals; subtract explicitly listed salary-sacrifice super from taxable pay. Unrecognised or inconsistent layouts retain the existing AI/manual review path.

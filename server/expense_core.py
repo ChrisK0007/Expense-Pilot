@@ -40,6 +40,11 @@ def percentages(expense):
 def allocations(expense):
     if expense.get('reimbursed'):
         return 0, 0
+    import json
+    lines = json.loads(expense.get('items_json') or '[]')
+    if lines:
+        parts = [allocations({**expense, **line, 'items_json':'[]'}) for line in lines]
+        return sum(p[0] for p in parts), sum(p[1] for p in parts)
     work, business = percentages(expense)
     amount = expense['amount_cents']
     total = int((Decimal(amount) * (work + business) / 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP))

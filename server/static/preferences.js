@@ -18,7 +18,7 @@ const Features=(()=>{
 const Splits=(()=>{
  function percentages(e){return {work:Number(e.work_percent??(e.scope==='work'?(e.percent??100):0)),business:Number(e.business_percent??(e.scope==='business'?(e.percent??100):0))};}
  function scope(e,employee=false){const p=percentages(e);return p.work&&p.business?'split':p.work?'work':p.business||employee?'business':'personal';}
- function amounts(e){if(e.reimbursed)return {work:0,business:0};const p=percentages(e),sign=Math.sign(e.amount_cents||0),a=Math.abs(e.amount_cents||0),total=sign*Math.round(a*(p.work+p.business)/100),work=sign*Math.round(a*p.work/100);return {work,business:total-work};}
+ function amounts(e){if(e.reimbursed)return {work:0,business:0};const lines=JSON.parse(e.items_json||'[]');if(lines.length)return lines.reduce((a,line)=>{const p=amounts({...e,...line,items_json:'[]'});return {work:a.work+p.work,business:a.business+p.business};},{work:0,business:0});const p=percentages(e),sign=Math.sign(e.amount_cents||0),a=Math.abs(e.amount_cents||0),total=sign*Math.round(a*(p.work+p.business)/100),work=sign*Math.round(a*p.work/100);return {work,business:total-work};}
  function matches(e,scope){const p=percentages(e);return scope==='all'||scope==='split'&&p.work>0&&p.business>0||scope==='work'&&(p.work>0||e.scope==='work')||scope==='business'&&(p.business>0||e.scope==='business')||scope==='personal'&&100-p.work-p.business>0;}
  function label(e){const p=percentages(e);return p.work&&p.business?`${p.work}% Employment · ${p.business}% Business`:scopeName(e.scope);}
  function badges(e){

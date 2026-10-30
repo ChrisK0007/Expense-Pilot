@@ -70,7 +70,7 @@ def suggestions(uid, d):
             # receipt-date match, rather than silently create the expense twice.
             existing=rows('''SELECT e.* FROM expenses e WHERE user_id=? AND date=? AND amount_cents=?
                 AND (account_id IS NULL OR account_id=?) AND bank_match_excluded=0
-                AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id)''',
+                AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.expense_id=e.id)''',
                 (uid,d['date'],-t['amount_cents'],t['local_account_id']))
             existing=[e for e in existing if same_merchant(e['merchant'],d['merchant'])]
             if len(existing)==1:
@@ -121,7 +121,7 @@ def backfill_plan(account_id=None):
     from app import record_user_id, rows, fail
     uid = record_user_id()
     expenses = rows('''SELECT e.* FROM expenses e WHERE e.user_id=? AND e.bank_match_excluded=0
-        AND e.amount_cents>0 AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id)
+        AND e.amount_cents>0 AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.expense_id=e.id)
         AND (? IS NULL OR e.account_id=? OR e.account_id IS NULL) ORDER BY e.date,e.id LIMIT 2001''', (uid,account_id,account_id))
     if len(expenses)>2000:
         fail('More than 2,000 unmatched expenses. Select a bank account or match older records in smaller groups.',400)

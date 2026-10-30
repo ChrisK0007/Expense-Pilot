@@ -9,6 +9,7 @@ Start with the [installation and configuration guide](public-release.md). Use do
 | Connect bank feeds and review transactions | [PocketSmith](pocketsmith.md) |
 | Update, choose a release channel or roll back | [Stable and beta releases](releases.md) |
 | See what changed | [Stable changelog](CHANGELOG.md) · [Beta changelog](beta-changelog.md) |
+| Review matches, rules, payslips, equipment, handover and security alerts (beta) | [Review tools](review-tools.md) |
 | Get help or report a bug | [Support](../SUPPORT.md) |
 | Report a security issue privately | [Security policy](../SECURITY.md) |
 | Understand the licence and bundled components | [Licensing and notices](licensing.md) |

@@ -190,7 +190,7 @@ def adjusted(expense, annual):
 def forecast_adjustments(year, expenses):
     annual=summary(year); by_id={e['id']:e for e in annual['costs']};out=[]
     for e in expenses:
-        out.append(adjusted(by_id.get(e['id'],e),annual))
+        out.append(adjusted(e if e.get('description') else by_id.get(e['id'],e),annual))
     addition=annual['hourly'] if annual['active'] and annual['settings']['method']=='fixed' else dict(work=0,business=0)
     return annual,sum(a[0] for a in out)+(addition['work'] or 0),sum(a[1] for a in out)+(addition['business'] or 0)
 
@@ -317,6 +317,7 @@ def register(app, auth):
     def save_cost(eid):
         p=data();db().execute('BEGIN IMMEDIATE');e=one('SELECT * FROM expenses WHERE id=? AND user_id=?',(eid,owner_id()))
         if not e: fail('Choose an expense belonging to the owner.',404)
+        if e.get('items_json','[]')!='[]' or one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(eid,)): fail('Remove itemisation or equipment treatment before classifying this as a home-office bill.',409)
         from overnights import is_overnight
         if is_overnight(e) or e.get('vehicle_id'): fail('Choose a home-office bill, not an overnight or vehicle expense.')
         old=one('SELECT * FROM home_office_costs WHERE expense_id=?',(eid,)) or {'version':0}
