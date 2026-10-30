@@ -12,6 +12,7 @@ const Workflows=(()=>{
  function links(parent){const keys=Object.keys(parents).filter(k=>parents[k]===parent);return `<details class="section-tools"><summary>${parent==='employment'?'Optional payslip checks':parent==='vehicles'?'Drive tools':parent==='reports'?'Adviser tools':'Expense tools'}</summary><div class="actions">${keys.map(k=>`<a class="button-link secondary" href="#/${routes[k]}">${labels[k]}</a>`).join('')}</div></details>`;}
  async function show(next){tab=next;navigate(routes[next]);}
  async function pageView(next){
+  if(!next&&page!==routes[tab])return;
   if(next)tab=next;
   $('#content').innerHTML=heading(labels[tab],'',`<a class="button-link secondary" href="#/${parents[tab]}">Back to ${pageTitles[parents[tab]]}</a>`)+`${['income','equipment','handover'].includes(tab)?`<div class="toolbar">${yearField()}</div>`:''}<section class="panel workflow-panel" id="workflow-body"><p>Loading…</p></section>`;
   if($('#workflow-year'))$('#workflow-year').onchange=e=>{year=Number(e.target.value);pageView();};
@@ -19,6 +20,7 @@ const Workflows=(()=>{
   try{await ({reconciliation,rules,income,items,journeys,equipment,questions,handover}[tab])(target);}catch(e){if(target.isConnected)target.innerHTML=`<p class="error">${esc(e.message)}</p>`;}
  }
  async function attention(){
+  if(page!=='attention')return;
   $('#content').innerHTML=heading('Needs attention','Review the records that still need a decision.')+`<div class="toolbar">${yearField()}${select('Sort','attention-sort',[['priority','Priority'],['date','Oldest first'],['amount','Largest amount']])}${select('Show','attention-kind',[['all','All items']])}${button('Refresh','refresh')}</div><div id="attention-list" class="panel workflow-panel">Loading…</div>`;
   const root=$('#attention-list');
   try{
