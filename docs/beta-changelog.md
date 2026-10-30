@@ -12,6 +12,7 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 - Add reviewed automatic equipment schedules, eligible immediate deductions, GST-adjusted cost, private-use periods, annual use changes, carry-forward balances and reasoned overrides. Confirmed history remains fixed. See [calculation scope and sources](equipment-calculations.md).
 - Accept formatted signature paste with supported fonts, colours, table layouts, links and clipboard images. Sanitize before insertion, embed images in outgoing mail, and flag unavailable images for replacement.
 - Keep the invoice calendar open while changing months in Safari; preserve keyboard focus and existing due-date rules.
+- Finish in-flight background requests before signing out so a late response cannot invalidate the next sign-in session.
 - Apply migration m025 without changing the owner iPhone API. No iPhone build is required. See [tax-agent sharing](tax-agent-access.md) before granting access after the update.
 
 ## 1.0.6-beta.12 — Simpler reviews and invoice corrections (2026-10-30)

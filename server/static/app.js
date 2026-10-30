@@ -34,7 +34,21 @@ const scopeName=s=>({work:'Employment',business:'Business',personal:'Personal',s
 const allocated=(e,scope='all')=>{const a=Splits.amounts(e);return scope==='work'?a.work:scope==='business'?a.business:scope==='personal'?0:a.work+a.business;};
 let toastTimer;
 function toast(t){clearTimeout(toastTimer);const element=$('#toast');element.textContent=t;element.style.display='block';toastTimer=setTimeout(()=>{element.style.display='none';toastTimer=null;},5500)}
-async function api(path,body,method='POST',{timeoutMs=0}={}){
+const apiRequests=new Set();
+let signingOut=false;
+async function api(path,body,method='POST',options={}){
+ if(signingOut)throw Error('Signing out. Please wait.');
+ const logout=path==='logout';
+ if(logout){
+  signingOut=true;
+  // Finish responses carrying the old session cookie before revoking it.
+  // Chained background requests must not race the new sign-in session either.
+  await Promise.allSettled([...apiRequests]);
+ }
+ const request=apiRequest(path,body,method,options);apiRequests.add(request);
+ try{return await request;}finally{apiRequests.delete(request);if(logout)signingOut=false;}
+}
+async function apiRequest(path,body,method='POST',{timeoutMs=0}={}){
  const controller=new AbortController(),init={method:body===undefined?'GET':method,headers:{'X-CSRF-Token':S.csrf||''},signal:controller.signal};
  if(body!==undefined){if(body instanceof FormData)init.body=body;else{init.headers['Content-Type']='application/json';init.body=JSON.stringify(body);}}
  const timer=timeoutMs?setTimeout(()=>controller.abort(),timeoutMs):null;
