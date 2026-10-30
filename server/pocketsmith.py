@@ -347,7 +347,7 @@ def register(app, **helpers):
     def review(tid):
         if request.method=='GET':
             t = transaction(tid)
-            return jsonify(transaction=t, matches=matches(t))
+            return jsonify(transaction=t, matches=matches(t), reconciled=bool(one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(tid,))))
         if not can_write():
             fail('Read-only access.', 403)
         d = request.get_json(silent=True) or {}

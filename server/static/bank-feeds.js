@@ -42,21 +42,23 @@ const BankFeeds=(()=>{
   bind('#feed-next',()=>{offset+=100;mount().catch(e=>toast(e.message));});
   host.querySelectorAll('[data-bank-review]').forEach(b=>b.onclick=()=>review(Number(b.dataset.bankReview)).catch(e=>toast(e.message)));
  }
- async function review(id){
+ async function review(id,onChanged=null){
   const result=await api('bank-transactions/'+id),t=result.transaction,candidates=result.matches;
-  const eligible=!t.expense_id&&!t.missing&&t.source_status==='posted'&&!t.is_transfer&&t.amount_cents!==0;
+  const eligible=!result.reconciled&&!t.expense_id&&!t.missing&&t.source_status==='posted'&&!t.is_transfer&&t.amount_cents!==0;
   modal('Review bank transaction',`<h3>${esc(t.payee)}</h3><p>${esc(dateAU(t.date))} · ${esc(t.account_name)} · <strong>${esc(amount(t))}</strong></p><p class="muted">${esc(t.memo)}</p>
-   ${t.changed?'<div class="notice">PocketSmith has changed this transaction. Your linked expense has been kept as it was; compare its amount and date before acknowledging the change.</div>':''}
+   ${t.changed?'<div class="notice">PocketSmith has changed this transaction. Your linked records have been kept as they were; compare the amount and date before acknowledging the change.</div>':''}
    ${t.missing?'<div class="notice">This transaction was not returned by PocketSmith on the last complete sync. It may have been removed or replaced. Any linked expense is kept.</div>':''}
    ${t.source_status==='pending'?'<div class="notice">Pending transactions may be replaced when posted. Wait for a posted transaction before adding an expense.</div>':''}
    ${t.is_transfer?'<div class="notice">PocketSmith marks this as a transfer. It cannot be added as an expense here.</div>':''}
+   ${result.reconciled?'<button class="secondary" id="feed-reconciliation">Review payment match →</button>':''}
    ${t.expense_id?`<button class="secondary" id="feed-open-linked">Open linked expense →</button>${bookkeeper()?'<button class="ghost" id="feed-unlink">Unlink expense</button>':''}`:''}
    ${eligible&&!t.local_account_id?'<p class="error">Map this account in connection settings before continuing.</p>':''}
    ${eligible?`<h3>Possible existing expenses</h3>${candidates.length?candidates.map(e=>`<section class="receipt-match"><p>${esc(e.merchant)} · ${esc(dateAU(e.date))} · ${money(e.amount_cents)}</p><button class="secondary" data-feed-view="${e.id}">View expense →</button>${bookkeeper()?`<button data-feed-link="${e.id}">Match this expense</button>`:''}</section>`).join(''):`<p class="muted">${t.currency==='AUD'?'No unlinked expenses with the same amount and account within three days.':'Automatic matching is available for AUD accounts. Enter the converted AUD amount when adding an expense.'}</p>`}`:''}
    ${eligible&&t.amount_cents>0?'<p class="notice">This is money coming in. Only add it if it refunds an expense. Salary, invoice payments and transfers should not become negative expenses.</p>':''}
-   <div class="modal-footer">${bookkeeper()?`${t.changed?'<button class="secondary" id="feed-ack">Acknowledge change</button>':''}${!t.expense_id?`<button class="secondary" id="feed-ignore">${t.state==='ignored'?'Restore to review':'Ignore transaction'}</button>`:''}${eligible&&t.local_account_id?`<button id="feed-create">${t.amount_cents>0?'Record expense refund':'Create expense'}</button>`:''}`:''}</div>`);
-  const act=async(action,extra={})=>{await api('bank-transactions/'+id,{version:t.version,action,...extra});$('#modal').close();await refresh();await mount();toast('Bank transaction updated.');};
+   <div class="modal-footer">${bookkeeper()?`${t.changed?'<button class="secondary" id="feed-ack">Acknowledge change</button>':''}${!t.expense_id&&!result.reconciled?`<button class="secondary" id="feed-ignore">${t.state==='ignored'?'Restore to review':'Ignore transaction'}</button>`:''}${eligible&&t.local_account_id?`<button id="feed-create">${t.amount_cents>0?'Record expense refund':'Create expense'}</button>`:''}`:''}</div>`);
+  const act=async(action,extra={})=>{await api('bank-transactions/'+id,{version:t.version,action,...extra});$('#modal').close();await refresh();if(onChanged)await onChanged();else await mount();toast('Bank transaction updated.');};
   const open=eid=>{const e=E.find(x=>x.id===eid)||candidates.find(x=>x.id===eid);if(e)expenseModal(e);else toast('Expense not found. Refresh the page.');};
+  bind('#feed-reconciliation',()=>{$('#modal').close();navigate('reconciliation');});
   bind('#feed-open-linked',()=>open(t.expense_id));
   bind('#feed-unlink',ev=>busy(ev.currentTarget,()=>act('unlink')));
   bind('#feed-ack',ev=>busy(ev.currentTarget,()=>act('acknowledge')));
@@ -71,5 +73,5 @@ const BankFeeds=(()=>{
    $('#expense-form').insertAdjacentHTML('afterbegin',`<div class="notice">${t.currency==='AUD'?'This expense will be linked to the bank transaction when saved. Keep its bank amount and account.':'Enter the converted AUD amount. The original bank amount is recorded in Notes.'}</div>`);
   });
  }
- return {mount,settings,settingsCard};
+ return {mount,settings,settingsCard,review};
 })();

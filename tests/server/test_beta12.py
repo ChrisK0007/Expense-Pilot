@@ -141,6 +141,11 @@ class AutomaticMatchTest(unittest.TestCase):
         FakeClient.transactions=[];self.assertEqual(self.sync().status_code,200)
         self.assertEqual(len([i for i in self.attention() if i['kind']=='bank']),1)
 
+        bank=self.ledger()[0]
+        self.assertTrue(self.owner.get('/api/bank-transactions/'+str(bid)).json['reconciled'])
+        self.assertEqual(self.call(self.owner,'bank-transactions/'+str(bid),dict(version=bank['version'],action='acknowledge')).status_code,200)
+        self.assertFalse([i for i in self.attention() if i['kind']=='bank'])
+
 
 class FocusedAttentionTest(unittest.TestCase):
     setUp=test_workflows.WorkflowTest.setUp
