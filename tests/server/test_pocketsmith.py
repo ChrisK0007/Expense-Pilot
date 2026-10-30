@@ -85,7 +85,7 @@ class FeedTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,'pocketsmith',{'key':'bad-key-invalid'}).status_code,400)
         self.assertTrue(self.owner.get('/api/pocketsmith').json['connected'])
     def test_sync_idempotent_create_link_delete_tombstone(self):
-        self.connect();self.assertEqual(self.sync().json,{'added':1,'received':1})
+        self.connect();self.assertEqual(self.sync().json,{'added':1,'received':1,'matched':0})
         t=self.ledger()[0];r=self.add(t);self.assertEqual(r.status_code,200,r.json)
         self.assertEqual(self.add(t).status_code,409)
         self.assertEqual(self.sync().json['added'],0)
@@ -119,7 +119,7 @@ class FeedTest(unittest.TestCase):
         with app.app_context():
             db().execute("UPDATE pocketsmith_connection SET last_error='PocketSmith returned an unsupported transaction status.'");db().commit()
         response=self.sync();self.assertEqual(response.status_code,200,response.json)
-        self.assertEqual(response.json,{'added':7,'received':8})
+        self.assertEqual(response.json,{'added':7,'received':8,'matched':0})
         records={t['remote_id']:t for t in self.ledger()}
         self.assertEqual(records['901']['changed'],0)
         self.assertEqual(records['901']['source_status'],'posted')

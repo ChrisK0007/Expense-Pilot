@@ -1,6 +1,18 @@
-# Review tools (beta)
+# Review workflows (beta)
 
-Beta 1.0.6-beta.11 adds **Needs attention** and **Review tools** to the web app. Existing iPhone API version 1 remains supported; this release does not contain a new iPhone build. Use the web app for these new workflows.
+Beta 1.0.6-beta.12 places **Needs attention** immediately below Dashboard and moves optional tools into their existing sections. There is no separate Review tools menu. The iPhone API remains version 1; no new iPhone build is required.
+
+| Section | Optional tools |
+| --- | --- |
+| Bank accounts → Matching options | Suggested matches and payment reconciliation |
+| Expenses → Expense tools | Categorisation rules, receipt items, equipment |
+| Employment income → Optional payslip checks | Pay-period and YTD comparisons |
+| Vehicles → Drive tools | Bulk classification, split, merge and undo |
+| Reports → Adviser tools | Adviser questions and annual handover |
+
+Needs attention contains failed document reads, expenses awaiting review, ambiguous bank matches, changed/missing linked bank records, work/business drives missing a purpose, annual evidence checks, open adviser questions and failed sign-in alerts. Normal inbox drafts, ordinary unmatched transactions, valid classified drives and optional payslip comparisons stay in their own sections.
+
+Clear one-to-one expense/bank matches link automatically when a receipt is filed or a bank sync completes. Amounts must match, merchants must agree and dates must be within three days. Ambiguous, ignored, pending, transfer, foreign-currency and explicit cash choices are not automatically linked. More than 2,000 unmatched expenses requires using the account-filtered suggested matching tool. No financial amounts or allocations are changed by linking. The bank page still supports creating an expense when no invoice is available.
 
 ## Bank reconciliation
 
@@ -24,7 +36,7 @@ Itemisation keeps one expense, one payment and one original. Each line has an am
 
 **Check extracted evidence** highlights literal text matches in PDF originals. A match is not a confidence score: check its label and whether it is current pay or YTD. Repeated amounts may have multiple matches. The bounded text preview examines up to 20 pages and 20,000 words. Image-only documents retain the original preview without invented coordinates.
 
-Payslip checks report gaps between recorded pay periods, overlapping periods, and missing period dates. Gaps may represent leave or employment breaks. Explicit YTD figures are compared with payments through the same date. An annual statement entered here is a reference comparison, never an extra income payment. Employer matching ignores case and surrounding spaces; review employer name changes manually.
+Import checks the extracted figures for one document. Optional payslip checks compare records: they report gaps between recorded pay periods, overlapping periods, and missing period dates. Gaps may represent leave or employment breaks. Explicit YTD figures are compared with payments through the same date. An annual statement entered here is a reference comparison, never an extra income payment. Employer matching ignores case and surrounding spaces; review employer name changes manually.
 
 ## Drives, equipment and adviser handover
 
@@ -38,40 +50,21 @@ The annual ZIP includes a branded PDF summary, CSV registers, outstanding items,
 
 Needs attention covers records already received by the server. Check the phone separately for unsent uploads.
 
-## Email intake
-
-In **Review tools → Mail & backup**, configure an IMAP TLS host, port, username, app password, dedicated folder and exact sender allow-list. Enable intake explicitly. The background service checks every five minutes, reading up to 20 unprocessed messages per pass, at most 12 MB per message and 10 MB per attachment. Supported originals are PDF, JPEG, PNG and WebP. Attachments are validated and deduplicated by content hash within the workspace; the original bytes are kept.
-
-Messages are opened read-only using BODY.PEEK, never moved, deleted or marked read. Sender addresses are an intake filter, not proof of authenticity. Attachments become inbox drafts; email content cannot approve or post financial records. Failed messages remain visible in the intake history and can be uploaded manually. Credentials are encrypted using the installation secret. The host must be reachable from the server.
-
 ## Sign-in email alerts
 
 Settings → Security shows active browser/app sessions and recent successful sign-ins. New-IP emails are enabled by default for each account and use existing Business & email SMTP settings. No email can be delivered until SMTP is configured. The owner and each tax agent receive only their own account alerts.
 
 Only completed successful sign-ins enrol an address; failed passwords and unfinished two-factor challenges do not. Requests use the existing trusted-proxy address handling, never an arbitrary forwarded header. Addresses not seen for 180 days count as new. Alerts include UTC time, IP and device/browser, coalesced to at most one email per hour. Mobile networks and VPNs commonly change addresses. Uncertain deliveries are not automatically resent; failures remain in sign-in history. Pending alerts expire after 24 hours. Passwords, tokens and authentication codes are never put in the email.
 
-## Encrypted copies and restore tests
+## Backups and retired email intake
 
-Configure `OFFSITE_BACKUP_DIR` as an absolute container path outside `/data`, mounted from another machine or storage service. The destination must already exist and be writable by the container user. A local directory on the same server does not protect against loss of that server; Expense Pilot cannot verify the physical location of a mount.
+Beta.12 removes IMAP document intake and the encrypted external backup service, settings and API. Uploaded originals and adviser questions remain available. Configure external appdata backups on the Unraid host; Expense Pilot's existing local verified backups and owner backup downloads remain available. No background job accesses the retired mailbox or external mount. Existing migration tables are retained for upgrade compatibility.
 
-For example, add this to your deployment's Compose service (replace the host path with your externally mounted destination):
-
-```yaml
-environment:
-  OFFSITE_BACKUP_DIR: /external-backups
-volumes:
-  - /mnt/external-storage/expense-pilot:/external-backups
-```
-
-In Mail & backup, create/show the recovery key after re-entering your password and second factor where enabled. Save the key outside this server, then enable copies. Encryption uses a separate random AES-256-GCM key, an authenticated format header and a fresh nonce for every archive. The server stores the recovery key encrypted with its installation secret. Seven verified encrypted copies are retained; older copies are removed only after a new copy passes an actual isolated restore. The existing local backup schedule remains independent.
-
-**Create copy now** and **Test latest restore** queue background work. Restore testing decrypts the stored copy, checks all checksums, restores into a temporary directory, verifies database links and confirms sessions are revoked. It never installs the test restore into the live workspace. Check the last-copy, last-test and error messages after the worker completes.
-
-To recover on a compatible application image, decrypt to a private ZIP, supplying the saved key at the prompt, then run the existing restore command against an empty destination:
+Previously generated beta.11 encrypted archives can still be recovered offline using the saved recovery key:
 
 ```sh
 python server/offsite_backup.py /path/to/copy.epb /private/recovered.zip
 python server/restore_backup.py /private/recovered.zip --data /empty/expense-pilot-data
 ```
 
-Inside the Docker image the scripts are in `/app` rather than `server/`. Preserve your original data volume until recovery is checked. Keep the decrypted ZIP private and remove it when no longer needed. This beta adds migration m023; reverting to an older image requires restoring its pre-upgrade backup into a separate volume.
+Inside Docker these scripts are in `/app`. Decryption refuses to overwrite an existing file and removes incomplete output on authentication failure. Preserve your data volume and saved recovery key until recovery is verified. Downgrading the app requires restoring the older version's backup into a separate volume.

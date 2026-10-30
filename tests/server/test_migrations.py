@@ -29,7 +29,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),23)
+        self.assertEqual(len(ledger),24)
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
         self.assertEqual(c.execute('SELECT version FROM users WHERE id=2').fetchone()[0],8)
@@ -50,7 +50,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],23)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],24)
 
     def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
         c = self.connection
@@ -74,12 +74,12 @@ class MigrationTest(unittest.TestCase):
             with self.subTest(table=table):
                 current = c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall()
                 self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],23)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],24)
         self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
         self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],23)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],24)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)
@@ -130,10 +130,10 @@ class MigrationTest(unittest.TestCase):
         for table,records in before.items():
             after=c.execute('SELECT '+columns[table]+' FROM "'+table+'" ORDER BY rowid').fetchall()
             self.assertEqual(after[:len(records)] if table=='schema_migrations' else after,records,table)
-        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],23)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],24)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],23)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],24)
 
     def test_document_upgrade_preserves_all_beta_four_records(self):
         c=self.connection
@@ -152,4 +152,19 @@ class MigrationTest(unittest.TestCase):
             self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
         self.assertEqual(c.execute('SELECT count(*) FROM tax_documents').fetchone()[0],0)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],23)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],24)
+
+
+class DueDateUpgradeTest(unittest.TestCase):
+    def test_terms_dates_become_automatic_and_custom_dates_survive_re_adoption(self):
+        c=sqlite3.connect(':memory:');self.addCleanup(c.close)
+        c.execute("CREATE TABLE billing_documents(id INTEGER,kind TEXT,issue_date TEXT,due_date TEXT,client TEXT,schedule_id INTEGER)")
+        c.execute("CREATE TABLE billing_schedules(id INTEGER,terms INTEGER)")
+        c.execute("CREATE TABLE vehicle_journeys(scope TEXT,purpose TEXT,review_confirmed INTEGER)")
+        c.execute("INSERT INTO billing_schedules VALUES (1,30)")
+        for ident,due,schedule in [(1,'2024-03-05',None),(2,'2024-04-01',None),(3,'2024-03-21',1)]:
+            c.execute("INSERT INTO billing_documents VALUES (?,'invoice','2024-02-20',?,?,?)",(ident,due,'{"terms":14}',schedule))
+        upgrade=importlib.import_module('migrations.m024_simplify_review').upgrade;upgrade(c)
+        self.assertEqual(c.execute('SELECT due_date_manual FROM billing_documents ORDER BY id').fetchall(),[(0,),(1,),(0,)])
+        c.execute('UPDATE billing_documents SET due_date_manual=1 WHERE id=1');upgrade(c)
+        self.assertEqual(c.execute('SELECT due_date,due_date_manual FROM billing_documents WHERE id=1').fetchone(),('2024-03-05',1))

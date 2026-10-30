@@ -183,6 +183,8 @@ def hydrate(row):
     doc['paid_cents'] = one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['n']
     doc['paid_date'] = one('SELECT MAX(date) AS value FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['value'] if doc['paid_cents'] >= doc['total_cents'] and doc['paid_cents'] > 0 else None
     doc['balance_cents'] = doc['total_cents'] - doc['paid_cents']
+    schedule=one('SELECT terms FROM billing_schedules WHERE id=?',(doc['schedule_id'],)) if doc.get('schedule_id') else None
+    doc['due_terms_days']=schedule['terms'] if schedule else doc['client'].get('terms',14)
     doc['status'] = display_status(doc, local_today())
     return doc
 
@@ -194,7 +196,7 @@ def document(did):
     return hydrate(row)
 
 
-def validate_document(payload):
+def validate_document(payload, terms=None):
     kind = payload.get('kind', 'invoice')
     if kind not in ('invoice', 'quote'):
         raise ValueError('Choose an invoice or quote.')
@@ -205,7 +207,11 @@ def validate_document(payload):
     mode = payload.get('tax_mode', 'none')
     amounts = calculate_lines(payload.get('lines'), mode, seller['gst_registered'])
     issued = day(payload.get('issue_date', local_today()))
-    due = day(payload.get('due_date'))
+    due_manual=payload.get('due_date_manual', True)
+    if type(due_manual) not in (bool,int) or due_manual not in (0,1):
+        raise ValueError('Choose automatic or manual due date.')
+    if terms is None: terms=client['terms'] if kind=='invoice' else document_defaults()['quote_valid_days']
+    due = day(payload.get('due_date')) if due_manual else (date.fromisoformat(issued)+timedelta(days=terms)).isoformat()
     if due < issued:
         raise ValueError('Due date / valid until must be on or after the issue date.')
     reminders = payload.get('reminders_enabled', True)
@@ -215,7 +221,7 @@ def validate_document(payload):
     from billing_emails import validate_reminder_options
     options = validate_reminder_options(payload.get('reminder_options', {})) if kind == 'invoice' else {}
     return dict(kind=kind, reminders_enabled=int(reminders), reminder_options=options, client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
-                issue_date=issued, due_date=due, notes=txt(payload.get('notes', document_defaults()[kind + '_notes']), 5000),
+                issue_date=issued, due_date=due, due_date_manual=int(due_manual), notes=txt(payload.get('notes', document_defaults()[kind + '_notes']), 5000),
                 reference=txt(payload.get('reference'), 100),
                 payment_details=txt(payload.get('payment_details', document_defaults()['invoice_payment_details'] if kind == 'invoice' else ''), 2000), **amounts)
 
@@ -226,7 +232,7 @@ def insert_document(values, source_quote=None, schedule_id=None, occurrence=None
     kind = values['kind']
     number = allocate_number(values, custom_number)
     columns = ['kind', 'client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes',
-               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options']
+               'reference', 'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options', 'due_date_manual']
     data = [json.dumps(values[k]) if k in ('client', 'business', 'lines', 'reminder_options') else values[k] for k in columns]
     cur = db().execute('INSERT INTO billing_documents(' + ','.join(columns) + ',number,source_quote,schedule_id,occurrence,created_at) VALUES (' + ','.join('?' for _ in range(len(columns) + 5)) + ')',
                        data + [number, source_quote, schedule_id, occurrence, now()])
@@ -581,7 +587,7 @@ def invoice_time():
     client = one('SELECT * FROM billing_clients WHERE id=?', (entries[0]['client_id'],))
     mode = 'exclusive' if business()['gst_registered'] else 'none'
     data = dict(client_id=client['id'], tax_mode=mode, issue_date=local_today(),
-                due_date=(date.fromisoformat(local_today()) + timedelta(days=client['terms'])).isoformat(),
+                due_date_manual=False, due_date=(date.fromisoformat(local_today()) + timedelta(days=client['terms'])).isoformat(),
                 lines=[dict(description=e['date'] + ' - ' + e['description'], quantity=e['hours'], unit_price=f"{e['rate_cents']/100:.2f}") for e in entries])
     did = insert_document(validate_document(data))
     db().execute('UPDATE billing_time SET document_id=? WHERE id IN (' + ','.join('?' for _ in ids) + ')', [did] + ids)
@@ -661,7 +667,7 @@ def run_due(today=None):
             try:
                 template = json.loads(schedule['template'])
                 values = validate_document({**template, 'kind': 'invoice', 'client_id': schedule['client_id'],
-                                            'issue_date': when, 'due_date': (date.fromisoformat(when) + timedelta(days=schedule['terms'])).isoformat()})
+                                            'issue_date': when, 'due_date_manual':False}, terms=schedule['terms'])
                 if not one('SELECT id FROM billing_documents WHERE schedule_id=? AND occurrence=?', (schedule['id'], when)):
                     insert_document(values, schedule_id=schedule['id'], occurrence=when)
                     count += 1

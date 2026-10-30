@@ -170,19 +170,22 @@ def sync(manual=False):
         for row in fetched:
             old = one('SELECT * FROM bank_transactions WHERE remote_user_id=? AND remote_id=?', (c['remote_user_id'], row['remote_id']))
             if old:
+                linked = old['expense_id'] or one('SELECT id FROM bank_reconciliations WHERE bank_id=?',(old['id'],))
                 changed = old['fingerprint'] != row['fingerprint'] or old['missing']
                 db().execute('UPDATE bank_transactions SET ' + ','.join(k+'=?' for k in row) + ',last_seen=?,missing=0,changed=?,state=?,version=version+? WHERE id=?',
-                             tuple(row.values()) + (stamp, int(bool(old['changed'] or (changed and old['expense_id']))),
+                             tuple(row.values()) + (stamp, int(bool(old['changed'] or (changed and linked))),
                               'review' if changed and old['state']=='ignored' else old['state'], int(bool(changed)), old['id']))
             else:
                 db().execute('INSERT INTO bank_transactions ('+','.join(row)+',remote_user_id,last_seen) VALUES ('+','.join('?' for _ in range(len(row)+2))+')', tuple(row.values())+(c['remote_user_id'], stamp))
                 added += 1
         for a in accounts:
-            db().execute("UPDATE bank_transactions SET missing=1,changed=CASE WHEN expense_id IS NOT NULL THEN 1 ELSE changed END,version=version+1 WHERE feed_account_id=? AND date BETWEEN ? AND ? AND last_seen<>? AND missing=0", (a['id'], c['start_date'], end, stamp))
+            db().execute("UPDATE bank_transactions SET missing=1,changed=CASE WHEN expense_id IS NOT NULL OR EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.bank_id=bank_transactions.id) THEN 1 ELSE changed END,version=version+1 WHERE feed_account_id=? AND date BETWEEN ? AND ? AND last_seen<>? AND missing=0", (a['id'], c['start_date'], end, stamp))
         db().execute("UPDATE pocketsmith_connection SET last_sync=?,next_sync=?,retry_after=0,last_error='',lock_token='',lock_until=0 WHERE id=1", (stamp, time.time()+3600))
-        audit('PocketSmith synced', f'{len(fetched)} transactions; {added} new')
+        import bank_matching
+        matched=bank_matching.link_after_sync()
+        audit('PocketSmith synced', f'{len(fetched)} transactions; {added} new; {matched} matched')
         db().commit()
-        return dict(received=len(fetched), added=added)
+        return dict(received=len(fetched), added=added, matched=matched)
     except Exception as exc:
         db().rollback()
         problem = exc if isinstance(exc, FeedError) else FeedError('Sync could not be completed. Nothing was imported; try again later.')
@@ -206,7 +209,7 @@ def transaction(tid, version=None):
 
 
 def eligible(t):
-    if one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(t['id'],)): fail('This transaction has a reconciliation. Undo it from Review tools first.',409)
+    if one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(t['id'],)): fail('This transaction has a reconciliation. Undo it from Bank accounts → Matching options first.',409)
     if t['expense_id'] or t['missing'] or t['source_status']!='posted' or t['is_transfer'] or not t['amount_cents']:
         fail('Only an unlinked, posted purchase or refund can be added or matched.', 409)
     if not t['local_account_id']:
@@ -344,7 +347,7 @@ def register(app, **helpers):
     def review(tid):
         if request.method=='GET':
             t = transaction(tid)
-            return jsonify(transaction=t, matches=matches(t))
+            return jsonify(transaction=t, matches=matches(t), reconciled=bool(one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(tid,))))
         if not can_write():
             fail('Read-only access.', 403)
         d = request.get_json(silent=True) or {}

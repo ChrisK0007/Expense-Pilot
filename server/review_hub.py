@@ -21,32 +21,28 @@ def attention(year):
     year,start,end=fiscal(year);uid=record_user_id();items=[]
     def add(kind,ident,label,detail,when='',amount=0,priority=2,page='receipts'):
         items.append(dict(kind=kind,id=ident,title=label,detail=detail,date=when,amount_cents=amount,priority=priority,page=page))
-    for r in rows("SELECT r.id,r.filename,d.uploaded_at,d.scan_status,d.scan_error FROM receipts r LEFT JOIN receipt_details d ON d.receipt_id=r.id WHERE r.user_id=? AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id)",(uid,)):
+    for r in rows("SELECT r.id,r.filename,d.uploaded_at,d.scan_status,d.scan_error FROM receipts r LEFT JOIN receipt_details d ON d.receipt_id=r.id WHERE r.user_id=? AND COALESCE(d.scan_error,'')<>'' AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id)",(uid,)):
         add('receipt',r['id'],r['filename'],r['scan_error'] or 'Review the saved original and extracted draft.',(r['uploaded_at'] or '')[:10],priority=1 if r['scan_error'] else 2)
     for e in rows("SELECT * FROM expenses WHERE status='review' AND date BETWEEN ? AND ?",(start,end)):
         add('expense',e['id'],e['merchant'],'Check category, allocations and evidence.',e['date'],e['amount_cents'],page='expenses')
-    for b in rows("SELECT b.* FROM bank_transactions b JOIN pocketsmith_accounts a ON a.id=b.feed_account_id WHERE a.enabled=1 AND (b.changed=1 OR b.missing=1 OR b.state='review') AND b.date BETWEEN ? AND ? AND b.source_status='posted' AND b.is_transfer=0",(start,end)):
+    for b in rows("SELECT b.* FROM bank_transactions b JOIN pocketsmith_accounts a ON a.id=b.feed_account_id WHERE a.enabled=1 AND b.changed=1 AND (b.expense_id IS NOT NULL OR EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.bank_id=b.id)) AND b.date BETWEEN ? AND ?",(start,end)):
         add('bank',b['id'],b['payee'],'Bank source changed or disappeared; review the linked record.' if b['changed'] or b['missing'] else 'Match, categorise or ignore this transaction.',b['date'],abs(b['amount_cents']),1 if b['changed'] or b['missing'] else 2,'banks')
-    for j in rows("SELECT j.* FROM vehicle_journeys j JOIN vehicles v ON v.id=j.vehicle_id WHERE v.user_id=? AND j.date BETWEEN ? AND ? AND j.review_confirmed=0 AND (trim(j.purpose)='' OR j.scope='personal')",(uid,start,end)):
-        add('journey',j['id'],j['origin']+' → '+j['destination'],'Confirm personal travel or classify the drive.',j['date'],page='review_tools')
+    for j in rows("SELECT j.* FROM vehicle_journeys j JOIN vehicles v ON v.id=j.vehicle_id WHERE v.user_id=? AND j.date BETWEEN ? AND ? AND j.scope IN ('work','business') AND trim(j.purpose)=''",(uid,start,end)):
+        add('journey',j['id'],j['origin']+' → '+j['destination'],'Employment or business travel is missing its purpose.',j['date'],page='drive_review')
     import home_office
     if year in (2024,2025,2026,2027):
         h=home_office.summary(year)
         if h['status']=='needs_review': add('home_office',year,'Home-office annual confirmations','Complete the chosen method’s evidence and eligibility checks.',priority=1,page='home_office')
-    import income_checks, equipment
-    for employer in income_checks.summary(year)['employers']:
-        for index,flag in enumerate(employer['flags']): add('income_check',str(index)+':'+employer['employer'],employer['employer'],flag,priority=1,page='review_tools')
+    import bank_matching, equipment
+    plan=bank_matching.backfill_plan(strict=False)
+    for conflict in (plan or {}).get('conflicts',[]):
+        if start<=conflict['date']<=end: add('bank_match',conflict['id'],conflict['merchant'],'More than one expense or bank transaction could match. Choose the correct link.',conflict['date'],conflict['amount_cents'],page='banks')
     for asset in equipment.listing(year):
-        if asset['needs_review']: add('asset',asset['id'],asset['name'],'Review the annual depreciation record.',asset['acquired'],page='review_tools')
+        if asset['needs_review']: add('asset',asset['id'],asset['name'],'Review the annual depreciation record.',asset['acquired'],page='equipment')
     for q in rows('SELECT * FROM record_questions WHERE user_id=? AND resolved=0',(uid,)):
-        add('question',q['id'],'Open question: '+q['record_type']+' #'+q['record_id'],q['question'],q['created_at'][:10],priority=1,page='review_tools')
+        add('question',q['id'],'Open question: '+q['record_type']+' #'+q['record_id'],q['question'],q['created_at'][:10],priority=1,page='adviser_questions')
     for e in rows("SELECT * FROM signin_events WHERE user_id=? AND state IN ('failed','unknown') ORDER BY id DESC LIMIT 5",(g.user['id'],)):
         add('security',e['id'],'Sign-in email needs attention',e['error'],priority=1,page='settings')
-    if g.user['role']=='owner':
-        from mail_intake import config as mail_config
-        from offsite_backup import config as backup_config
-        for service,state,key in [('Mailbox intake',mail_config(),'last_error'),('Encrypted backup',backup_config(),'error')]:
-            if state.get(key): add('connection',service,service,state[key],priority=1,page='review_tools')
     return sorted(items,key=lambda r:(r['priority'],r['date'] or '9999',-r['amount_cents'],str(r['id'])))
 
 

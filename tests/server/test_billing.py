@@ -166,14 +166,13 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, f"billing/documents/{first['id']}", {'version':first['version']}, 'DELETE').status_code, 200)
         self.assertEqual(self.create()['number'], 'INV-0001')
 
-    def test_issued_snapshot_is_immutable(self):
+    def test_issued_snapshot_survives_settings_changes(self):
         doc = self.issue(self.create())
         self.call(self.owner, 'billing/settings', {'name':'Changed Business'}, 'PUT')
         self.call(self.owner, f'billing/clients/{self.cid}', {'name':'Changed Client', 'email':'other@example.test', 'terms':7}, 'PUT')
         saved = self.get(doc['id'])
         self.assertEqual(saved['business']['name'], 'Example Flight Testing')
         self.assertEqual(saved['client']['name'], 'Example Client')
-        self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {**saved,'version':saved['version']}, 'PUT').status_code, 409)
 
     def test_deleted_issued_and_void_invoice_numbers_become_reusable(self):
         for state in ('issued', 'void'):
@@ -209,10 +208,11 @@ class BillingTest(unittest.TestCase):
                 self.assertEqual(self.call(self.owner, f'billing/payments/{payment}/reverse',
                                           dict(version=doc['version'], reason='Incorrect record')).status_code, 200)
                 doc = self.get(doc['id'])
-                self.assertEqual(self.pay(doc, amount).status_code, 200)
-                doc = self.get(doc['id'])
                 self.assertEqual(self.call(self.owner, path + '/wording',
                                           dict(version=doc['version'], descriptions=['Corrected wording']), 'PUT').status_code, 200)
+                doc = self.get(doc['id'])
+                doc = self.issue(doc)
+                self.assertEqual(self.pay(doc, amount).status_code, 200)
                 doc = self.get(doc['id'])
                 self.assertEqual(len(doc['payments']), 2)
                 self.assertEqual(len(doc['emails']), 1)

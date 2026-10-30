@@ -18,7 +18,7 @@ function pdf(lines){
   await post('pocketsmith',{version:connection.version,start_date:'2026-01-01',accounts:[{id:connection.accounts[0].id}],auto_sync:false},'PUT');await post('pocketsmith/sync',{});
   const transactions=(await get('bank-transactions?state=all')).items,purchase=transactions.find(t=>t.payee==='PocketSmith browser purchase'),bill=transactions.find(t=>t.payee==='PocketSmith browser matching receipt');
   const previous=await post('expenses',{date:purchase.date,merchant:purchase.payee,amount:36.75,scope:'personal',work_percent:0,business_percent:0,category:'Other',status:'ready'});
-  await page.goto(url+'/#/banks');await page.getByRole('button',{name:'Review suggested matches',exact:true}).click();
+  await page.goto(url+'/#/banks');await page.locator('.section-tools summary').click();await page.getByRole('button',{name:'Review suggested matches',exact:true}).click();
   await page.locator('#bank-match-previous').waitFor();
   assert.equal(await page.locator('[data-match]:checked').count(),1);
   await page.screenshot({path:output+'/match-previous-desktop.png',fullPage:true});
