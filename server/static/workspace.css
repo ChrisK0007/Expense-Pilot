@@ -181,3 +181,5 @@ button{transition:box-shadow .15s}
 .tax-treatment {margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:12px;}
 .tax-treatment h3 {margin:0 0 .5rem;}
 .import-row {margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:12px;}
+
+.tax-treatment [hidden]{display:none!important}
