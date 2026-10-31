@@ -132,6 +132,8 @@ def register(app, auth):
         if request.method=='DELETE':
             # Unlink under the same reservation that backup staging uses to pin files.
             # Commit first so a failed commit cannot discard the only file.
+            if one('SELECT 1 FROM equipment_import_rows r JOIN equipment_imports i ON i.id=r.import_id WHERE i.document_id=? AND r.asset_id IS NOT NULL',(did,)): fail('This original supports imported equipment. Remove those asset records before deleting their evidence.',409)
+            db().execute('DELETE FROM equipment_imports WHERE document_id=?',(did,))
             db().execute('DELETE FROM tax_documents WHERE id=?',(did,));audit('document deleted',did);db().commit()
             (folder()/did).unlink(missing_ok=True)
         else:

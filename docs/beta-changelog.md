@@ -2,6 +2,16 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.14 — Expense organisation and equipment automation (2026-10-31)
+
+- Add editable expense category names across the web workspace and CSV export. Stable internal category identities preserve existing expenses, receipt items, budgets and rules, including special meal handling. Older mobile clients can continue using the original names.
+- Display expense tools directly above Expenses and add accessible ascending/descending sorting to Expense, Date, Workspace, Category, Status and Amount headings. Amounts sort numerically, with current filters retained.
+- Suggest equipment treatment inside expense and receipt review using confirmed usage and annual tax settings. Check the full asset cost before allocation; distinguish general depreciation, employee immediate deductions, eligible sole-trader instant write-off and cases needing review. Applying a suggestion atomically creates a linked equipment record and prevents a duplicate ordinary deduction.
+- Add saved tax settings per financial year and recognise the permanent $20,000 small-business threshold from 1 July 2026 under current legislation. Retain existing confirmed setups when settings change.
+- Import depreciation schedules from PDF/image through the configured AI provider or locally from CSV. Save originals first, read in the background, review all figures, preserve original tax cost and reported opening/closing values, carry PC/DV balances forward, and retain fully written-off assets without repeat claims. Reject partial extractions, inconsistent balances and matching existing assets. See [scope and usage](equipment-calculations.md).
+- Update pypdf to 6.21.4 to address the dependency audit’s newly reported PDF resource-exhaustion vulnerabilities.
+- Apply migration m026 without changing existing records or the owner iPhone API. No iPhone build is required.
+
 ## 1.0.6-beta.13 — Focused tax access and daily workflow improvements (2026-10-30)
 
 - Replace the Needs attention sidebar item with a top-right notification bell, showing actionable items and a link to the full queue.

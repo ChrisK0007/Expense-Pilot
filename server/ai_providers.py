@@ -131,24 +131,24 @@ def models():
     return sorted({str(x.get('id') if c['mode'] == 'cloud' else x.get('name')) for x in items if isinstance(x, dict) and (x.get('id') if c['mode'] == 'cloud' else x.get('name'))})[:500]
 
 
-def extract(prompt, images):
+def extract(prompt, images, max_tokens=None):
     c = config()
     if not configured(c): raise AIError('AI is disabled. Choose an AI mode in Settings or enter the receipt manually.')
     if c['mode'] in ('local_ollama', 'remote_ollama'):
         msg = {'role': 'user', 'content': prompt}
         if images: msg['images'] = images
-        result = fetch(c, '/api/chat', {'model': c['model'], 'stream': False, 'think': False, 'format': 'json', 'messages': [msg], 'options': {'temperature': 0, 'num_predict': 2048}})
+        result = fetch(c, '/api/chat', {'model': c['model'], 'stream': False, 'think': False, 'format': 'json', 'messages': [msg], 'options': {'temperature': 0, 'num_predict': max_tokens or 2048}})
         if result.get('done_reason') == 'length':
             raise AIError('Ollama reached its response limit before completing this document. Try another model or enter the figures manually.')
         content = result.get('message', {}).get('content', '')
     elif c['provider'] == 'openai':
         content = [{'type': 'input_text', 'text': prompt}] + [{'type': 'input_image', 'image_url': 'data:image/jpeg;base64,' + x} for x in images]
-        result = fetch(c, '/responses', {'model': c['model'], 'store': False, 'max_output_tokens': 4096, 'text': {'format': {'type': 'json_object'}}, 'input': [{'role': 'user', 'content': content}]})
+        result = fetch(c, '/responses', {'model': c['model'], 'store': False, 'max_output_tokens': max_tokens or 4096, 'text': {'format': {'type': 'json_object'}}, 'input': [{'role': 'user', 'content': content}]})
         if result.get('status') != 'completed': raise AIError('AI did not finish reading the receipt. Try another model or enter it manually.')
         content = ''.join(p.get('text', '') for o in result.get('output', []) if o.get('type') == 'message' for p in o.get('content', []) if p.get('type') == 'output_text')
     else:
         content = [{'type': 'text', 'text': prompt}] + [{'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': x}} for x in images]
-        result = fetch(c, '/messages', {'model': c['model'], 'max_tokens': 4096, 'messages': [{'role': 'user', 'content': content}]})
+        result = fetch(c, '/messages', {'model': c['model'], 'max_tokens': max_tokens or 4096, 'messages': [{'role': 'user', 'content': content}]})
         if result.get('stop_reason') != 'end_turn': raise AIError('AI did not finish reading the receipt. Try another model or enter it manually.')
         content = ''.join(x.get('text', '') for x in result.get('content', []) if x.get('type') == 'text')
     try:

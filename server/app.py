@@ -122,7 +122,7 @@ def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
     if g.user and g.user['role']=='tax_agent':
         return jsonify(user=g.user,csrf=session['csrf'],setup=False,version=VERSION,timezone=workspace_time.name(),api_version=1,minimum_client_api=1,capabilities={'tax_workspace':True,'account_deletion':True},features={},categories=sorted(CATEGORIES,key=str.casefold),business_name='Tax preparation',mfa_required=False)
-    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'review_workflows':True,'receipt_items':True,'signin_alerts':True,'documents':True,'home_office':True,'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),category_labels=category_labels.labels() if g.user else {},categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'review_workflows':True,'receipt_items':True,'signin_alerts':True,'documents':True,'home_office':True,'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -215,7 +215,7 @@ def payload(d,existing=None):
 @auth()
 def expenses():
     if request.method=='GET':
-        w,a=visible();return jsonify(rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
+        w,a=visible();return jsonify(rows(f'SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
     if not can_write(): fail('Read-only access.',403)
     db().execute('BEGIN IMMEDIATE')
     d=request.get_json();uid=record_user_id();existing=None
@@ -236,7 +236,7 @@ def expenses():
         automatic=bank_matching.choose(uid,d)
         if automatic and automatic['expense_id']: fail('This document matches a bank-linked expense. Attach it from Document inbox to avoid a duplicate.',409)
         if automatic: d['account_id']=automatic['local_account_id']
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);bank_matching.attach(c.lastrowid,automatic,d.get('bank_choice')=='cash');pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);equipment_treatment.attach(c.lastrowid,d);bank_matching.attach(c.lastrowid,automatic,d.get('bank_choice')=='cash');pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -248,7 +248,7 @@ def update_expense(eid):
         db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
         if e['receipt_id']: delete_receipt_record(e['receipt_id'])
     else:
-        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p,d);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
+        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p,d);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);equipment_treatment.attach(eid,d);audit('expense updated',eid)
     db().commit()
     if request.method=='DELETE' and e['receipt_id']: remove_receipt_files(e['receipt_id'])
     return jsonify(ok=True)
@@ -345,6 +345,10 @@ income_checks.register(app, auth)
 
 import equipment
 equipment.register(app, auth)
+import category_labels, equipment_treatment, equipment_import
+category_labels.register(app, auth)
+equipment_treatment.register(app, auth)
+equipment_import.register(app, auth)
 
 import journey_review
 journey_review.register(app, auth)

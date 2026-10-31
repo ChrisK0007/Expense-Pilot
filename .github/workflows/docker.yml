@@ -33,6 +33,8 @@ jobs:
           node --check server/static/date-picker.js
           node --check server/static/adviser.js
           node --check server/static/equipment.js
+          node --check server/static/equipment-treatment.js
+          node --check server/static/equipment-import.js
           node --check server/static/notifications.js
           node --check server/static/app.js
           node tests/js/toast_timer.cjs
@@ -75,7 +77,9 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
         run: |
-          echo "refresh=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          # Debian can replace source packages within a day. Refresh installed binaries
+          # per run so retained source versions match the current signed indexes.
+          echo "refresh=$(date -u +%F)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" == refs/tags/v* || "$GITHUB_BASE_REF" == "main" ]]; then
             echo "fresh=true" >> "$GITHUB_OUTPUT"
           else
@@ -141,7 +145,7 @@ jobs:
           docker run -d --memory 1g --name expense-pilot-home-office --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8792:8788 -e SETUP_TOKEN=browser-test-setup-token-123456789 expense-pilot:test tests/browser_server.py
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_home_office.cjs
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_document_inbox.cjs
-          for browser_suite in tests/browser/ui_workflows.cjs tests/browser/ui_simplified.cjs tests/browser/ui_beta13.cjs; do
+          for browser_suite in tests/browser/ui_workflows.cjs tests/browser/ui_simplified.cjs tests/browser/ui_beta13.cjs tests/browser/ui_beta14.cjs; do
             APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node "$browser_suite" || browser_failures=1
           done
           docker run -d --name expense-pilot-onboarding --entrypoint python -v "$PWD/tests/browser:/app/tests:ro" -p 127.0.0.1:8790:8788 -e SETUP_TOKEN= expense-pilot:test tests/browser_server.py

@@ -73,7 +73,7 @@ def export():
     for e in [part for original in data for part in components(original)]:
         vehicle_record=one('SELECT name,registration FROM vehicles WHERE id=?',(e.get('vehicle_id'),)) or {}
         work,business=allocations(e);wp,bp=percentages(e);alloc=Decimal(work+business)/100
-        writer.writerow([e['id'],date.fromisoformat(e['date']).strftime('%d/%m/%Y'),safe(e['owner']),safe(e['merchant']),e['scope'],e['category'],f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes']),safe(vehicle_record.get('name','')),safe(vehicle_record.get('registration','')),wp,bp,100-wp-bp,f'{work/100:.2f}',f'{business/100:.2f}'])
+        writer.writerow([e['id'],date.fromisoformat(e['date']).strftime('%d/%m/%Y'),safe(e['owner']),safe(e['merchant']),e['scope'],safe(__import__('category_labels').label(e['category'])),f"{e['amount_cents']/100:.2f}",e['percent'],e['reimbursed'],f'{alloc:.2f}',e['status'],safe(e['location']),e['meal'],e['receipt_id'],safe(e['notes']),safe(vehicle_record.get('name','')),safe(vehicle_record.get('registration','')),wp,bp,100-wp-bp,f'{work/100:.2f}',f'{business/100:.2f}'])
     return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-expenses.csv')
 
 

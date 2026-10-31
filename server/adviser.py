@@ -61,10 +61,12 @@ def snapshot(year,agent_id=None):
     payments=[fields(r,'id document_id date amount_cents reference') for r in rows('SELECT * FROM billing_payments WHERE date BETWEEN ? AND ? AND reversed_at IS NULL ORDER BY date,id',(start,end)) if r['document_id'] in invoice_ids]
     assets=[]
     for a in equipment.listing(year):
+        if a.get('imported') and a['imported']['year']>year: continue
         if a['acquired']>end or a['disposal_date'] and a['disposal_date']<start: continue
         if not a['work_percent']+a['business_percent'] and not any(u['work_percent']+u['business_percent'] for u in a['usage'] if u['year']<=year): continue
         value=fields(a,'id name acquired cost_cents work_percent business_percent disposal_date proceeds_cents notes receipt_id version opening_cents closing_cents current calculation')
         if a['disposal_date']>end: value.update(disposal_date='',proceeds_cents=0)
+        if a.get('imported') and a['imported']['year']<=year: value['imported']={k:a['imported'][k] for k in ('year','opening_cents','rate','method')}
         value['history']=[r for r in a['history'] if r['year']<=year];value['schedule']=[r for r in a['schedule'] if r['year']<=year]
         assets.append(value)
     docs=[fields(r,'id title filename content_type category year notes version') for r in rows('SELECT * FROM tax_documents WHERE user_id=? AND (year=? OR year IS NULL) ORDER BY title,id',(uid,year)) if access is None or r['id'] in access['documents']]
@@ -78,7 +80,10 @@ def snapshot(year,agent_id=None):
         if not any(j['scope'] in ('work','business') for j in logged) and not any(e['vehicle_id']==v['id'] for e in expenses): continue
         v.update(total_logged_m=sum(j['distance_m'] for j in logged),personal_logged_m=sum(j['distance_m'] for j in logged if j['scope']=='personal'))
         vehicles.append(v)
-    data=dict(expenses=expenses,employment=employment,invoices=invoices,payments=payments,equipment=assets,documents=docs,originals=originals,mileage=mileage,vehicles=vehicles,
+    from category_labels import labels as category_display_labels
+    visible_categories={e['category'] for e in expenses}
+    display_labels={k:v for k,v in category_display_labels().items() if k in visible_categories}
+    data=dict(category_labels=display_labels,expenses=expenses,employment=employment,invoices=invoices,payments=payments,equipment=assets,documents=docs,originals=originals,mileage=mileage,vehicles=vehicles,
               home_office=[fields(r,'id date start_time end_time break_minutes scope activity version') for r in rows('SELECT * FROM home_office_entries WHERE user_id=? AND deleted=0 AND date BETWEEN ? AND ? ORDER BY date,id',(uid,start,end))],
               home_office_allowances=[fields(r,'id date employer amount_cents included_in_pay notes') for r in rows('SELECT * FROM home_office_allowances WHERE user_id=? AND date BETWEEN ? AND ?',(uid,start,end))],
               annual_income_comparisons=[fields(r,'employer gross_cents withheld_cents notes') for r in rows('SELECT * FROM annual_income_checks WHERE user_id=? AND year=?',(uid,year))])
@@ -126,7 +131,10 @@ def export(year,agent_id=None):
             checks={};total=0
             def add(name,content): out.writestr(name,content);checks[name]=hashlib.sha256(content).hexdigest()
             add('tax-summary.pdf',report.build())
-            for name,values in records.items(): add('registers/'+name+'.csv',csv_bytes(values if isinstance(values,list) else [values]))
+            for name,values in records.items():
+                if name=='category_labels': values=[dict(category=k,label=v) for k,v in values.items()]
+                elif name=='expenses': values=[dict(v,category_key=v['category'],category=records['category_labels'].get(v['category'],v['category'])) for v in values]
+                add('registers/'+name+'.csv',csv_bytes(values if isinstance(values,list) else [values]))
             for group,values in [('receipts',records['originals']),('documents',records['documents'])]:
                 for r in values:
                     path=DATA/group/r['id']

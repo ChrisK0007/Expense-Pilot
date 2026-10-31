@@ -41,7 +41,8 @@ def categories_api():
         name = str(body().get('name') or '').strip()
         if not name or len(name) > 80 or any(ord(c) < 32 for c in name): fail('Enter a category name of 1–80 characters.')
         db().execute('BEGIN IMMEDIATE')
-        if name.casefold() in {c.casefold() for c in category_names()}: fail('That category already exists.', 409)
+        from category_labels import labels
+        if name.casefold() in {c.casefold() for c in category_names()+list(labels().values())}: fail('That category already exists.', 409)
         db().execute('INSERT INTO custom_categories(name) VALUES (?)', (name,))
         audit('expense category created', name); db().commit()
     return jsonify(category_names())
