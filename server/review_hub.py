@@ -21,7 +21,7 @@ def attention(year):
     year,start,end=fiscal(year);uid=record_user_id();items=[]
     def add(kind,ident,label,detail,when='',amount=0,priority=2,page='receipts'):
         items.append(dict(kind=kind,id=ident,title=label,detail=detail,date=when,amount_cents=amount,priority=priority,page=page))
-    for r in rows("SELECT r.id,r.filename,d.uploaded_at,d.scan_status,d.scan_error FROM receipts r LEFT JOIN receipt_details d ON d.receipt_id=r.id WHERE r.user_id=? AND COALESCE(d.scan_error,'')<>'' AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id)",(uid,)):
+    for r in rows("SELECT r.id,r.filename,d.uploaded_at,d.scan_status,d.scan_error FROM receipts r LEFT JOIN receipt_details d ON d.receipt_id=r.id WHERE r.user_id=? AND COALESCE(d.scan_error,'')<>'' AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id)",(uid,)):
         add('receipt',r['id'],r['filename'],r['scan_error'] or 'Review the saved original and extracted draft.',(r['uploaded_at'] or '')[:10],priority=1 if r['scan_error'] else 2)
     for e in rows("SELECT * FROM expenses WHERE status='review' AND date BETWEEN ? AND ?",(start,end)):
         add('expense',e['id'],e['merchant'],'Check category, allocations and evidence.',e['date'],e['amount_cents'],page='expenses')

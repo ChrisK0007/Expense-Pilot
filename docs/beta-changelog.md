@@ -2,6 +2,15 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.15 — Simpler deductions and receipt linking (2026-11-01)
+
+- Put the annual deduction and remaining value first. Keep methods, rates, history, disposal and calculation details under Advanced details, with fewer repeated confirmations.
+- Reuse a linked purchase's date, cost and use percentages. Offer a suggested treatment, an already-completed write-off, or a record for the accountant to finish. Suggest useful life for supported tablets/laptops; leave unsupported lives for review.
+- Choose annual tax settings once per year and save annual amounts directly. Preserve existing tax rules, history, GST adjustments, use splits and double-claim protections.
+- Simplify schedule review with a financial-year selector, per-asset summary and explicit Fully claimed this year option. Infer the opening value only for a purchase acquired in that year; older assets still need their remaining value. Never infer a write-off solely from an amount pooled.
+- Link an inbox receipt, upload an original, or connect a matching existing expense after a deduction is created. Receipt changes preserve deduction figures; linking a purchase excludes its ordinary claim. Unlinking returns the original to Document inbox without removing the deduction or purchase link.
+- Apply migration m027 without altering saved deductions. Preserve tax-agent shared-year restrictions and the owner iPhone API; no iPhone build is required.
+
 ## 1.0.6-beta.14 — Expense organisation and equipment automation (2026-10-31)
 
 - Add editable expense category names across the web workspace and CSV export. Stable internal category identities preserve existing expenses, receipt items, budgets and rules, including special meal handling. Older mobile clients can continue using the original names.

@@ -170,7 +170,7 @@ def proposals(focus=None):
     focus_values=receipt_values(focus['id']) if focus else {}
     focus_scope=(focus_values.get('scope') or profile(focus['user_id'])['scope']) if focus else None
     where, args = ('r.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
-    receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id)',args)
+    receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id)',args)
     groups=[]
     for r in receipts:
         d=receipt_values(r['id'])

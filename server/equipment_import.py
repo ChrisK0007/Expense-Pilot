@@ -98,6 +98,14 @@ def validate(row,year):
     from app import day,money,fail,textval
     from expense_core import split_values
     if not isinstance(row,dict): fail('Invalid schedule row.')
+    row=dict(row)
+    if row.get('fully_claimed') is True:
+        # An explicit user choice, never inferred from "amount pooled".
+        if row.get('opening') in ('',None):
+            if not row.get('acquired') or not f'{year}-07-01'<=day(row['acquired'])<=f'{year+1}-06-30':
+                fail('For an older asset, enter its remaining value before this year’s write-off in Advanced details.')
+            row['opening']=row.get('cost')
+        row.update(decline=row['opening'],closing=0,method='written_off',rate=0)
     name=textval(row.get('name'),200);acquired=day(row.get('acquired'))
     if not name or acquired>f'{year+1}-06-30': fail('Enter an equipment name and acquisition date within or before the schedule year.')
     if any(row.get(k) in ('',None) for k in ('cost','opening','decline','closing')): fail('Confirm original cost, opening value, gross decline and closing value for every selected asset.')

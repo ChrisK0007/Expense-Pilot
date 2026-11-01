@@ -55,16 +55,10 @@ def suggest(d):
     return dict(result,method=method,status='immediate' if method.startswith('immediate_') else 'depreciation',ready=True,reason=reason,calculation=validated)
 
 
-def attach(eid,d):
-    """Optional new API field; old mobile clients keep their existing behaviour."""
-    from app import db, one, fail, record_user_id, textval, audit, money
-    treatment=d.get('tax_treatment')
-    if not treatment: return
+def reviewed(e,treatment):
+    """Use the same decision checks for a new register entry and an expense."""
+    from app import fail, money
     if g.user['role']!='owner' or not isinstance(treatment,dict): fail('Only the owner can confirm equipment tax treatment.',403)
-    e=one('SELECT * FROM expenses WHERE id=?',(eid,))
-    if e['user_id']!=record_user_id(): fail('Equipment must belong to the owner.',403)
-    if one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(eid,)): fail('This expense already has an equipment record. Edit its schedule in Equipment.',409)
-    if e['items_json']!='[]' or one('SELECT 1 FROM home_office_costs WHERE expense_id=?',(eid,)): fail('This purchase already has another deduction treatment.',409)
     inputs={**treatment,**{k:e[k] for k in ('date','category','work_percent','business_percent','reimbursed','trip_id','meal','vehicle_id')},'amount':str(Decimal(e['amount_cents'])/100)}
     basis=treatment.get('expense_basis')
     if not isinstance(basis,dict): fail('Check the expense basis again.',409)
@@ -74,6 +68,19 @@ def attach(eid,d):
     decision=suggest(inputs)
     if treatment.get('confirmed') is not True or not decision['ready']: fail(decision['reason'])
     if treatment.get('profile_version')!=decision['profile']['version'] or treatment.get('method')!=decision['method']: fail('Tax settings or treatment changed. Check the suggestion again.',409)
+    return decision
+
+
+def attach(eid,d):
+    """Optional new API field; old mobile clients keep their existing behaviour."""
+    from app import db, one, fail, record_user_id, textval, audit
+    treatment=d.get('tax_treatment')
+    if not treatment: return
+    e=one('SELECT * FROM expenses WHERE id=?',(eid,))
+    if e['user_id']!=record_user_id(): fail('Equipment must belong to the owner.',403)
+    if one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(eid,)): fail('This expense already has an equipment record. Edit its schedule in Equipment.',409)
+    if e['items_json']!='[]' or one('SELECT 1 FROM home_office_costs WHERE expense_id=?',(eid,)): fail('This purchase already has another deduction treatment.',409)
+    decision=reviewed(e,treatment)
     name=textval(treatment.get('name'),200)
     if not name: fail('Name the equipment purchased.')
     aid=db().execute('INSERT INTO equipment_assets(user_id,expense_id,name,acquired,cost_cents,work_percent,business_percent,notes,calculation_json) VALUES (?,?,?,?,?,?,?,?,?)',

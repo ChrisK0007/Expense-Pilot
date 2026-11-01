@@ -164,6 +164,7 @@ def register(app, auth):
             if not same: fail('This document is already filed. Edit its saved income record.',409)
             db().commit();return jsonify(id=prior['id'],duplicate=True)
         if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This document is already filed as an expense.',409)
+        if one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,)): fail('This document is already attached to an equipment deduction.',409)
         existing_id=d.get('existing_income_id')
         if existing_id:
             old=one('SELECT * FROM employment_income WHERE id=?',(existing_id,))

@@ -9,7 +9,7 @@ from workflow_core import body, fiscal, integer, write_access
 def listing(year):
     from app import rows, record_user_id
     year,_,end=fiscal(year)
-    assets=rows('SELECT a.*,e.receipt_id FROM equipment_assets a LEFT JOIN expenses e ON e.id=a.expense_id WHERE a.user_id=? ORDER BY acquired,id',(record_user_id(),))
+    assets=rows('SELECT a.*,COALESCE(a.evidence_receipt_id,e.receipt_id) AS receipt_id FROM equipment_assets a LEFT JOIN expenses e ON e.id=a.expense_id WHERE a.user_id=? ORDER BY acquired,id',(record_user_id(),))
     for a in assets:
         history=rows('SELECT * FROM equipment_depreciation WHERE asset_id=? ORDER BY year',(a['id'],))
         carried=json.loads(a.get('import_json') or '{}');a['imported']=carried;a['history_unavailable']=bool(carried and year<carried['year'])
@@ -68,11 +68,27 @@ def register(app,auth):
         if eid:
             e=one('SELECT * FROM expenses WHERE id=? AND user_id=?',(integer(eid,'expense ID',1),record_user_id()))
             if not e or e['amount_cents']!=cost or e['date']!=acquired or (e['work_percent'],e['business_percent'])!=(work,business): fail('The linked purchase must have the same cost, date and use percentages.')
-            if e['reimbursed'] or e['items_json']!='[]' or e['trip_id'] or e['meal'] or e['vehicle_id'] or one('SELECT 1 FROM home_office_costs WHERE expense_id=?',(eid,)): fail('Choose a standalone equipment purchase without another claim treatment.')
+            if e['reimbursed'] or e['items_json']!='[]' or e['trip_id'] or e['meal'] or e['vehicle_id'] or e['category']=='Meals' or one('SELECT 1 FROM home_office_costs WHERE expense_id=?',(eid,)): fail('Choose a standalone equipment purchase without another claim treatment.')
             if one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(eid,)): fail('This purchase is already in the equipment register.',409)
         ident=db().execute('INSERT INTO equipment_assets(user_id,expense_id,name,acquired,cost_cents,work_percent,business_percent,notes) VALUES (?,?,?,?,?,?,?,?)',
                            (record_user_id(),eid,name,acquired,cost,work,business,textval(d.get('notes'),2000))).lastrowid
-        if d.get('calculation'):
+        if sum(bool(d.get(k)) for k in ('calculation','tax_treatment','recorded_writeoff'))>1: fail('Choose one deduction treatment.')
+        if d.get('tax_treatment'):
+            import equipment_treatment
+            inputs=dict(date=acquired,amount_cents=cost,category='Equipment',work_percent=work,business_percent=business,reimbursed=False,trip_id=None,meal='',vehicle_id=None)
+            decision=equipment_treatment.reviewed(inputs,d['tax_treatment'])
+            db().execute('UPDATE equipment_assets SET calculation_json=? WHERE id=?',(json.dumps(decision['calculation']),ident))
+        elif d.get('recorded_writeoff'):
+            import equipment_import
+            recorded=d['recorded_writeoff']
+            if not isinstance(recorded,dict): fail('Choose the financial year of the completed claim.')
+            year=integer(recorded.get('year'),'financial year',1900,2098)
+            r=equipment_import.validate(dict(name=name,acquired=acquired,cost=d['cost'],opening=recorded.get('amount'),fully_claimed=True,work_percent=work,business_percent=business),year)
+            carried=dict(year=year,opening_cents=r['opening_cents'],rate='0',method='written_off',source='recorded_writeoff')
+            db().execute('UPDATE equipment_assets SET import_json=? WHERE id=?',(json.dumps(carried),ident))
+            db().execute('INSERT INTO equipment_depreciation(asset_id,year,amount_cents,notes,confirmed,work_percent,business_percent,claimable_cents) VALUES (?,?,?,?,1,?,?,?)',
+                         (ident,year,r['decline_cents'],'Previously completed write-off recorded by owner.',work,business,r['decline_cents']))
+        elif d.get('calculation'):
             a=one('SELECT * FROM equipment_assets WHERE id=?',(ident,))
             config=calc.validate(a,d['calculation'],[])
             db().execute('UPDATE equipment_assets SET calculation_json=? WHERE id=?',(json.dumps(config),ident))
