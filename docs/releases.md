@@ -3,7 +3,7 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.5` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.6-beta.12` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.6-beta.15` |
 
 The Docker server and web interface are released independently of the optional iPhone app, which remains in testing. See the [stable changelog](CHANGELOG.md) for shipped changes and [GitHub Releases](https://github.com/ChrisK0007/Expense-Pilot/releases) for versioned downloads.
 
@@ -39,7 +39,7 @@ Do not merge an unmodified prerelease version into `main`; the release checks re
 
 The Docker workflow runs checks for every pull request. Push-triggered publishing filters by application/build/deployment paths. Changes confined to README files, `docs/`, support policies, issue/PR templates and `.gitignore` do not rebuild or publish the image. Changes under `server/`, `tests/`, `deploy/`, `scripts/`, Compose, Dockerfile or the Docker workflow do trigger it.
 
-Beta builds reuse inline cache metadata from the published `:beta` image. This does not create a GitHub Actions cache or an extra build-record artifact. It caches fewer intermediate stages than a full registry/GHA cache but avoids a separate cache storage footprint. The base image is pulled each build, and `DEPENDENCY_REFRESH` changes each UTC day to rerun dependency installation. Stable and tag builds use no cache. All tests still run against the exact image that is published; dependency source archives remain inside that image.
+Beta builds reuse inline cache metadata from the published `:beta` image. This does not create a GitHub Actions cache or an extra build-record artifact. It caches fewer intermediate stages than a full registry/GHA cache but avoids a separate cache storage footprint. The base image is pulled each build, and `DEPENDENCY_REFRESH` changes for each workflow run and attempt to rerun dependency installation. Stable and tag builds use no cache. All tests still run against the exact image that is published; dependency source archives remain inside that image.
 
 ## Release checklist
 

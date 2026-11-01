@@ -124,7 +124,7 @@ def extract(rid):
         return jsonify(document_reading.status(rid, request.args.get('job', '')))
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict): fail('Expected document-reading options.')
-    if data.get('unfiled_only') and one('SELECT id FROM expenses WHERE receipt_id=?', (rid,)):
+    if data.get('unfiled_only') and (one('SELECT id FROM expenses WHERE receipt_id=?', (rid,)) or one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,))):
         fail('Receipt is already filed; skipped.', 409)
     if one('SELECT id FROM employment_income WHERE receipt_id=?', (rid,)):
         fail('Document is already filed as income.', 409)
@@ -139,7 +139,7 @@ def extract_document(rid, unfiled_only=False):
     from app import DATA, Decimal, InvalidOperation, Path, ROUND_HALF_UP, audit, base64, category_names, date, db, fail, inspect_pdf, json, jsonify, one, os, receipt, request, subprocess, tempfile, textval, urllib
     import ai_providers
     r=receipt(rid)
-    if unfiled_only and one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Receipt is already filed; skipped.',409)
+    if unfiled_only and (one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)) or one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,))): fail('Receipt is already filed; skipped.',409)
     import income_documents
     if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('Document is already filed as income.',409)
     db().execute('INSERT OR IGNORE INTO receipt_details(receipt_id) VALUES (?)',(rid,))
@@ -199,7 +199,7 @@ def extract_document(rid, unfiled_only=False):
     stored=one('SELECT extraction FROM receipt_details WHERE receipt_id=?',(rid,))
     if not stored: fail('Receipt was deleted while AI was reading it.',404)
     if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('Document was filed while it was being read.',409)
-    if unfiled_only and one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('Document was filed while it was being read.',409)
+    if unfiled_only and (one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)) or one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,))): fail('Document was filed while it was being read.',409)
     previous=json.loads(stored['extraction'] or '{}')
     if previous.get('currency_status')=='confirmed':
         safe.update({k:previous[k] for k in ('currency','currency_status','currency_evidence')})
@@ -247,10 +247,11 @@ def receipt_inbox():
     from app import draft_for, g, json, jsonify, money, one, receipt_profile, request, rows
     where,args=('1=1',[]) if g.user['role']!='employee' else ('r.user_id=?',[g.user['id']])
     if request.args.get('unfiled')=='1':
-        where+=' AND NOT EXISTS (SELECT 1 FROM expenses saved WHERE saved.receipt_id=r.id) AND NOT EXISTS (SELECT 1 FROM employment_income income WHERE income.receipt_id=r.id)'
+        where+=' AND NOT EXISTS (SELECT 1 FROM expenses saved WHERE saved.receipt_id=r.id) AND NOT EXISTS (SELECT 1 FROM employment_income income WHERE income.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id)'
     result=rows(f'''SELECT r.*,u.name AS owner,u.role AS owner_role,d.uploaded_at,d.scan_status,d.scan_error,d.extraction,
         (SELECT e.id FROM expenses e WHERE e.receipt_id=r.id LIMIT 1) AS expense_id,
-        (SELECT i.id FROM employment_income i WHERE i.receipt_id=r.id LIMIT 1) AS income_id
+        (SELECT i.id FROM employment_income i WHERE i.receipt_id=r.id LIMIT 1) AS income_id,
+        (SELECT eq.id FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id LIMIT 1) AS equipment_id
         FROM receipts r JOIN users u ON u.id=r.user_id LEFT JOIN receipt_details d ON d.receipt_id=r.id
         WHERE {where} ORDER BY COALESCE(d.uploaded_at,'') DESC,r.rowid DESC''',args)
     for r in result:
@@ -278,6 +279,7 @@ def categorise_receipt(rid):
     db().execute('BEGIN IMMEDIATE')
     r=receipt(rid)
     if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as income.',409)
+    if one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,)): fail('This receipt is already attached to an equipment deduction.',409)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already linked to an expense.',409)
     import bank_matching, home_office, income_documents
     d=request.get_json() or {}
@@ -325,6 +327,7 @@ def categorise_receipt(rid):
 def delete_receipt_record(rid):
     """Delete receipt metadata and drafts inside the caller's write transaction."""
     from app import audit, db, fail, one
+    if one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,)): fail('Unlink this receipt from its equipment deduction before deleting it.',409)
     if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is still attached to employment income.',409)
     if one('SELECT id FROM expenses WHERE receipt_id=?', (rid,)):
         fail('This receipt is still attached to another expense.', 409)

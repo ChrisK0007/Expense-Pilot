@@ -204,6 +204,7 @@ def payload(d,existing=None):
     if rid:
         r=one('SELECT * FROM receipts WHERE id=?',(rid,))
         if not r or r['user_id']!=uid: fail('Receipt does not belong to this person.')
+        if one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,)): fail('This receipt is attached to an equipment deduction. Link an existing purchase from that deduction instead.',409)
         if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as employment income.',409)
         linked=one('SELECT id FROM expenses WHERE receipt_id=?',(rid,))
         if linked and (not existing or linked['id']!=existing.get('id')): fail('This receipt is already linked to another expense.',409)
@@ -349,6 +350,8 @@ import category_labels, equipment_treatment, equipment_import
 category_labels.register(app, auth)
 equipment_treatment.register(app, auth)
 equipment_import.register(app, auth)
+import equipment_evidence
+equipment_evidence.register(app, auth)
 
 import journey_review
 journey_review.register(app, auth)

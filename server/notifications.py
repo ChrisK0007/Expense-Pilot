@@ -52,7 +52,7 @@ def collect(user):
     receipts = rows('''SELECT r.id, d.scan_status FROM receipts r JOIN receipt_details d ON d.receipt_id=r.id
         WHERE r.user_id=? AND d.scan_status IN ('scanned','failed')
         AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id)
-        AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id) ORDER BY r.id''', (user['id'],))
+        AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id) ORDER BY r.id''', (user['id'],))
     if receipts:
         fingerprint = hashlib.sha256(json.dumps(receipts, sort_keys=True).encode()).hexdigest()[:24]
         result.append(event('receipts.' + fingerprint, 'receipts', 'receipts', details=f"{len(receipts)} documents need review. Open your inbox."))

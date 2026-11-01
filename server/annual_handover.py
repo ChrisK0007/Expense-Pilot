@@ -84,10 +84,11 @@ def build(year):
                 data['supporting_documents']=rows('SELECT * FROM tax_documents WHERE user_id=? AND (year=? OR year IS NULL)',(uid,year))
                 # Include older equipment evidence still relevant to the annual register.
                 for asset in data['equipment']:
+                    if asset['evidence_receipt_id']: receipt_ids.add(asset['evidence_receipt_id'])
                     if asset['expense_id']:
                         receipt=one('SELECT receipt_id FROM expenses WHERE id=?',(asset['expense_id'],))
                         if receipt and receipt['receipt_id']: receipt_ids.add(receipt['receipt_id'])
-                receipt_ids.update(r['id'] for r in rows('SELECT r.id FROM receipts r WHERE r.user_id=? AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income e WHERE e.receipt_id=r.id)',(uid,)))
+                receipt_ids.update(r['id'] for r in rows('SELECT r.id FROM receipts r WHERE r.user_id=? AND NOT EXISTS(SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM employment_income e WHERE e.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id)',(uid,)))
                 receipts=[one('SELECT * FROM receipts WHERE id=?',(rid,)) for rid in sorted(receipt_ids)]
                 data['receipt_originals']=receipts
                 outstanding=review_hub.attention(year)

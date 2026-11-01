@@ -183,3 +183,11 @@ button{transition:box-shadow .15s}
 .import-row {margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:12px;}
 
 .tax-treatment [hidden]{display:none!important}
+#equipment-form [hidden],#equipment-calculation [hidden],.import-row [hidden]{display:none!important}
+.equipment-advanced{margin:1rem 0;}
+.equipment-advanced>summary{cursor:pointer;color:var(--muted);padding:.35rem 0;}
+.equipment-advanced[open]>summary{margin-bottom:.8rem;}
+.equipment-result strong{font-size:1.2rem;}
+.import-row legend{max-width:100%;overflow-wrap:anywhere;}
+.import-summary{margin:.3rem 0 1rem;}
+#equipment-receipt-upload{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--line);}
