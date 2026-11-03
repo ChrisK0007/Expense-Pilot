@@ -8,12 +8,12 @@ async function main(){
  try{
   await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();
   await page.locator('[data-page=dashboard]').waitFor();
-  assert.deepEqual(await page.locator('nav > button[data-page]').evaluateAll(elements=>elements.slice(0,4).map(el=>el.dataset.page)),['dashboard','receipts','expenses','budgets']);
+  assert.deepEqual(await page.locator('nav > button[data-page]').evaluateAll(elements=>elements.slice(0,4).map(el=>el.dataset.page)),['dashboard','receipts','invoices','clients']);
   assert.equal(await page.locator('.brand small').innerText(),'a clearer view of every dollar');
   assert.equal(await page.getByText('Private workspace · AUD',{exact:true}).count(),0);
-  await page.locator('[popovertarget=nav-business]').click();await page.locator('#nav-business:popover-open').waitFor();
+  await page.locator('[data-page=invoices]').waitFor();
   await page.screenshot({path:output+'/navigation-popup.png',fullPage:true});
-  await page.keyboard.press('Escape');assert.equal(await page.locator('#nav-business').isVisible(),false);
+  assert.equal(await page.locator('[data-page=invoices]').isVisible(),true);
   await navigate(page,'expenses');await page.getByRole('button',{name:'Add expense',exact:false}).first().click();
   assert.equal(await page.locator('#expense-form').getByLabel('Workspace',{exact:true}).count(),0);
   await page.getByLabel('Merchant / payee').fill('Split allocation browser test');await page.getByLabel('Date',{exact:true}).fill('09/10/2026');await page.getByLabel('Amount paid (AUD)').fill('100');
@@ -36,15 +36,15 @@ async function main(){
   }
   const before=await (await page.request.get(url+'/api/tax/2026')).json();
   await navigate(page,'settings');await page.getByRole('button',{name:'Employment expenses only',exact:true}).click();await page.getByRole('button',{name:'Save features',exact:true}).click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();
-  assert.equal(await page.locator('[popovertarget=nav-business]').count(),0);assert.equal(await page.locator('[data-page=vehicles]').count(),0);assert.equal(await page.locator('[data-page=tax]').count(),0);
-  await page.reload();await page.locator('#feature-form').waitFor();assert.equal(new URL(page.url()).hash,'#/settings');await navigate(page,'dashboard');await page.getByRole('heading',{name:'Recent expenses',exact:true}).waitFor();assert.equal(await page.locator('[popovertarget=nav-business]').count(),0);assert.equal(await page.getByRole('heading',{name:'Recent invoices',exact:true}).count(),0);
+  assert.equal(await page.locator('[data-page=invoices]').count(),0);assert.equal(await page.locator('[data-page=vehicles]').count(),0);assert.equal(await page.locator('[data-page=tax]').count(),0);
+  await page.reload();await page.locator('#feature-form').waitFor();assert.equal(new URL(page.url()).hash,'#/settings');await navigate(page,'dashboard');await page.getByRole('heading',{name:'Recent expenses',exact:true}).waitFor();assert.equal(await page.locator('[data-page=invoices]').count(),0);assert.equal(await page.getByRole('heading',{name:'Recent invoices',exact:true}).count(),0);
   const after=await (await page.request.get(url+'/api/tax/2026')).json();assert.deepEqual(after.recorded,before.recorded);
   await page.screenshot({path:output+'/employment-only-dashboard.png',fullPage:true});await navigate(page,'expenses');await page.getByRole('button',{name:'Add expense',exact:false}).first().click();
   assert.equal(await page.getByLabel('Business (%)').count(),0);assert.equal(await page.getByLabel('Employment (%)').inputValue(),'100');await page.locator('#close-modal').click();
   await navigate(page,'settings');await page.screenshot({path:output+'/feature-settings.png',fullPage:true});
   for(const label of ['Employment tracking','Business features','Trips & meals','Vehicle tracking','Bank accounts & imports','Tax forecast'])await page.locator('#feature-form').getByLabel(label,{exact:true}).check();
   await page.getByRole('button',{name:'Save features',exact:true}).click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();await navigate(page,'invoices');await page.getByRole('heading',{name:'Invoices',exact:true}).waitFor();
-  await page.setViewportSize({width:390,height:844});await page.locator('[popovertarget=nav-business]').click();await page.locator('#nav-business:popover-open').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/navigation-popup-mobile.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});await page.locator('[data-page=invoices]').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/navigation-popup-mobile.png',fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: split expense creation/editing, validation, reports, compact currency, sidebar popup keyboard/mobile navigation, persisted feature settings and retained tax totals.');
  }catch(e){await page.screenshot({path:output+'/splits-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 }

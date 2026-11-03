@@ -1,7 +1,7 @@
 const {chromium,webkit}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
 (async()=>{
- for(const [engine,type] of [['chromium',chromium],['webkit',webkit]]){
+ for(const [engine,type] of [['chromium',chromium],['webkit',webkit]].filter(([name])=>!process.env.UI_BROWSER||process.env.UI_BROWSER===name)){
   const browser=await type.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];context.setDefaultTimeout(25000);page.on('pageerror',e=>errors.push(e.message));fs.mkdirSync(output,{recursive:true});
   async function post(path,data,method='POST'){const s=await(await context.request.get(url+'/api/session')).json(),r=await context.request.fetch(url+'/api/'+path,{method,data,headers:{'X-CSRF-Token':s.csrf}});assert.equal(r.status(),200,await r.text());return r.json();}
   try{
@@ -9,14 +9,14 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
    const prefix='Beta14 '+engine;
    for(const [merchant,amount] of [['Small',2],['Medium',10],['Large',100]])await post('expenses',{date:'2026-07-01',merchant:prefix+' '+merchant,amount,scope:'work',work_percent:100,business_percent:0,category:'Equipment',status:'ready'});
    await page.goto(url+'/#/expenses');await page.getByLabel('Search expenses').fill(prefix);
-   assert.equal(await page.locator('.expense-tools details,.expense-tools summary').count(),0);assert.equal(await page.getByRole('link',{name:'Equipment',exact:true}).isVisible(),true);
+   assert.equal(await page.locator('.expense-tools details,.expense-tools summary').count(),0);assert.equal(await page.getByRole('link',{name:'Deductions',exact:true}).isVisible(),true);
    await page.getByRole('button',{name:'Sort by Amount',exact:true}).click();assert.match(await page.locator('#expense-table tbody tr').first().innerText(),/Small/);
    assert.equal(await page.locator('#expense-table th[aria-sort=ascending]').count(),1);
    await page.getByRole('button',{name:'Sort by Amount',exact:true}).click();assert.match(await page.locator('#expense-table tbody tr').first().innerText(),/Large/);
    await page.getByRole('button',{name:'Categories',exact:true}).click();await page.getByRole('button',{name:'Rename Equipment',exact:true}).click();await page.getByLabel('Category name',{exact:true}).fill('Devices '+engine);await page.getByRole('button',{name:'Save name',exact:true}).click();await page.getByRole('button',{name:'Rename Devices '+engine,exact:true}).waitFor();await page.locator('#close-modal').click();assert.match(await page.locator('#expense-table tbody').innerText(),new RegExp('Devices '+engine));
    await page.screenshot({path:output+'/beta14-expenses-'+engine+'.png',fullPage:true});
    await page.getByRole('button',{name:'+ Add expense',exact:true}).click();await page.getByLabel('Merchant / payee',{exact:true}).fill(prefix+' earphones');await page.getByLabel('Date',{exact:true}).fill('01/07/2026');await page.getByLabel('Amount paid (AUD)',{exact:true}).fill('500');await page.getByLabel('Category',{exact:true}).selectOption('Equipment');await page.locator('#expense-form #work_percent').fill('50');await page.locator('#expense-form #business_percent').fill('25');await page.getByLabel('Notes / business purpose',{exact:true}).fill('AirPods for actual work communications — synthetic test');
-   await page.getByRole('button',{name:'Check deduction',exact:true}).click();await page.getByLabel('Equipment purchased',{exact:true}).fill(prefix+' AirPods');
+   await page.locator('.tax-treatment .equipment-advanced summary').click();await page.getByLabel('Equipment purchased',{exact:true}).fill(prefix+' AirPods');
    await page.getByRole('button',{name:'Annual tax settings',exact:true}).click();await page.getByLabel('Depreciation rules',{exact:true}).selectOption('simplified');await page.getByRole('button',{name:'Save tax settings',exact:true}).click();await page.locator('#equipment-profile-dialog').waitFor({state:'detached'});
    await page.getByText('Immediate deduction available',{exact:true}).waitFor();assert.match(await page.locator('#tax-treatment-result').innerText(),/Employment \$250.00 · Business \$125.00/);await page.locator('[name=tax_apply]').check();await page.screenshot({path:output+'/beta14-tax-treatment-'+engine+'.png'});await page.getByRole('button',{name:'Save expense',exact:true}).click();await page.locator('#modal').waitFor({state:'hidden'});
    let assets=(await(await context.request.get(url+'/api/workflows/equipment?year=2026')).json()).assets;const created=assets.find(a=>a.name===prefix+' AirPods');assert.ok(created?.expense_id);assert.equal(created.current.amount_cents,50000);

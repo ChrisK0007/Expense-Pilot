@@ -2,6 +2,20 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.19 — Simpler deductions and refined workspace (2026-11-03)
+
+- Full-page invoice and quote editing with automatic draft recovery, conflict detection and an optional live preview rendered from the actual PDF. Saving does not issue or email the invoice; paid invoices remain locked.
+- Classic, Modern and Compact invoice layouts, font and brand-colour choices, logo upload and optional quantity, unit, rate, reference and client-address display. Saved documents retain their snapshots until edited and saved.
+- Quantity types such as Hours, Days, Flight tests and Kilometres, including saved services and recurring invoice lines.
+- Optional supporting PDFs, JPGs and PNGs with invoice emails, including existing receipts. Only selected files are sent. Up to five files, 10 MB each and 20 MB combined. Invoice PDFs remain included automatically; automated reminders do not inherit supporting files.
+- Separate owner email and notification-bell preferences. Enabling email starts with future events; existing activity is not emailed as a backlog. Client reminders, security sign-in alerts and phone push preferences remain separate.
+- Calendar-year or July–June financial-year chart comparisons, full-year or matched year-to-date views and saved dashboard section visibility. Future months are blank in YTD views.
+- Recognised equipment purchases automatically show a suggested deduction with purchase date, useful-life planning estimate and use percentages prefilled. Advanced choices are under **Adjust deduction**. Saved annual business rules are reused; general depreciation is the fallback until eligible simplified-depreciation settings are selected. Special assets can be saved for accountant review without being claimed as ordinary expenses.
+- Deductions includes receipt capture and existing receipt links. Existing imported and accountant-entered annual figures are preserved. Automated values remain estimates for review, not lodged tax-return claims.
+- Direct navigation to invoices, clients, bank accounts and deductions; inline Tracking and Income groups; settings show one topic at a time. Quotes, services, recurring invoices and time stay within invoice navigation; Budgets stays under Expenses.
+
+Migration 28 adds owner preferences, recoverable draft buffers, supporting-file storage and notification delivery records. No existing financial records are rewritten.
+
 ## 1.0.6-beta.18 — Optional email copies (2026-11-03)
 
 - Add a Send me a copy checkbox to invoice, quote, manual reminder, payment receipt and statement send windows. Start from the saved default and allow an override for this email without changing future sends.

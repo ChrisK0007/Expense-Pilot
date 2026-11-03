@@ -7,6 +7,30 @@ from expense_core import split_values
 import equipment_calculations as calc
 from workflow_core import body, integer
 
+# These are visible planning defaults, not a determination of deductibility.
+# Only the portable-computer life is presented as the existing published preset.
+PRESETS = (
+    (r'\b(ipad|tablet|laptop|macbook)\b', 'Portable computer', 2),
+    (r'\b(iphone|smartphone|mobile phone)\b', 'Phone', 3),
+    (r'\b(desktop|computer|monitor)\b', 'Computer or monitor', 4),
+    (r'\b(airpods?|earphones?|headphones?|headsets?)\b', 'Headphones or headset', 3),
+    (r'\b(printer|scanner|camera|suitcase|luggage|flight bag|desk|chair)\b', 'Other equipment', 5),
+)
+
+
+def automatic_inputs(data):
+    d = dict(data)
+    name = str(d.get('name') or d.get('notes') or d.get('merchant') or 'Equipment').strip()[:200]
+    preset = next(((label, life) for pattern, label, life in PRESETS if re.search(pattern, name, re.I)), ('Equipment', 5))
+    if re.search(r'\b(repair|subscription|insurance|rental|rent|membership|warranty)\b', name, re.I) and not d.get('equipment_override'):
+        return d, None
+    d.update(name=name, asset_confirmed=True, purpose_confirmed=True)
+    d.setdefault('eligible_asset', True)
+    d.setdefault('not_grouped', True)
+    d['life'] = d.get('life') or preset[1]
+    d['basis'] = d.get('basis') or f'{preset[0]}: {d["life"]}-year planning estimate, purchase-date first use and entered income-use percentages. Accountant review required before claiming.'
+    return d, dict(label=preset[0], life=preset[1], provisional=True)
+
 
 def profile(year):
     from app import one, record_user_id
@@ -16,6 +40,10 @@ def profile(year):
 
 def suggest(d):
     from app import day, money, fail, textval
+    automatic = d.get('automatic') is True
+    preset = None
+    if automatic:
+        d, preset = automatic_inputs(d)
     when=day(d.get('date'));first=day(d.get('first_use') or when);cost=money(d.get('amount'));credit=money(d.get('gst_credit',0))
     if first<when: fail('First use cannot precede acquisition.')
     if credit<0 or credit>=cost: fail('GST credit must be non-negative and less than the original cost.')
@@ -23,15 +51,23 @@ def suggest(d):
     except ValueError as exc: fail(str(exc))
     net=cost-credit;year=integer(calc.fy(first),'financial year',1900,2098);settings=profile(year)
     result=dict(year=year,profile=settings,ruleset=calc.RULESET,full_cost_cents=net,work_cents=calc.cents(Decimal(net)*work/100),business_cents=calc.cents(Decimal(net)*business/100),method=None,ready=False,reason='',life_suggestion=None)
+    if automatic:
+        result.update(preset=preset, assumptions=['First used on the purchase date unless adjusted.', 'Use percentages are the income-producing use entered on the expense.', 'Useful life is a planning estimate for accountant review.'])
     def stop(reason,status='needs_information'):
         return dict(result,reason=reason,status=status)
+    if automatic and preset is None:
+        return stop('This looks like an ongoing cost rather than an equipment purchase. Save it as an ordinary expense or choose equipment explicitly.', 'ordinary')
     if cost<=0 or not work+business or d.get('reimbursed') or d.get('trip_id') or d.get('meal') or d.get('vehicle_id') or d.get('category')=='Meals':
         return stop('Use this check for a personally incurred, standalone equipment purchase with income-producing use.','manual_review')
     if d.get('asset_confirmed') is not True or d.get('purpose_confirmed') is not True:
         return stop('Confirm the actual equipment purchased and its income-producing use. A label such as “hearing protection” does not establish deductibility or approved protective equipment.')
     if d.get('previous_use') is True:
         return stop('Previous private use, existing deductions or a pooled asset need a reviewed opening balance. Use the equipment register or schedule import.','manual_review')
-    if settings['mode']=='unknown': return stop('Set your tax treatment for this financial year once, then this check can use it for future purchases.')
+    if settings['mode']=='unknown':
+        if not automatic: return stop('Set your tax treatment for this financial year once, then this check can use it for future purchases.')
+        settings = {**settings, 'mode':'general', 'assumed':True}
+        result['profile'] = settings
+        result['assumptions'].append('General depreciation is used until eligible small-business write-off settings are selected.')
     if d.get('eligible_asset') is not True: return stop('Confirm ordinary depreciating equipment eligibility. Vehicles, buildings, software development pools and other special assets need separate review.')
     method=None
     if settings['mode']=='simplified':
@@ -39,7 +75,7 @@ def suggest(d):
         if not limit or net>=limit: return stop('The full asset cost is outside the supported instant write-off threshold. Small-business pooling needs accountant review; do not split the price to qualify.','manual_review')
         method='immediate_business'
         reason='Eligible sole trader using simplified depreciation: the full asset cost is below $20,000. The income-producing portion can be written off in the year first used, including employment use.'
-    elif net<=30000 and work>50:
+    elif net<=30000 and work>50 and (not automatic or d.get('not_grouped') is True):
         if d.get('not_grouped') is not True: return stop('Confirm it is not part of a set or substantially identical items acquired this year costing more than $300 in total.')
         method='immediate_employee';reason='The full asset cost is $300 or less, mainly used for non-business income, with the set and identical-item restrictions confirmed.'
     else:
@@ -52,6 +88,14 @@ def suggest(d):
                 confirmed=True,eligible_asset=True,not_grouped=d.get('not_grouped') is True,small_business=settings['mode']=='simplified')
     asset=dict(acquired=when,cost_cents=cost,work_percent=work,business_percent=business)
     validated=calc.validate(asset,config,[])
+    if automatic:
+        validated['automation'] = dict(preset=preset, assumptions=result['assumptions'], needs_accountant_review=True)
+        if method=='immediate_employee':
+            result['assumptions'].append('Not part of a set or identical items costing more than $300 in total this year.')
+        result['life_suggestion'] = preset['life']
+        sample = {**asset, 'id':0, 'disposal_date':'', 'calculation_json':json.dumps(validated)}
+        annual = calc.schedule(sample, [], [], year)[0]
+        result['annual_cents'] = calc.cents(Decimal(annual['claimable_cents'])*(work+business)/100)
     return dict(result,method=method,status='immediate' if method.startswith('immediate_') else 'depreciation',ready=True,reason=reason,calculation=validated)
 
 
@@ -66,6 +110,13 @@ def reviewed(e,treatment):
     except ValueError as exc: fail(str(exc))
     if basis.get('date')!=e['date'] or money(basis.get('amount'))!=e['amount_cents'] or shares!=(e['work_percent'],e['business_percent']): fail('The matched expense differs from the reviewed amount, date or use. Open that expense and check its treatment there.',409)
     decision=suggest(inputs)
+    if treatment.get('automatic') is True and treatment.get('pending_review') is True:
+        if (treatment.get('confirmed') is not True or decision['status'] != 'manual_review' or e['amount_cents'] <= 0 or e['reimbursed'] or
+                e['trip_id'] or e['meal'] or e['vehicle_id'] or e['category']=='Meals' or not sum(shares)):
+            fail('This purchase cannot be saved as pending equipment treatment.')
+        if treatment.get('profile_version') != decision['profile']['version']:
+            fail('Tax settings changed. Check the suggestion again.',409)
+        return {**decision, 'calculation':{}}
     if treatment.get('confirmed') is not True or not decision['ready']: fail(decision['reason'])
     if treatment.get('profile_version')!=decision['profile']['version'] or treatment.get('method')!=decision['method']: fail('Tax settings or treatment changed. Check the suggestion again.',409)
     return decision

@@ -118,7 +118,7 @@ async function main() {
     await page.locator('.comparison-chart').waitFor();
     await page.screenshot({path:output+'/overview-desktop.png',fullPage:true});
     await navigate(page,'settings');
-    await page.getByRole('button',{name:'Business profile & branding'}).click();
+    await page.locator('[data-settings-jump=business]').click();await page.getByRole('button',{name:'Business profile →',exact:true}).click();
     await page.getByLabel('Business / trading name').fill('Example Flight Testing');
     await page.getByLabel('ABN',{exact:true}).fill('12 345 678 901');
     await page.getByLabel('My business is registered for GST').check();
@@ -307,11 +307,11 @@ async function main() {
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Tax page overflows');
     await page.setViewportSize({width:1440,height:1050});
     assert.equal(await page.locator('nav [data-page=team]').count(),0);
-    await navigate(page,'settings');await page.getByRole('button',{name:'Manage tax agent access',exact:false}).click();
+    await navigate(page,'settings');await page.locator('[data-settings-jump=security]').click();await page.getByRole('button',{name:'Manage tax agent access',exact:false}).click();
     await page.getByRole('heading',{name:'Tax agent access',exact:true}).waitFor();
     assert.equal(await page.locator('nav [data-page=settings]').getAttribute('class'),'active');
     await page.getByRole('button',{name:'Back to Settings',exact:true}).click();
-    await page.getByRole('button',{name:'Manage tax agent access',exact:false}).click();
+    await page.locator('[data-settings-jump=security]').click();await page.getByRole('button',{name:'Manage tax agent access',exact:false}).click();
     await page.getByRole('button',{name:'Invite tax agent',exact:false}).click();
     await page.getByLabel('Name',{exact:true}).fill('Test Agent');
     await page.getByLabel('Email (login name)').fill('agent@example.test');
@@ -349,7 +349,7 @@ async function main() {
     await agent.reload();assert.equal(await agent.getByRole('button',{name:'Adjust classification',exact:true}).count(),0);
     await agentContext.close();
     await navigate(page,'settings');
-    await page.getByRole('button',{name:'Email delivery (SMTP)'}).click();
+    await page.locator('[data-settings-jump=email]').click();await page.getByRole('button',{name:'Email delivery (SMTP)'}).click();
     await page.getByLabel('SMTP host').fill('smtp.example.test');
     await page.getByLabel('SMTP username').fill('owner@example.test');
     await page.getByLabel('SMTP password / app password').fill('Never-a-real-secret');

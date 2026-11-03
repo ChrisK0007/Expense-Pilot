@@ -20,9 +20,11 @@ const url=process.env.APP_URL||'http://127.0.0.1:8790',output=process.env.UI_OUT
   await page.getByRole('button',{name:'Sign in',exact:false}).waitFor();
   await page.getByLabel('Email address').fill('new@example.test');await page.getByLabel('Password',{exact:true}).fill('New-owner-password-123');
   await page.getByRole('button',{name:'Sign in',exact:false}).click();
-  await navigate(page,'settings');await page.locator('#mail-settings').waitFor();
+  await navigate(page,'settings');await page.locator('#setup-checklist').waitFor();
   assert.equal(await page.evaluate(()=>S.timezone),'Europe/London');
   assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
+  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Email',exact:true}).click();
+  await page.locator('#mail-settings').waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:output+'/new-workspace-settings-mobile.png',fullPage:true});
   await page.locator('#signout').click();await page.getByRole('button',{name:'Sign in',exact:false}).waitFor();

@@ -264,6 +264,7 @@ def configure():
         seller['gst_registered'] = payload.get('gst_registered') is True
         seller['terms'] = integer(payload.get('terms', 14), 'payment terms', 0, 365)
         seller['logo'] = old['logo']
+        seller['design'] = old.get('design', {})
         digits = re.sub(r'\s', '', seller['abn'])
         if digits and not re.fullmatch(r'\d{11}', digits):
             fail('ABN must contain 11 digits, optionally separated by spaces.')
@@ -353,7 +354,7 @@ def email_copy_choice(payload):
     return payload.get('copy_self')
 
 
-def deliver(recipient, subject, message, attachment=None, filename=None, signature_html='', copy=False, copy_self=None):
+def deliver(recipient, subject, message, attachment=None, filename=None, signature_html='', copy=False, copy_self=None, attachments=None):
     config = mail_settings()
     if not config['host'] or not config['from_email']:
         raise ValueError('Configure your SMTP account in Email settings first.')
@@ -373,6 +374,9 @@ def deliver(recipient, subject, message, attachment=None, filename=None, signatu
     add_message_content(outgoing, message, signature_html)
     if attachment:
         outgoing.add_attachment(attachment, maintype='application', subtype='pdf', filename=filename)
+    for item in attachments or []:
+        main, sub = item['mime'].split('/', 1)
+        outgoing.add_attachment(item['content'], maintype=main, subtype=sub, filename=item['filename'])
     context = ssl.create_default_context()
     connection = None
     phase = 'connect'
@@ -461,7 +465,8 @@ def service_values(payload):
     tax = payload.get('tax', 'none')
     if tax not in ('gst', 'gst_free', 'none'):
         fail('Invalid GST treatment.')
-    return description, rate, tax
+    from billing_workspace import quantity_type
+    return description, rate, tax, quantity_type(payload.get('quantity_type'))
 
 
 @bp.route('/services', methods=['GET', 'POST'])
@@ -470,7 +475,7 @@ def services():
     if request.method == 'GET':
         return jsonify(rows('SELECT * FROM billing_services ORDER BY description'))
     values = service_values(body())
-    cur = db().execute('INSERT INTO billing_services(description,unit_cents,tax) VALUES (?,?,?)', values)
+    cur = db().execute('INSERT INTO billing_services(description,unit_cents,tax,quantity_type) VALUES (?,?,?,?)', values)
     audit('service created', cur.lastrowid)
     db().commit()
     return jsonify(id=cur.lastrowid)
@@ -489,7 +494,7 @@ def service_detail(sid):
         if payload.get('version') != service['version']:
             fail('This service changed in another tab. Reload it before continuing.', 409)
     if request.method == 'PUT':
-        db().execute('UPDATE billing_services SET description=?,unit_cents=?,tax=?,version=version+1 WHERE id=?', values + (sid,))
+        db().execute('UPDATE billing_services SET description=?,unit_cents=?,tax=?,quantity_type=?,version=version+1 WHERE id=?', values + (sid,))
         audit('service updated', sid)
     else:
         db().execute('DELETE FROM billing_services WHERE id=?', (sid,))
@@ -751,6 +756,7 @@ from billing_documents import documents, document_detail, document_wording, docu
 
 import billing_emails
 import billing_statements
+import billing_workspace
 
 
 def register(app, database, single, many, failure, activity, data_path):

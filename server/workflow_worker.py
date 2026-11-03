@@ -9,7 +9,10 @@ def tick():
     with open(DATA/'.signin-worker.lock', 'a') as lock:
         try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError: return
-        try: signin_alerts.process()
+        try:
+            signin_alerts.process()
+            import workspace_preferences
+            workspace_preferences.process_emails()
         except Exception:
             db().rollback()
             from flask import current_app

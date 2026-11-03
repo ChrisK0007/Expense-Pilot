@@ -25,6 +25,8 @@ def documents():
                 db().commit()
                 return jsonify(id=prior['document_id'])
         values = validate_document(payload)
+        from billing_workspace import consume_draft
+        consume_draft(payload, 'new-' + values['kind'])
         did = insert_document(values, custom_number=payload.get('number'))
         if key:
             db().execute('INSERT INTO billing_document_requests(user_id,request_key,fingerprint,document_id) VALUES (?,?,?,?)', (g.user['id'],key,fingerprint,did))
@@ -85,6 +87,8 @@ def document_detail(did):
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:
             fail('This invoice contains linked time entries for its current client.')
         check_payments(doc,values)
+        from billing_workspace import consume_draft
+        consume_draft(payload, 'document-' + str(did))
         remember(doc)
         if 'number' in payload:
             from billing_numbers import change_number
@@ -257,6 +261,8 @@ def email_draft(did):
     doc, config = document(did), mail_settings()
     kind = request.args.get('kind') or ('reminder_manual' if request.args.get('reminder') == '1' else 'document')
     draft = document_message(doc, kind)
+    from billing_workspace import attachment_list
+    draft['attachments'] = attachment_list(did)
     return jsonify(**draft, **email_copy_defaults(config), recipient=doc['client']['email'], from_email=config['from_email'],
                    attachment_url=f'/api/billing/documents/{did}/' + ('receipt' if kind == 'receipt' else 'pdf'),
                    filename=doc['number'] + ('-receipt' if kind == 'receipt' else '') + '.pdf',
@@ -289,7 +295,11 @@ def send_document(did):
     if kind not in ('document', 'reminder_manual', 'receipt'):
         fail('Choose an invoice, reminder or payment receipt email.')
     signature = clean_signature(email_templates()['signature_html'])[0] if payload.get('include_signature', True) else ''
+    from billing_workspace import selected_attachments
+    import json
+    attachments = selected_attachments(did, payload.get('attachment_ids', []))
     oid, attachment, filename = queue_document_email(doc, recipient, subject, message, key, kind, signature)
+    db().execute('UPDATE billing_outbox SET attachments_json=? WHERE id=?', (json.dumps([{k: a[k] for k in ('id','filename','mime','sha256')} for a in attachments]), oid))
     db().commit()
-    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=copy_self)
+    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=copy_self, attachments=attachments)
     return jsonify(state=state, error=error)

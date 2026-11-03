@@ -63,3 +63,12 @@ Additional sources:
 - [ATO: applying the entire simplified depreciation regime](https://smallbusiness.taxsuperandyou.gov.au/depreciation/using-simplified-depreciation-rules)
 - [Treasury Laws Amendment (Tax Reform No. 2) Act 2026, Schedule 2](https://www.legislation.gov.au/C2026A00071/asmade/2026-08-26/text/original/pdf)
 - [ATO: records of depreciating assets](https://smallbusiness.taxsuperandyou.gov.au/record-keeping/records-of-depreciating-assets)
+
+
+## Automatic purchase suggestions (beta 19)
+
+A new equipment purchase can be saved with one suggested treatment. The purchase date is the first-use default, and the expense's employment/business percentages are reused. The default method is diminishing value. Useful-life defaults are planning estimates: portable computers 2 years, phones and headsets 3, computers/monitors 4, and other equipment 5. Except for the previously documented portable-computer preset, these labels do not assert an ATO-determined effective life. The calculation stores its assumptions and `needs_accountant_review` metadata. **Adjust deduction** exposes life, dates, GST credit, method and set/identical-item considerations.
+
+Unknown annual tax elections use general depreciation as a conservative planning fallback. The app never infers eligibility for the small-business simplified regime from price or business-use percentage. An owner can choose the eligible regime once per year. Full asset cost is assessed before use percentages, so a $500 asset does not become an employee immediate deduction because its employment portion is $250. Labels such as “hearing protection” do not establish deductibility or protective-equipment certification.
+
+Previously private assets, special assets and unsupported pooling are saved for accountant review without an automatic claim. Ordinary repairs, subscriptions and rent are not treated as equipment merely because their descriptions mention a device. Linked capital purchases are excluded from ordinary expense deductions; the generated estimate supplies the forecast once. Historical imported and manually saved years retain their existing values.

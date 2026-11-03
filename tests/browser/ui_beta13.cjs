@@ -1,7 +1,7 @@
 const {chromium,webkit}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
 (async()=>{
- for(const [engine,type] of [['chromium',chromium],['webkit',webkit]]){
+ for(const [engine,type] of [['chromium',chromium],['webkit',webkit]].filter(([name])=>!process.env.UI_BROWSER||process.env.UI_BROWSER===name)){
   const browser=await type.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
   context.setDefaultTimeout(25000);page.on('pageerror',e=>errors.push(e.message));fs.mkdirSync(output,{recursive:true});
   async function post(ctx,path,data,method='POST'){const s=await(await ctx.request.get(url+'/api/session')).json(),r=await ctx.request.fetch(url+'/api/'+path,{method,data,headers:{'X-CSRF-Token':s.csrf}});assert.equal(r.status(),200,await r.text());return r.json();}
@@ -13,7 +13,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
    for(let i=0;i<3;i++){await page.getByRole('button',{name:'Next month',exact:true}).click();assert.equal(await page.locator('.date-calendar').isVisible(),true);}
    assert.equal(await page.getByLabel('Calendar month',{exact:true}).inputValue(),'2');await page.getByRole('button',{name:'Previous month',exact:true}).click();assert.equal(await page.getByLabel('Calendar month',{exact:true}).inputValue(),'1');
    await page.getByRole('button',{name:'Choose 15/02/2027',exact:true}).click();assert.equal(await input.inputValue(),'15/02/2027');assert.equal(await page.getByLabel('Due date',{exact:true}).inputValue(),'01/03/2027');
-   await input.click();await page.screenshot({path:output+'/beta13-calendar-'+engine+'.png'});await page.keyboard.press('Escape');assert.equal(await page.locator('#modal').isVisible(),true);await page.locator('#close-modal').click();
+   await input.click();await page.screenshot({path:output+'/beta13-calendar-'+engine+'.png'});await page.keyboard.press('Escape');assert.equal(await page.locator('.invoice-workspace').isVisible(),true);await page.locator('#editor-back').click();
    for(const [name,w,b] of [['Work',100,0],['Business',0,100],['Private',0,0],['Mixed',40,30]])await post(context,'expenses',{date:'2026-10-01',merchant:'Beta13 '+engine+' '+name,amount:100,scope:w&&b?'split':w?'work':b?'business':'personal',work_percent:w,business_percent:b,category:'Other',status:'ready'});
    await page.goto(url+'/#/expenses');await page.reload();await page.getByLabel('Search expenses').fill('Beta13 '+engine);await page.locator('.workspace-filter summary').click();await page.getByLabel('Personal',{exact:true}).uncheck();assert.equal(await page.locator('#expense-table tbody tr').count(),3);assert.doesNotMatch(await page.locator('#expense-table').innerText(),/Private/);await page.getByLabel('Employment',{exact:true}).uncheck();assert.equal(await page.locator('#expense-table tbody tr').count(),2);await page.locator('.workspace-filter summary').click();
    assert.equal(await page.locator('nav [data-page=attention]').count(),0);await page.getByRole('button',{name:/Notifications, /}).click();await page.locator('#notification-panel:popover-open').waitFor();await page.screenshot({path:output+'/beta13-notifications-'+engine+'.png'});await page.keyboard.press('Escape');
