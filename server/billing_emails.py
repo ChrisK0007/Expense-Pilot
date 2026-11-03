@@ -124,8 +124,15 @@ def paste_signature():
     if uploads and len(uploads)==parser.missing_images:
         images=[signature_image(upload.read(2*1024*1024+1)) for upload in uploads]
         cleaned,plain=clean_signature(value,images);missing=0
-    else: missing=parser.missing_images
-    return jsonify(html=cleaned,missing_images=missing)
+        errors=[]
+    else:
+        import signature_images
+        sources=[(src,label) for src,label in parser.image_sources if not src.startswith('data:image/')]
+        resolved,failures=signature_images.import_images([src for src,label in sources])
+        cleaned,plain=clean_signature(value,resolved_images=resolved)
+        missing=parser.missing_images-sum(src in resolved for src,label in sources)
+        errors=[dict(image=label,reason=failures[src]) for src,label in sources if src in failures]
+    return jsonify(html=cleaned,missing_images=missing,image_errors=errors)
 
 
 @bp.route('/reminder-settings', methods=['GET', 'PUT'])
