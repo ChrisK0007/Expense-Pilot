@@ -79,7 +79,7 @@ class InvoicePreferenceTest(unittest.TestCase):
         with app.app_context():
             db().execute("UPDATE users SET permission='read_write' WHERE email='staff@example.test'");db().commit()
         values={key:doc[key] for key in ('kind','client_id','issue_date','due_date','tax_mode','lines','version')}
-        self.assertEqual(self.call(self.staff,f"billing/documents/{doc['id']}",values,'PUT').status_code,200)
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}",values,'PUT').status_code,200)
         updated=self.get(doc['id']);self.assertEqual(updated['reminders_enabled'],0)
         values.update(version=updated['version'],reminders_enabled=True)
         self.assertEqual(self.call(self.staff,f"billing/documents/{doc['id']}",values,'PUT').status_code,403)

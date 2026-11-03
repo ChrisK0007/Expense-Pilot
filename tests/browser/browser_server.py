@@ -13,10 +13,13 @@ from app import app, db
 import billing
 
 invitations={}
+client_emails=[]
 def fake_delivery(recipient,subject,message,*args,**kwargs):
     if not recipient.endswith('@example.test'):
         raise ValueError('Browser tests may only use example.test recipients.')
     invitations[recipient]=message
+    if kwargs.get('copy'):
+        client_emails.append(dict(recipient=recipient,subject=subject,copy_self=kwargs.get('copy_self')))
     return 'sent',''
 billing.deliver=fake_delivery
 with app.app_context():
@@ -28,8 +31,18 @@ with app.app_context():
 def captured_invitations():
     return jsonify(invitations)
 
+@app.get('/test/client-emails')
+def captured_client_emails():
+    return jsonify(client_emails)
+
 import pocketsmith
 from pocketsmith_fixture import BrowserClient
 pocketsmith.Client=BrowserClient
+
+# Keep synthetic payroll documents off every real provider during browser tests.
+import ai_providers
+def unavailable_ai(*args, **kwargs):
+    raise ai_providers.AIError('Ollama did not finish reading this synthetic document.')
+ai_providers.extract=unavailable_ai
 
 app.run(host='0.0.0.0',port=int(os.environ.get('PORT','8788')),threaded=True)

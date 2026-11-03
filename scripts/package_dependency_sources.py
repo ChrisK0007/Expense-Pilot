@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sysconfig
 import tempfile
@@ -66,6 +67,26 @@ def verify_archive(archive_path, manifest):
                     raise ValueError(f'Dependency source archive checksum mismatch: {name}')
 
 
+def retain_sqlite(inventory, root, manifest, share=Path('/opt/sqlite/share')):
+    for package in inventory.get('native', []):
+        if package['name'] != 'sqlite':
+            raise RuntimeError('Unknown native dependency requires source collection support')
+        filename = package['source_archive']
+        if Path(filename).name != filename:
+            raise ValueError('Invalid SQLite source filename')
+        source = share / filename
+        with source.open('rb') as stream:
+            checksum = hashlib.file_digest(stream, 'sha3_256').hexdigest()
+        if checksum != package['archive_sha3_256']:
+            raise ValueError('SQLite retained source checksum mismatch')
+        folder = root / 'native' / 'sqlite'
+        folder.mkdir(parents=True)
+        for filename in (filename, 'NOTICE.txt', 'sqlite-runtime.json'):
+            shutil.copyfile(share / filename, folder / filename)
+        manifest['additional'].append(dict(name='sqlite', version=package['version'],
+                                          url=package['source_url'], directory='native/sqlite'))
+
+
 def collect(inventory_path, output):
     inventory = json.loads(inventory_path.read_text())
     manifest = {'format': 1, 'debian': [], 'python': [], 'additional': [], 'files': {}}
@@ -73,6 +94,7 @@ def collect(inventory_path, output):
     enable_debian_sources()
     with tempfile.TemporaryDirectory(prefix='dependency-sources-') as temp:
         root = Path(temp)
+        retain_sqlite(inventory, root, manifest)
         # Each .dsc plus its upstream tarball and Debian patches is retained.
         # apt authenticates source indexes and verifies the downloaded hashes.
         sources = sorted({(p['source'], p['source_version']) for p in inventory['debian']})
@@ -141,6 +163,10 @@ retain their upstream Apache/OpenSSL notices. No project patches are applied.
 cpython/: matching CPython source and the runtime's configure arguments.
 Follow its README build instructions. The application Dockerfile is in the
 separate application-source.zip; it records installation and startup commands.
+
+native/sqlite/: the checksum-verified SQLite amalgamation used by Python,
+plus its version, source ID and exact compiler command in sqlite-runtime.json.
+scripts/build_sqlite.py in application-source.zip reproduces this build.
 
 native/: matching upstream FriBiDi source when Pillow loads this LGPL library.
 Follow its README/INSTALL. Pillow source contains its Raqm integration and

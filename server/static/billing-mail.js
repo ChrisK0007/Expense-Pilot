@@ -10,10 +10,16 @@ const BillingMail=(()=>{
   function mountSignature(el,html){
     // Only server-sanitised HTML reaches here. Apply permitted formatting through DOM styles under the app CSP.
     el.innerHTML=html;
+    styleSignature(el);
+  }
+  function styleSignature(el){
     el.querySelectorAll('[style]').forEach(node=>{const styles=node.getAttribute('style');node.removeAttribute('style');for(const item of styles.split(';')){const [key,value]=item.split(':');if(key&&value)node.style.setProperty(key,value);}});
   }
   function signaturePreview(draft){
     return draft.signature_html?`${check('include_signature','Include email signature',true)}<div class="email-signature-preview" id="compose-signature"></div>`:'';
+  }
+  function copyOption(draft){
+    return `<div class="email-copy-option">${check('copy_self','Send me a copy',draft.copy_self===true)}<p class="footnote">Optional BCC to ${esc(draft.copy_email)}. This choice applies only to this email.</p></div>`;
   }
   function bindSignaturePreview(draft){
     if(!draft.signature_html)return;
@@ -47,21 +53,36 @@ const BillingMail=(()=>{
       on('#reset-email-template',()=>{for(const key of keys)data.templates[key]={...data.defaults[key]};draw();toast('Default wording restored. Save to apply it.');});
       on('#open-reminder-settings',async()=>{capture();await save();await reminders();});
       if(selected==='signature')bindSignatureEditor(data.signature_html);
-      const save=async()=>{capture();const result=await api('billing/email-templates',{templates:data.templates,signature_html:data.signature_html},'PUT');data.signature_html=result.signature_html;data.templates=result.templates;toast('Email templates saved.');};
+      const save=async()=>{if($('#signature-editor')?.dataset.importing==='true')throw Error('Wait for the signature paste or upload to finish.');capture();const result=await api('billing/email-templates',{templates:data.templates,signature_html:data.signature_html},'PUT');data.signature_html=result.signature_html;data.templates=result.templates;toast('Email templates saved.');};
       formHandler('#email-template-form',async()=>{await save();draw();});
     };
     draw();
   }
   function signatureEditorMarkup(){
-    return `<h3>Email signature</h3><div class="signature-toolbar" role="toolbar" aria-label="Signature formatting">${[['bold','Bold'],['italic','Italic'],['underline','Underline']].map(([cmd,label])=>`<button type="button" class="secondary" data-signature-command="${cmd}" aria-label="${label}">${label}</button>`).join('')}<select id="signature-size" aria-label="Signature text size"><option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">Extra large</option></select><label>Text colour <input type="color" id="signature-colour" value="#252b3b"></label><label>Highlight <input type="color" id="signature-highlight" value="#fff2a8"></label><button type="button" class="secondary" id="signature-link">Add link</button><button type="button" class="secondary" id="signature-image">Add image</button><button type="button" class="ghost" data-signature-command="removeFormat">Clear formatting</button></div><div id="signature-editor" class="signature-editor" role="textbox" aria-label="Email signature" aria-multiline="true" contenteditable="true"></div><input type="file" id="signature-image-file" accept="image/png,image/jpeg,image/webp" hidden><p class="footnote">Select text to format it or add a website, email, phone or social link. Images: up to 300 px wide, 600 px tall and 100 KB. Pasted text keeps plain formatting.</p>`;
+    return `<h3>Email signature</h3><div class="signature-toolbar" role="toolbar" aria-label="Signature formatting">${[['bold','Bold'],['italic','Italic'],['underline','Underline']].map(([cmd,label])=>`<button type="button" class="secondary" data-signature-command="${cmd}" aria-label="${label}">${label}</button>`).join('')}<select id="signature-size" aria-label="Signature text size"><option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">Extra large</option></select><label>Text colour <input type="color" id="signature-colour" value="#252b3b"></label><label>Highlight <input type="color" id="signature-highlight" value="#fff2a8"></label><button type="button" class="secondary" id="signature-link">Add link</button><button type="button" class="secondary" id="signature-image">Add image</button><button type="button" class="ghost" data-signature-command="removeFormat">Clear formatting</button></div><div id="signature-editor" class="signature-editor" role="textbox" aria-label="Email signature" aria-multiline="true" contenteditable="true"></div><div id="signature-import-status" class="notice" role="status" aria-live="polite" hidden></div><input type="file" id="signature-image-file" accept="image/png,image/jpeg,image/webp" hidden><p class="footnote">Select text to format it or add a website, email, phone or social link. Paste a formatted signature to keep its supported styling and layout. Up to three images. Linked HTTPS images stay linked, with their pasted size and original proportions. They must remain publicly accessible; recipients may need to allow remote images. Add image uploads an embedded copy instead (up to 2 MB, fitted to 300 × 600 px and under 100 KB).</p>`;
   }
   function bindSignatureEditor(html){
-    const editor=$('#signature-editor');mountSignature(editor,html);let selection=null;
+    const editor=$('#signature-editor');mountSignature(editor,html);let selection=null,importing=false;
+    const status=$('#signature-import-status');
+    const imageTask=async fn=>{if(importing)return;importing=true;editor.dataset.importing='true';editor.contentEditable='false';editor.setAttribute('aria-busy','true');status.hidden=false;status.textContent='Preparing signature…';const controls=[...document.querySelectorAll('#email-template-form button,#email-template-form input,#email-template-form select,[data-template-tab]')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);try{await fn();}catch(error){if(editor.isConnected){status.textContent=error.message;toast(error.message);}}finally{importing=false;if(editor.isConnected){editor.dataset.importing='false';editor.contentEditable='true';editor.removeAttribute('aria-busy');controls.forEach(([el,disabled])=>el.disabled=disabled);}}};
     const remember=()=>{const s=window.getSelection();if(s.rangeCount&&editor.contains(s.anchorNode))selection=s.getRangeAt(0).cloneRange();};
     editor.onkeyup=remember;editor.onmouseup=remember;editor.oninput=remember;
     const restore=()=>{editor.focus();const s=window.getSelection();if(selection){s.removeAllRanges();s.addRange(selection);}else{const range=document.createRange();range.selectNodeContents(editor);range.collapse(false);s.removeAllRanges();s.addRange(range);}};
-    const command=(cmd,value=null)=>{restore();document.execCommand('styleWithCSS',false,false);document.execCommand(cmd,false,value);remember();};
-    editor.onpaste=event=>{event.preventDefault();command('insertText',event.clipboardData.getData('text/plain'));};
+    const command=(cmd,value=null)=>{const editable=editor.contentEditable;editor.contentEditable='true';try{restore();document.execCommand('styleWithCSS',false,false);document.execCommand(cmd,false,value);remember();}finally{editor.contentEditable=editable;}};
+    const insertSignature=html=>{
+      restore();const selected=window.getSelection(),range=selected.getRangeAt(0),template=document.createElement('template');template.innerHTML=html;
+      const last=template.content.lastChild;range.deleteContents();range.insertNode(template.content);styleSignature(editor);
+      if(last){range.setStartAfter(last);range.collapse(true);selected.removeAllRanges();selected.addRange(range);}remember();
+    };
+    editor.addEventListener('error',event=>{if(event.target.tagName!=='IMG')return;status.hidden=false;status.textContent=[...editor.querySelectorAll('img')].filter(img=>img.complete&&!img.naturalWidth).map(img=>`${img.alt||'Image'}: The linked image could not load. Check that its link is publicly accessible, or select it and use Add image.`).join('\n');},true);
+    editor.onpaste=event=>{
+      event.preventDefault();if(importing)return;remember();const html=event.clipboardData.getData('text/html'),plain=event.clipboardData.getData('text/plain'),files=[...event.clipboardData.files].filter(f=>f.type.startsWith('image/'));
+      imageTask(async()=>{
+        if(html){let payload={html};if(files.length){payload=new FormData();payload.append('html',html);files.slice(0,3).forEach(file=>payload.append('images',file));}const result=await api('billing/signature-paste',payload);if(!editor.isConnected)return;insertSignature(result.html);status.textContent=result.missing_images?`${result.missing_images} image(s) need replacing. Select each [Add image] label and use Add image.\n`+(result.image_errors||[]).map(e=>`${e.image}: ${e.reason}`).join('\n'):'Signature pasted with its available images. Save email templates to keep it.';}
+        else if(files.length){for(const file of files.slice(0,3)){const fd=new FormData();fd.append('file',file);const result=await api('billing/signature-image',fd);if(editor.isConnected)command('insertHTML',`<img src="${esc(result.src)}" alt="Signature image">`);}if(editor.isConnected)status.textContent='Images added. Save email templates to keep them.';}
+        else{command('insertText',plain);status.textContent='Signature text pasted. Save email templates to keep it.';}
+      });
+    };
     editor.ondrop=event=>event.preventDefault();
     document.querySelectorAll('[data-signature-command]').forEach(button=>{button.onmousedown=e=>e.preventDefault();button.onclick=()=>command(button.dataset.signatureCommand);});
     $('#signature-size').onchange=e=>command('fontSize',e.target.value);
@@ -70,7 +91,7 @@ const BillingMail=(()=>{
     $('#signature-link').onmousedown=e=>e.preventDefault();
     $('#signature-link').onclick=()=>{const href=prompt('Website, email or phone link (https://, mailto: or tel:):');if(!href)return;if(!/^(https?:\/\/|mailto:|tel:)/i.test(href)||/[\x00-\x1f\x7f]/.test(href))return toast('Use an http, https, mailto or tel link.');restore();if(!window.getSelection().toString()){const label=prompt('Link text:',href);if(!label)return;command('insertHTML',`<a href="${esc(href)}">${esc(label)}</a>`);}else command('createLink',href);};
     $('#signature-image').onmousedown=e=>e.preventDefault();$('#signature-image').onclick=()=>$('#signature-image-file').click();
-    $('#signature-image-file').onchange=()=>run(async()=>{const file=$('#signature-image-file').files[0];if(!file)return;const fd=new FormData();fd.append('file',file);const result=await api('billing/signature-image',fd);command('insertHTML',`<img src="${esc(result.src)}" alt="Signature image">`);});
+    $('#signature-image-file').onchange=()=>imageTask(async()=>{const file=$('#signature-image-file').files[0];if(!file)return;const fd=new FormData();fd.append('file',file);const result=await api('billing/signature-image',fd);if(!editor.isConnected)return;command('insertHTML',`<img src="${esc(result.src)}" alt="Signature image">`);status.textContent='Image added. Save email templates to keep it.';$('#signature-image-file').value='';});
   }
   function reminderScheduleText(d){
     const parts=[];
@@ -109,10 +130,10 @@ const BillingMail=(()=>{
   async function compose(doc,kind='document'){
     const draft=await api(`billing/documents/${doc.id}/email-draft?kind=${kind}`);
     if(!draft.ready){toast('Add your SMTP account in Settings → Email delivery first.');return;}
-    modal(kind==='receipt'?`Email payment receipt · ${esc(doc.number)}`:kind==='reminder_manual'?'Payment reminder':`Email ${esc(doc.number)}`,`<form id="client-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}<div class="notice">Attachment: <strong>${esc(draft.filename)}</strong><br>${doc.state==='draft'?'Sending issues and locks this draft.':'The current document and recorded payments are included.'}</div><a class="button-link secondary" href="${esc(draft.attachment_url)}">Preview PDF</a><div class="modal-footer"><button type="submit">Send email</button><button type="button" class="secondary" id="cancel-client-email">Cancel</button></div></form>`);
-    $('#modal').classList.add('billing-dialog');bindSignaturePreview(draft);
+    modal(kind==='receipt'?`Email payment receipt · ${esc(doc.number)}`:kind==='reminder_manual'?'Payment reminder':`Email ${esc(doc.number)}`,`<form id="client-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}${copyOption(draft)}${BillingWorkspace.attachmentHTML(draft.attachments||[])}<div class="notice">Attachment: <strong>${esc(draft.filename)}</strong><br>${doc.state==='draft'?'Sending issues and locks this draft.':'The current document and recorded payments are included.'}</div><a class="button-link secondary" href="${esc(draft.attachment_url)}">Preview PDF</a><div class="modal-footer"><button type="submit">Send email</button><button type="button" class="secondary" id="cancel-client-email">Cancel</button></div></form>`);
+    $('#modal').classList.add('billing-dialog');bindSignaturePreview(draft);BillingWorkspace.mountAttachments(doc,draft.attachments);
     on('#cancel-client-email',()=>Billing.view(doc.id));
-    formHandler('#client-email-form',async(data,form)=>{const result=await api(`billing/documents/${doc.id}/send`,{...data,message_kind:kind,include_signature:form.elements.include_signature?.checked??false,version:draft.version,request_key:draft.request_key});await Billing.view(doc.id);if(['invoices','quotes'].includes(page))await Billing.documents(doc.kind);toast(result.state==='sent'?'Email accepted by your mail server.':result.error||'Delivery is still being processed.');});
+    formHandler('#client-email-form',async(data,form)=>{if(form.dataset.attachmentsBusy)throw Error('Wait for your supporting files to finish attaching.');const result=await api(`billing/documents/${doc.id}/send`,{...data,message_kind:kind,attachment_ids:[...form.querySelectorAll('[name=supporting_file]:checked')].map(e=>Number(e.value)),include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await Billing.view(doc.id);if(['invoices','quotes'].includes(page))await Billing.documents(doc.kind);toast(result.state==='sent'?'Email accepted by your mail server.':result.error||'Delivery is still being processed.');});
   }
   async function statement(cid,options={mode:'all'}){
     const query=new URLSearchParams(Object.entries(options).filter(([,value])=>value));
@@ -129,9 +150,9 @@ const BillingMail=(()=>{
   async function composeStatement(cid,options){
     const query=new URLSearchParams(Object.entries(options).filter(([,value])=>value)),draft=await api(`billing/clients/${cid}/statement/email-draft?${query}`);
     if(!draft.ready)return toast('Add your SMTP account in Settings → Email delivery first.');
-    modal('Email client statement',`<form id="statement-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}<p>Attachment: ${esc(draft.filename)}</p><a class="button-link secondary" href="/api/billing/clients/${cid}/statement/pdf?${query}">Preview statement PDF</a><div class="modal-footer"><button type="submit">Send statement</button><button type="button" class="secondary" id="cancel-statement-email">Cancel</button></div></form>`);
+    modal('Email client statement',`<form id="statement-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}${copyOption(draft)}<p>Attachment: ${esc(draft.filename)}</p><a class="button-link secondary" href="/api/billing/clients/${cid}/statement/pdf?${query}">Preview statement PDF</a><div class="modal-footer"><button type="submit">Send statement</button><button type="button" class="secondary" id="cancel-statement-email">Cancel</button></div></form>`);
     bindSignaturePreview(draft);on('#cancel-statement-email',()=>statement(cid,options));
-    formHandler('#statement-email-form',async(data,form)=>{const result=await api(`billing/clients/${cid}/statement/send`,{...data,...options,include_signature:form.elements.include_signature?.checked??false,version:draft.version,request_key:draft.request_key});await statement(cid,options);toast(result.state==='sent'?'Statement accepted by your mail server.':result.error||'Delivery is still being processed.');});
+    formHandler('#statement-email-form',async(data,form)=>{const result=await api(`billing/clients/${cid}/statement/send`,{...data,...options,include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await statement(cid,options);toast(result.state==='sent'?'Statement accepted by your mail server.':result.error||'Delivery is still being processed.');});
   }
   function invoiceReminderStatus(doc,schedule){
     if(!doc.reminders_enabled)return 'Off for this invoice. You can still send a reminder manually.';

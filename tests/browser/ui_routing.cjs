@@ -28,25 +28,25 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   // In-place rendering after saves must not create phantom Back entries.
   await page.evaluate(()=>render());await page.goBack();await check('recurring','Recurring invoices');
   await page.goForward();await check('quotes','Quotes');
-  await navigate(page,'settings');await page.locator('#manage-tax-agents').click();
+  await navigate(page,'settings');await page.locator('[data-settings-jump=security]').click();await page.locator('#manage-tax-agents').click();
   await check('settings/tax-agent-access','Settings / Tax agent access');
   await page.reload();await check('settings/tax-agent-access','Settings / Tax agent access');
   await page.locator('#back-to-settings').click();await check('settings','Settings');
   await navigate(page,'budgets');await page.locator('#add-budget').click();
   assert.equal(await page.locator('#modal').evaluate(d=>d.open),true);
-  await page.goBack();await check('settings','Settings');
+  await page.goBack();await check('expenses','Expenses');
   assert.equal(await page.locator('#modal').evaluate(d=>d.open),false);
   await page.goForward();await check('budgets','Category budgets');
   await page.reload();await check('budgets','Category budgets');
-  for(const [key,title] of [['receipts','Receipt inbox'],['trips','Trips & meals'],['vehicles','Vehicles'],['banks','Bank accounts'],['employment','Employment income'],['tax','Tax forecast'],['reports','Expense reports'],['clients','Clients'],['services','Services & prices'],['time','Billable time'],['income','Income report']]){
+  for(const [key,title] of [['receipts','Document inbox'],['trips','Trips & meals'],['vehicles','Vehicles'],['banks','Bank accounts'],['employment','Employment income'],['tax','Tax forecast'],['reports','Expense reports'],['clients','Clients'],['services','Services & prices'],['time','Billable time'],['income','Income report']]){
    await navigate(page,key);await check(key,title);await page.reload();await check(key,title);
   }
   await page.goto(url+'/#/missing-page');await check('dashboard','Dashboard');
   // Feature restrictions apply to direct links too, without deleting any records.
-  await navigate(page,'settings');await page.locator('#feature-form [name="business"]').uncheck();
+  await navigate(page,'settings');await page.locator('[data-settings-jump=workspace]').click();await page.locator('#feature-form [name="business"]').uncheck();
   await page.locator('#feature-form [type="submit"]').click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();
   await page.goto(url+'/#/invoices');await check('dashboard','Dashboard');
-  await navigate(page,'settings');await page.locator('#feature-form [name="business"]').check();
+  await navigate(page,'settings');await page.locator('[data-settings-jump=workspace]').click();await page.locator('#feature-form [name="business"]').check();
   await page.locator('#feature-form [type="submit"]').click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();
   await page.setViewportSize({width:390,height:844});
   await navigate(page,'invoices');await page.locator('[data-billing-page="recurring"]').click();await check('recurring','Recurring invoices');

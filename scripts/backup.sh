@@ -38,7 +38,8 @@ if [ "$running" = true ]; then
   docker stop "$container" >/dev/null
 fi
 # The archive has stable data/ and optional .env entries, regardless of host paths.
-args=(-C "$data_dir" --transform 's,^\./,data/,;s,^\.$,data,' .)
+# Automatic backups stored in data/backups are archives already; do not nest them.
+args=(--exclude=./backups --exclude='./.backup-stage-*' --exclude=./backup-id --exclude=./.backup-identity.lock -C "$data_dir" --transform 's,^\./,data/,;s,^\.$,data,' .)
 if [ -f "$env_file" ]; then
   env_dir=$(cd -- "$(dirname -- "$env_file")" && pwd -P)
   env_name=$(basename -- "$env_file")

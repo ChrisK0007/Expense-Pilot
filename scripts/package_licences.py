@@ -4,6 +4,7 @@ from importlib import metadata
 import json
 from pathlib import Path
 import platform
+import sqlite3
 import subprocess
 import sys
 import sysconfig
@@ -13,7 +14,7 @@ import zipfile
 
 def collect(output):
     output.mkdir(parents=True, exist_ok=True)
-    inventory = {'python_version': platform.python_version(), 'python': [], 'debian': [], 'notices': {}}
+    inventory = {'python_version': platform.python_version(), 'python': [], 'debian': [], 'native': [], 'notices': {}}
     with zipfile.ZipFile(output / 'dependency-notices.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
         def notice(name, path):
             if not path.is_file():
@@ -47,6 +48,16 @@ def collect(output):
         for path in sorted(Path('/usr/share/common-licenses').glob('*')):
             notice('debian/common-licenses/' + path.name, path)
         notice('python/stdlib/LICENSE.txt', Path(sysconfig.get_path('stdlib')) / 'LICENSE.txt')
+        sqlite_share = Path('/opt/sqlite/share')
+        sqlite_manifest = sqlite_share / 'sqlite-runtime.json'
+        if sqlite_manifest.is_file():
+            entry = json.loads(sqlite_manifest.read_text())
+            if entry['version'] != sqlite3.sqlite_version:
+                raise RuntimeError('SQLite inventory does not match the Python runtime')
+            entry['notice'] = 'native/sqlite/NOTICE.txt'
+            notice(entry['notice'], sqlite_share / 'NOTICE.txt')
+            notice('native/sqlite/sqlite-runtime.json', sqlite_manifest)
+            inventory['native'].append(entry)
         archive.writestr('dependency-inventory.json', json.dumps(inventory, indent=2) + '\n')
     (output / 'dependency-inventory.json').write_text(json.dumps(inventory, indent=2) + '\n')
 

@@ -126,7 +126,7 @@ def session_valid(kind='auth'):
     return True
 
 
-def start_session(user, pending=False, device_name=None):
+def start_session(user, pending=False, device_name=None, sign_in=False):
     if device_name is None:
         device_name = session.get('device_name', session.get('mfa_device_name', ''))
     revoke_session()
@@ -137,6 +137,9 @@ def start_session(user, pending=False, device_name=None):
     db().execute('INSERT INTO login_sessions(token_hash,user_id,kind,expires,device_name,created_at,last_used,user_version) VALUES (?,?,?,?,?,?,?,?)',
                  (hashlib.sha256(token.encode()).hexdigest(), user['id'], 'mfa' if pending else 'auth', expiry,
                   '' if pending else device_name, now, now, user['version']))
+    if not pending:
+        import signin_alerts
+        signin_alerts.record(user, hashlib.sha256(token.encode()).hexdigest(), device_name, now, sign_in)
     db().commit()
     session.update(sid=token, csrf=secrets.token_hex(24))
     if pending:
@@ -175,7 +178,7 @@ def login_response():
     if user['must_change_password'] and user['invite_expires'] <= clock():
         fail('This temporary password has expired. Ask the owner to resend your invitation.', 401)
     clear_rate(account_key); db().commit()
-    start_session(user, pending=bool(user['totp_enabled']), device_name=device_name)
+    start_session(user, pending=bool(user['totp_enabled']), device_name=device_name, sign_in=True)
     if user['totp_enabled']:
         return jsonify(mfa_required=True)
     return jsonify(ok=True, password_change_required=bool(user['must_change_password']))
@@ -225,7 +228,7 @@ def verify_login():
     if not user or not user['active'] or user['version'] != session.get('mfa_version') or not user['totp_enabled'] or user['role'] not in ('owner', 'tax_agent'):
         session.clear(); fail('Sign-in changed. Enter your email and password again.', 401)
     factor(user, (request.get_json() or {}).get('code'))
-    db().commit(); start_session(user)
+    db().commit(); start_session(user, sign_in=True)
     return jsonify(ok=True, password_change_required=bool(user['must_change_password']))
 
 

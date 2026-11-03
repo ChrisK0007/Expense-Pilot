@@ -14,6 +14,18 @@ class MigrationTest(unittest.TestCase):
         self.connection.execute('PRAGMA foreign_keys=ON')
         self.addCleanup(self.connection.close)
 
+    def test_equipment_evidence_upgrade_preserves_saved_deductions(self):
+        c=self.connection
+        previous=sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name<'m027_')
+        with patch('migrations.Path.glob',return_value=previous): apply(c)
+        c.execute("INSERT INTO users(id,name,email,password,role) VALUES (1,'Owner','owner@test','hash','owner')")
+        c.execute("INSERT INTO equipment_assets(id,user_id,name,acquired,cost_cents,work_percent,business_percent,version) VALUES (7,1,'Existing asset','2023-01-01',60000,50,25,8)")
+        c.execute("INSERT INTO equipment_depreciation(asset_id,year,amount_cents,notes,confirmed,work_percent,business_percent,claimable_cents) VALUES (7,2025,8000,'Accountant amount',1,50,25,8000)")
+        c.commit();before=c.execute('SELECT * FROM equipment_depreciation').fetchall();apply(c)
+        self.assertEqual(c.execute('SELECT cost_cents,version,evidence_receipt_id FROM equipment_assets').fetchone(),(60000,8,None))
+        self.assertEqual(c.execute('SELECT * FROM equipment_depreciation').fetchall(),before)
+        self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
+
     def test_existing_database_adoption_preserves_values_and_retires_employee(self):
         c = self.connection
         apply(c)
@@ -29,7 +41,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),19)
+        self.assertEqual(len(ledger),28)
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
         self.assertEqual(c.execute('SELECT version FROM users WHERE id=2').fetchone()[0],8)
@@ -50,7 +62,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],19)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],28)
 
     def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
         c = self.connection
@@ -74,12 +86,12 @@ class MigrationTest(unittest.TestCase):
             with self.subTest(table=table):
                 current = c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall()
                 self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],19)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],28)
         self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
         self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],19)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],28)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)
@@ -111,3 +123,78 @@ class MigrationTest(unittest.TestCase):
         self.connection.commit()
         with self.assertRaisesRegex(RuntimeError,'newer migrations'):
             apply(self.connection)
+
+    def test_home_office_upgrade_preserves_existing_rows_and_settings(self):
+        c=self.connection
+        previous=sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name<'m020_')
+        with patch('migrations.Path.glob',return_value=previous): apply(c)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],19)
+        c.execute("INSERT INTO users(id,name,email,password,role) VALUES (1,'Owner','owner@test','hash','owner')")
+        c.execute("INSERT INTO receipts VALUES ('receipt',1,'kept.png','image/png')")
+        c.execute("INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,work_percent,business_percent,receipt_id) VALUES (1,'2026-10-08','Kept expense',17999,'split','Other',80,30,50,'receipt')")
+        c.execute("INSERT INTO login_sessions(token_hash,user_id,kind,expires) VALUES ('session',1,'full',9999999999)")
+        c.execute("INSERT INTO billing_settings VALUES ('custom-setting','keep this value')")
+        c.commit()
+        tables=[r[0] for r in c.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+        columns={t:','.join('"'+r[1]+'"' for r in c.execute('PRAGMA table_info("'+t+'")')) for t in tables}
+        before={t:c.execute('SELECT '+columns[t]+' FROM "'+t+'" ORDER BY rowid').fetchall() for t in tables}
+        apply(c)
+        for table,records in before.items():
+            after=c.execute('SELECT '+columns[table]+' FROM "'+table+'" ORDER BY rowid').fetchall()
+            self.assertEqual(after[:len(records)] if table=='schema_migrations' else after,records,table)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],28)
+        self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
+        apply(c)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],28)
+
+    def test_document_upgrade_preserves_all_beta_four_records(self):
+        c=self.connection
+        previous=sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name<'m021_')
+        with patch('migrations.Path.glob',return_value=previous): apply(c)
+        c.execute("INSERT INTO users(id,name,email,password,role) VALUES (1,'Owner','owner@test','hash','owner')")
+        c.execute("INSERT INTO home_office_settings(user_id,year,data,version) VALUES (1,2026,'{\"method\":\"fixed\"}',3)")
+        c.execute("INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category) VALUES (1,'2026-10-08','Kept',10000,'work','Other')")
+        c.commit()
+        tables=[r[0] for r in c.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+        columns={t:','.join('"'+r[1]+'"' for r in c.execute('PRAGMA table_info("'+t+'")')) for t in tables}
+        before={t:c.execute('SELECT '+columns[t]+' FROM "'+t+'" ORDER BY rowid').fetchall() for t in tables}
+        apply(c)
+        for table,records in before.items():
+            current=c.execute('SELECT '+columns[table]+' FROM "'+table+'" ORDER BY rowid').fetchall()
+            self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
+        self.assertEqual(c.execute('SELECT count(*) FROM tax_documents').fetchone()[0],0)
+        apply(c)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],28)
+
+    def test_tax_workspace_upgrade_preserves_annual_shares_and_authorship(self):
+        c=self.connection
+        previous=sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name<'m025_')
+        with patch('migrations.Path.glob',return_value=previous): apply(c)
+        c.execute("INSERT INTO users(id,name,email,password,role) VALUES (1,'Owner','owner@test','hash','owner'),(2,'Agent','agent@test','hash','tax_agent')")
+        c.execute("INSERT INTO equipment_assets(id,user_id,name,acquired,cost_cents,work_percent,business_percent) VALUES (1,1,'Tablet','2025-07-01',120000,60,20)")
+        c.execute("INSERT INTO equipment_depreciation VALUES (1,2025,60000,'Reviewed',1)")
+        c.execute("INSERT INTO billing_clients(id,name) VALUES (1,'Test client')")
+        c.execute("INSERT INTO billing_documents(id,kind,number,issue_date,due_date,client,business,lines,tax_mode,subtotal_cents,gst_cents,total_cents,client_id,created_at) VALUES (1,'invoice','INV-1','2026-08-01','2026-08-01','{}','{}','[]','none',10000,0,10000,1,'2026-08-01')")
+        c.execute("INSERT INTO billing_wording_history(document_id,version,user_id,previous,changed_at) VALUES (1,1,2,'{\"notes\":\"Prior wording\"}','2026-08-02')")
+        c.commit();apply(c)
+        self.assertEqual(c.execute('SELECT amount_cents,work_percent,business_percent,claimable_cents FROM equipment_depreciation').fetchone(),(60000,60,20,None))
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM adviser_years').fetchone()[0],0)
+        c.execute('DELETE FROM users WHERE id=2');c.commit()
+        record=c.execute('SELECT user_id,author_name,previous FROM billing_wording_history').fetchone()
+        self.assertEqual(record[:2],(None,'Agent'));self.assertIn('Prior wording',record[2])
+        self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
+
+
+class DueDateUpgradeTest(unittest.TestCase):
+    def test_terms_dates_become_automatic_and_custom_dates_survive_re_adoption(self):
+        c=sqlite3.connect(':memory:');self.addCleanup(c.close)
+        c.execute("CREATE TABLE billing_documents(id INTEGER,kind TEXT,issue_date TEXT,due_date TEXT,client TEXT,schedule_id INTEGER)")
+        c.execute("CREATE TABLE billing_schedules(id INTEGER,terms INTEGER)")
+        c.execute("CREATE TABLE vehicle_journeys(scope TEXT,purpose TEXT,review_confirmed INTEGER)")
+        c.execute("INSERT INTO billing_schedules VALUES (1,30)")
+        for ident,due,schedule in [(1,'2024-03-05',None),(2,'2024-04-01',None),(3,'2024-03-21',1)]:
+            c.execute("INSERT INTO billing_documents VALUES (?,'invoice','2024-02-20',?,?,?)",(ident,due,'{"terms":14}',schedule))
+        upgrade=importlib.import_module('migrations.m024_simplify_review').upgrade;upgrade(c)
+        self.assertEqual(c.execute('SELECT due_date_manual FROM billing_documents ORDER BY id').fetchall(),[(0,),(1,),(0,)])
+        c.execute('UPDATE billing_documents SET due_date_manual=1 WHERE id=1');upgrade(c)
+        self.assertEqual(c.execute('SELECT due_date,due_date_manual FROM billing_documents WHERE id=1').fetchone(),('2024-03-05',1))

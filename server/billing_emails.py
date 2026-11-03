@@ -107,7 +107,28 @@ def upload_signature_image():
     upload = request.files.get('file')
     if not upload:
         fail('Choose a signature image.')
-    return jsonify(src=signature_image(upload.read(100 * 1024 + 1)))
+    return jsonify(src=signature_image(upload.read(2 * 1024 * 1024 + 1)))
+
+
+@bp.post('/signature-paste')
+@owner
+def paste_signature():
+    from billing import body, jsonify, request, fail
+    from billing_email_core import SignatureParser
+    value=request.form.get('html','') if request.mimetype=='multipart/form-data' else body().get('html','')
+    cleaned,plain=clean_signature(value)
+    parser=SignatureParser();parser.feed(value)
+    uploads=request.files.getlist('images')
+    if len(uploads)>3: fail('Use at most three signature images.')
+    # Clipboard image order is usable only when every missing HTML image has bytes.
+    if uploads and len(uploads)==parser.missing_images:
+        images=[signature_image(upload.read(2*1024*1024+1)) for upload in uploads]
+        cleaned,plain=clean_signature(value,images);missing=0
+        errors=[]
+    else:
+        missing=parser.missing_images
+        errors=[dict(image=label,reason='Use a public HTTPS image link or replace this image with Add image.') for label in parser.missing_sources]
+    return jsonify(html=cleaned,missing_images=missing,image_errors=errors)
 
 
 @bp.route('/reminder-settings', methods=['GET', 'PUT'])
@@ -188,6 +209,8 @@ def validate_message_kind(doc, kind):
         fail('Choose an invoice, reminder or payment receipt email.')
     if kind != 'document' and (doc['kind'] != 'invoice' or doc['state'] != 'issued'):
         fail('Reminders and receipts require an issued invoice.', 409)
+    if kind!='document' and doc.get('needs_reissue'):
+        fail('Reissue the amended invoice before sending a reminder or receipt.',409)
     if kind.startswith('reminder_') and doc['balance_cents'] <= 0:
         fail('This invoice has no outstanding balance.', 409)
     if kind == 'receipt' and doc['paid_cents'] <= 0:
@@ -238,6 +261,9 @@ def queue_document_email(doc, recipient, subject, message, key, kind='document',
     if doc['state'] == 'draft':
         db().execute("UPDATE billing_documents SET state='issued' WHERE id=?", (doc['id'],))
         doc['state'] = 'issued'
+    if kind=='document':
+        db().execute('UPDATE billing_documents SET needs_reissue=0 WHERE id=?',(doc['id'],))
+        doc['needs_reissue']=0
     attachment, filename = document_attachment(doc, kind)
     cur = db().execute("INSERT INTO billing_outbox(document_id,recipient,subject,body,state,request_key,created_at,message_kind,signature_html,automation_key) VALUES (?,?,?,?,'sending',?,?,?,?,?)",
                        (doc['id'], recipient, subject, message, key, now(), kind, signature, automation_key))
@@ -246,9 +272,9 @@ def queue_document_email(doc, recipient, subject, message, key, kind='document',
     return cur.lastrowid, attachment, filename
 
 
-def deliver_queued(oid, recipient, subject, message, attachment, filename, signature):
+def deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=None, attachments=None):
     from billing import audit, db, deliver
-    state, error = deliver(recipient, subject, message, attachment, filename, signature_html=signature, copy=True)
+    state, error = deliver(recipient, subject, message, attachment, filename, signature_html=signature, copy=True, copy_self=copy_self, **({"attachments": attachments} if attachments else {}))
     db().execute('UPDATE billing_outbox SET state=?,error=? WHERE id=?', (state, error, oid))
     audit('client email ' + state, oid)
     db().commit()
@@ -276,7 +302,7 @@ def run_reminders(today=None):
             schedule = effective_reminder_schedule(doc, config)
             difference = (date.fromisoformat(today) - date.fromisoformat(doc['due_date'])).days
             scheduled = (schedule['before_days'] > 0 and difference == -schedule['before_days']) or (schedule['on_due_date'] and difference == 0) or difference in schedule['after_days']
-            if not scheduled or not doc['reminders_enabled'] or doc['state'] != 'issued' or doc['balance_cents'] <= 0 or not doc['client']['email']:
+            if doc.get('needs_reissue') or not scheduled or not doc['reminders_enabled'] or doc['state'] != 'issued' or doc['balance_cents'] <= 0 or not doc['client']['email']:
                 db().rollback()
                 continue
             key = f"invoice:{doc['id']}:{doc['due_date']}:{today}"

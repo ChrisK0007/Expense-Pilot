@@ -11,8 +11,13 @@ services:
       DATA_DIR: /data
       SETUP_TOKEN: ${SETUP_TOKEN:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
     volumes:
       - expense-data:/data
+      # Optional: keep automatic backups on another disk, writable by UID 99 / GID 100.
+      # - /path/on/another/disk/expense-pilot-backups:/backups
     read_only: true
     tmpfs:
       - /tmp:size=512m,mode=1777

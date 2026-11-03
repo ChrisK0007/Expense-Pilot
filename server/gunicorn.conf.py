@@ -7,3 +7,9 @@ def post_worker_init(worker):
 
     from notifications import start_scheduler as start_notification_scheduler
     start_notification_scheduler(app)
+
+    from auto_backup import start_scheduler as start_backup_scheduler
+    start_backup_scheduler(app)
+
+    from workflow_worker import start as start_workflow_worker
+    start_workflow_worker(app)

@@ -30,7 +30,8 @@ class TrackingTest(unittest.TestCase):
     def test_categories_are_persistent_validated_and_permissioned(self):
         result=self.call(self.owner,'categories',{'name':'Flight test fees'})
         self.assertEqual(result.status_code,200);self.assertIn('Flight test fees',result.json)
-        self.assertIn('Flight test fees',self.staff.get('/api/session').json['categories'])
+        self.assertIn('Flight test fees',self.owner.get('/api/session').json['categories'])
+        self.assertNotIn('Flight test fees',self.staff.get('/api/session').json['categories'])
         self.assertEqual(self.call(self.owner,'categories',{'name':'flight TEST fees'}).status_code,409)
         self.assertEqual(self.call(self.owner,'categories',{'name':'Meals'}).status_code,409)
         self.assertEqual(self.call(self.owner,'categories',{'name':''}).status_code,400)

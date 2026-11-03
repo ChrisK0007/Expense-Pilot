@@ -29,6 +29,10 @@ DATA_DIR=/tmp/expense-pilot-dev python server/app.py
 
 Production uses Gunicorn, not Flask's development server. Browser suites live in `tests/browser/`; see the Docker workflow for their Playwright setup. The disposable browser server is excluded from the production image. CI also boots the real Gunicorn entry point and checks its reported version.
 
+The image builds a checksum-pinned SQLite shared library with `scripts/build_sqlite.py` and selects it through `LD_LIBRARY_PATH=/opt/sqlite/lib`. Build and health checks verify Python's loaded version and source ID against `/opt/sqlite/share/sqlite-runtime.json`; the Debian package version alone does not identify the application's library. Source, compiler arguments and notices accompany the dependency downloads.
+
+Docker runs `python healthcheck.py` every 60 seconds. It checks the local HTTP service, then opens the existing database with `mode=ro` and runs `quick_check(1)` with a five-second SQL execution budget. The check respects live WAL data, checks required tables and never imports the app, creates a database or repairs corruption. A failure marks the container unhealthy; it does not itself restart or replace the database. Large databases exceeding the time budget require investigation. Full integrity and foreign-key validation remain part of backup restore checks.
+
 ## Database migrations
 
 Startup applies `server/migrations/mNNN_description.py` in filename order. Each module exposes `upgrade(connection)`. A `schema_migrations` ledger records the name, checksum and application time. `BEGIN IMMEDIATE` serialises concurrent startup; a failed migration rolls back its schema/data changes and its ledger entry together. Successful earlier migrations remain committed.
@@ -72,3 +76,18 @@ Migration m008 adds the connection, account mapping and source transaction table
 A sync fetches the complete selected date window before an atomic upsert. The unique source user/transaction ID prevents repeated imports. Absent transactions are flagged as not returned, not silently deleted. Financial changes to linked source records flag review and never change expense amounts or allocations. Creating an expense and linking its source row share one database transaction; deleting a linked expense leaves an ignored source record to prevent recreation. Existing-expense matching is explicit and limited to equal AUD amounts within three days and the same or unassigned account.
 
 Tests replace only the PocketSmith client in the disposable browser server; the production image contains neither test credentials nor test endpoints. Tests cover failed sync atomicity, pagination, retry limits, pending replacement, duplicate protection, changed/missing records, permission boundaries, encryption and configuration changes during sync.
+
+## Home office
+
+Migration m020 adds the owner’s time diary, annual method/settings, expense classifications, allowance records and append-only application history. No existing migration is modified. Entries use actual timestamps with the recorded IANA timezone, reject gaps/ambiguous daylight-saving times until explicitly resolved, and prevent overlapping employment/business sessions. UUID creation retries and optimistic record versions prevent duplicate or stale changes.
+
+`home_office.py` keeps original expense amounts and percentages intact. `finance_routes.py` applies the selected annual method to reviewed classified expenses and adds eligible fixed-rate hours once. Incomplete selections remain pending; annual tax overrides still replace recorded totals. Automatic Phone & internet detection prevents double counting but does not establish evidence until the cost type is confirmed. Reimbursed costs contribute neither a deduction nor evidence.
+
+The fixed-rate table contains reviewed years through FY 2026–27. Later years remain pending until a rule update. Actual costs use evidenced expense allocations; equipment and occupancy require an assessed annual base. This is not a depreciation engine or GST calculation. The optional standard-deduction comparison does not enter the forecast. `home-office.js` provides the web UI; API capability `home_office` advertises support without requiring a mobile-app update. Backup/restore includes all new records and existing receipt attachments.
+
+
+## Document income and bank matching
+
+Migration m022 adds an optional unique receipt source, record type, pay-period dates and optimistic version to employment income, plus an explicit cash-match exclusion on expenses. SQLite triggers enforce that one source cannot be filed as both income and an expense. Older records retain their values and default to manual income / eligible unmatched expenses. The existing receipt storage and backup manifest retain payslip originals. Income deletion removes only its ledger row, returning the source to Document inbox.
+
+`income_documents.py` sanitises current-pay extraction separately from YTD, provides a conservative local text-payslip fallback, and applies duplicate/annual-overlap checks inside the income filing transaction. `bank_matching.py` reads the already-synced local ledger, offers conservative suggestions, and revalidates matches under write locks. Backfill previews include expense fingerprints and transaction versions; applying a stale or ambiguous batch changes nothing. Explicit cash choices remain excluded. No automated match changes expense amounts, allocations or the remote bank feed.

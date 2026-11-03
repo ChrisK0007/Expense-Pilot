@@ -25,6 +25,8 @@ def documents():
                 db().commit()
                 return jsonify(id=prior['document_id'])
         values = validate_document(payload)
+        from billing_workspace import consume_draft
+        consume_draft(payload, 'new-' + values['kind'])
         did = insert_document(values, custom_number=payload.get('number'))
         if key:
             db().execute('INSERT INTO billing_document_requests(user_id,request_key,fingerprint,document_id) VALUES (?,?,?,?)', (g.user['id'],key,fingerprint,did))
@@ -69,25 +71,35 @@ def document_detail(did):
             db().execute('INSERT OR REPLACE INTO billing_reusable_invoice_numbers(number) VALUES (?)', (doc['number'],))
         audit(doc['kind'] + ' deleted', f"{did} ({doc['number']})")
     else:
-        if doc['state'] != 'draft':
-            fail('Issued amounts and details are locked. Use Edit wording for text corrections, or duplicate or void the document for other changes.', 409)
+        from billing_revisions import editable, remember, check_payments
+        editable(doc)
+        if doc['state']!='draft' and (doc['kind']!='invoice' or doc['state']!='issued'):
+            fail('Only draft quotes can be fully edited.',409)
+        payload.setdefault('due_date_manual',bool(doc['due_date_manual']))
         if {'reminders_enabled', 'reminder_options'} & payload.keys() and g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)
         payload.setdefault('reminders_enabled', bool(doc['reminders_enabled']))
         payload.setdefault('reminder_options', doc['reminder_options'])
-        values = validate_document(payload)
+        schedule=one('SELECT terms FROM billing_schedules WHERE id=?',(doc['schedule_id'],)) if doc['schedule_id'] and str(payload.get('client_id'))==str(doc['client_id']) else None
+        values = validate_document(payload, terms=schedule['terms'] if schedule else None)
         if values['kind'] != doc['kind']:
             fail('Document type cannot be changed.')
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:
             fail('This invoice contains linked time entries for its current client.')
+        check_payments(doc,values)
+        from billing_workspace import consume_draft
+        consume_draft(payload, 'document-' + str(did))
+        remember(doc)
         if 'number' in payload:
             from billing_numbers import change_number
             change_number(doc, payload['number'], bump_version=False)
         columns = ['client_id', 'client', 'business', 'tax_mode', 'issue_date', 'due_date', 'notes', 'reference',
-                   'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options']
+                   'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options', 'due_date_manual']
         data = [json.dumps(values[k]) if k in ('client', 'business', 'lines', 'reminder_options') else values[k] for k in columns]
         db().execute('UPDATE billing_documents SET ' + ','.join(k + '=?' for k in columns) + ',version=version+1 WHERE id=?', data + [did])
-        audit('draft updated', did)
+        if doc['state']=='issued':
+            db().execute('UPDATE billing_documents SET needs_reissue=1 WHERE id=?',(did,))
+        audit('invoice amended' if doc['state']=='issued' else 'draft updated', did)
     db().commit()
     return jsonify(ok=True)
 
@@ -101,7 +113,12 @@ def document_number(did):
     db().execute('BEGIN IMMEDIATE')
     doc = document(did)
     revision(doc, payload)
+    from billing_revisions import editable, remember
+    editable(doc)
+    remember(doc)
     change_number(doc, payload.get('number'))
+    if doc['state']=='issued' and payload.get('number')!=doc['number']:
+        db().execute('UPDATE billing_documents SET needs_reissue=1 WHERE id=?',(did,))
     db().commit()
     return jsonify(ok=True)
 
@@ -116,8 +133,9 @@ def document_wording(did):
     db().execute('BEGIN IMMEDIATE')
     doc = document(did)
     revision(doc, payload)
-    if doc['state'] in ('void', 'converted'):
-        fail('Void or converted documents cannot be amended.', 409)
+    from billing_revisions import editable, remember
+    editable(doc)
+    remember(doc)
     descriptions = payload.get('descriptions')
     if not isinstance(descriptions, list) or len(descriptions) != len(doc['lines']):
         fail('Provide a description for each existing line.')
@@ -133,6 +151,8 @@ def document_wording(did):
         line['description'] = description
     db().execute('UPDATE billing_documents SET lines=?,reference=?,notes=?,payment_details=?,version=version+1 WHERE id=?',
                  (json.dumps(doc['lines']), values['reference'], values['notes'], values['payment_details'], did))
+    if doc['kind']=='invoice' and doc['state']=='issued':
+        db().execute('UPDATE billing_documents SET needs_reissue=1 WHERE id=?',(did,))
     audit('document wording updated', did)
     db().commit()
     return jsonify(ok=True)
@@ -149,10 +169,10 @@ def document_action(did):
     revision(doc, payload)
     result_id = did
     if action == 'issue':
-        if doc['state'] != 'draft':
-            fail('Only drafts can be issued.', 409)
+        if doc['state'] != 'draft' and not (doc['state']=='issued' and doc['needs_reissue']):
+            fail('Only drafts or amended invoices can be issued.', 409)
         ready_to_issue(doc)
-        db().execute("UPDATE billing_documents SET state='issued',version=version+1 WHERE id=?", (did,))
+        db().execute("UPDATE billing_documents SET state='issued',needs_reissue=0,version=version+1 WHERE id=?", (did,))
     elif action in ('accepted', 'declined'):
         if doc['kind'] != 'quote' or doc['state'] != 'issued':
             fail('Only issued quotes can be marked accepted or declined.', 409)
@@ -160,13 +180,13 @@ def document_action(did):
     elif action == 'convert':
         if doc['kind'] != 'quote' or doc['state'] != 'accepted':
             fail('Mark the quote accepted before converting it.', 409)
-        payload = {**doc, 'kind': 'invoice', 'reminders_enabled': True, 'issue_date': local_today(),
+        payload = {**doc, 'kind': 'invoice', 'reminders_enabled': True, 'due_date_manual':False, 'issue_date': local_today(),
                    'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
         values = validate_document(payload)
         result_id = insert_document(values, source_quote=did)
         db().execute("UPDATE billing_documents SET state='converted',version=version+1 WHERE id=?", (did,))
     elif action == 'duplicate':
-        payload = {**doc, 'reminders_enabled': bool(doc['reminders_enabled']), 'issue_date': local_today(), 'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
+        payload = {**doc, 'reminders_enabled': bool(doc['reminders_enabled']), 'due_date_manual':False, 'issue_date': local_today(), 'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
         result_id = insert_document(validate_document(payload))
     elif action == 'void':
         if doc['paid_cents'] or doc['state'] in ('void', 'converted', 'draft'):
@@ -218,6 +238,7 @@ def add_payment(did):
         return jsonify(id=existing['id'])
     doc = document(did)
     revision(doc, payload)
+    if doc['needs_reissue']: fail('Reissue the amended invoice before recording another payment.',409)
     amount = cents(decimal_value(payload.get('amount'), 'payment amount', '0.01') * 100)
     when = day(payload.get('date'))
     if when > local_today() or when < doc['issue_date']:
@@ -235,12 +256,14 @@ def add_payment(did):
 @bp.get('/documents/<int:did>/email-draft')
 @owner
 def email_draft(did):
-    from billing import document, jsonify, mail_settings, request, secrets
+    from billing import document, email_copy_defaults, jsonify, mail_settings, request, secrets
     from billing_emails import document_message
     doc, config = document(did), mail_settings()
     kind = request.args.get('kind') or ('reminder_manual' if request.args.get('reminder') == '1' else 'document')
     draft = document_message(doc, kind)
-    return jsonify(**draft, recipient=doc['client']['email'], from_email=config['from_email'],
+    from billing_workspace import attachment_list
+    draft['attachments'] = attachment_list(did)
+    return jsonify(**draft, **email_copy_defaults(config), recipient=doc['client']['email'], from_email=config['from_email'],
                    attachment_url=f'/api/billing/documents/{did}/' + ('receipt' if kind == 'receipt' else 'pdf'),
                    filename=doc['number'] + ('-receipt' if kind == 'receipt' else '') + '.pdf',
                    ready=bool(config['host'] and config['from_email']), request_key=secrets.token_hex(24), version=doc['version'])
@@ -249,9 +272,10 @@ def email_draft(did):
 @bp.post('/documents/<int:did>/send')
 @owner
 def send_document(did):
-    from billing import body, db, document, email, fail, header, jsonify, mail_settings, one, request_key, revision, txt
+    from billing import body, db, document, email, email_copy_choice, fail, header, jsonify, mail_settings, one, request_key, revision, txt
     from billing_emails import clean_signature, deliver_queued, email_templates, queue_document_email
     payload = body()
+    copy_self = email_copy_choice(payload)
     key = request_key(payload.get('request_key'))
     recipient, subject, message = email(payload.get('recipient'), True), header(payload.get('subject')), txt(payload.get('body'), 20000)
     if not subject or not message:
@@ -271,7 +295,11 @@ def send_document(did):
     if kind not in ('document', 'reminder_manual', 'receipt'):
         fail('Choose an invoice, reminder or payment receipt email.')
     signature = clean_signature(email_templates()['signature_html'])[0] if payload.get('include_signature', True) else ''
+    from billing_workspace import selected_attachments
+    import json
+    attachments = selected_attachments(did, payload.get('attachment_ids', []))
     oid, attachment, filename = queue_document_email(doc, recipient, subject, message, key, kind, signature)
+    db().execute('UPDATE billing_outbox SET attachments_json=? WHERE id=?', (json.dumps([{k: a[k] for k in ('id','filename','mime','sha256')} for a in attachments]), oid))
     db().commit()
-    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature)
+    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=copy_self, attachments=attachments)
     return jsonify(state=state, error=error)

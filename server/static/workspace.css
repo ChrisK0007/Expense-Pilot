@@ -89,3 +89,105 @@ button{transition:box-shadow .15s}
 #modal .modal-title h2{overflow-wrap:anywhere;min-width:0}
 #modal #close-modal{flex-shrink:0}
 @media(max-width:600px){#modal .modal-footer>button{flex:1;min-height:44px}.billing-tabs button{min-height:44px}.table-actions{gap:4px}}
+
+/* Home-office records share existing workspace cards, forms and responsive tables. */
+.home-office-method {font-size:1.5rem}
+.home-office-note {padding:0 24px;max-width:90ch;color:var(--muted)}
+.home-office-issues {padding-left:1.25rem;line-height:1.6}
+.home-office-issues li+li {margin-top:.35rem}
+.home-office-history {white-space:pre-wrap;overflow-wrap:anywhere;max-width:40ch;font-size:.8rem}
+.home-office-comparison .card {min-width:0}
+#home-office-method-form fieldset {margin:20px 0;border:1px solid var(--line);border-radius:10px;padding:16px}
+#home-office-cost-form textarea {min-height:100px}
+#home-office-entry-form details,#home-office-method-form details {margin-top:16px}
+
+.home-office-cards {grid-template-columns:repeat(3,minmax(0,1fr))}
+.home-office-comparison {grid-template-columns:repeat(2,minmax(0,1fr))}
+.home-office-panel-header {flex-wrap:wrap}
+@media(max-width:700px){.home-office-cards,.home-office-comparison {grid-template-columns:1fr}.home-office-panel-header h2 {flex-basis:100%}}
+.auto-backup{margin-top:18px}.auto-backup p{overflow-wrap:anywhere}
+/* Home office: a compact overview and one task at a time. */
+.home-office-toolbar{justify-content:space-between;align-items:end}
+.home-office-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.home-office-overview{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin:22px 0 0}
+.home-office-summary-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.home-office-claim-summary .metric{font-size:32px;color:var(--accent);margin:12px 0 4px}
+.home-office-claim-summary p{margin:0 0 8px}
+.home-office-hours-summary .metric{margin:12px 0 8px}
+.home-office-hours-split{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 8px;font-size:14px}
+.home-office-hours-split strong{margin-left:8px}
+.home-office-next{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:14px 0 24px;font-size:13px;color:var(--muted)}
+.home-office-next p{margin:0;max-width:72ch}
+.home-office-next button{flex-shrink:0}
+.home-office-tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:20px;padding-bottom:10px}
+.home-office-tabs button{background:transparent;color:var(--muted)}
+.home-office-tabs button[aria-current]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.home-office-tabs button:hover{background:var(--hover);color:var(--ink)}
+.home-office-tabs .pill{margin-left:4px}
+.home-office-details{margin:14px 0;border:1px solid var(--line);border-radius:7px;padding:16px 20px;background:var(--surface)}
+.home-office-details summary,.home-office-help summary{cursor:pointer;font-weight:600}
+.home-office-details>p{max-width:90ch}
+.home-office-help{padding:14px 20px;font-size:13px;color:var(--muted)}
+.home-office-help p{max-width:90ch}
+.home-office-inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.home-office-cost-options{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+#home-office-method-form h3{margin:22px 0 8px}
+#home-office-view .panel{margin:0}
+.home-office-review h2{margin-top:0}
+@media(max-width:700px){.home-office-overview{grid-template-columns:1fr;gap:12px}.home-office-next{flex-direction:column;align-items:start;gap:12px}.home-office-tabs{gap:4px}.home-office-tabs button{padding:9px 10px;font-size:13px}.home-office-toolbar{align-items:center}.home-office-tools{gap:2px}.home-office-cost-options{grid-template-columns:1fr}.home-office-overview .card{padding:18px}.home-office-claim-summary .metric{font-size:28px}}
+
+@media(max-width:700px){
+ .home-office-overview .card{padding:16px}
+ .home-office-hours-summary{display:grid;grid-template-columns:1fr auto;gap:6px 12px}
+ .home-office-hours-summary .metric{grid-column:2;grid-row:1 / span 2;margin:0;font-size:24px}
+ .home-office-hours-split{grid-column:1;flex-direction:column;gap:2px;margin:0}
+ .home-office-hours-summary>small{grid-column:1 / -1}
+ #home-office-view .table-wrap{overflow:visible}
+ .home-office-records,.home-office-records tbody{display:block;min-width:0;width:100%}
+ .home-office-records thead{display:none}
+ .home-office-records tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:16px;border-bottom:1px solid var(--line)}
+ .home-office-records tr:last-child{border-bottom:0}
+ .home-office-records td{display:block;min-width:0;padding:0;border:0;white-space:normal;overflow-wrap:anywhere}
+ .home-office-records td:first-child,.home-office-records td:last-child{grid-column:1 / -1}
+ .home-office-records td:before{content:attr(data-label);display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
+ .home-office-records td[data-label=""]:before{display:none}
+ .home-office-records td[data-label="Activity"],.home-office-records td[data-label="Income treatment"]{grid-column:1 / -1}
+ .home-office-records td:last-child button{padding:8px 12px;background:var(--soft);margin-right:6px}
+}
+
+.document-card h2,.document-filename{overflow-wrap:anywhere}.document-notes{white-space:pre-wrap;overflow-wrap:anywhere}.document-card .settings-options{margin-top:16px}
+
+/* Document type controls hide expense-only fields while filing home-office evidence. */
+#receipt-review [hidden]{display:none!important}
+#income-document-form .notice,#receipt-bank-match{overflow-wrap:anywhere}
+
+#bank-match-previous table{width:100%;min-width:0;table-layout:fixed}
+#bank-match-previous th,#bank-match-previous td{white-space:normal;overflow-wrap:anywhere}
+#bank-match-previous th:first-child{width:52px}
+#bank-match-previous th:last-child{width:84px}
+
+.topline-actions{display:flex;gap:16px;align-items:center;margin-left:auto}.notification-trigger{position:relative;display:flex;align-items:center}.notification-count{position:absolute;right:0;top:-3px;background:var(--accent);color:white;border-radius:12px;min-width:17px;font-size:11px;padding:0 4px}.notification-panel{position:fixed;inset:auto;margin:0;padding:20px;width:min(420px,calc(100vw - 16px));max-height:75vh;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);box-shadow:0 12px 45px var(--shadow)}.notification-panel h2{margin:0}.notification-panel .footnote{margin:5px 0 12px}.notification-item{display:block;text-align:left;background:transparent;color:var(--ink);width:100%;padding:12px 0;border-bottom:1px solid var(--line);border-radius:0}.notification-item span{display:block;font-weight:400;font-size:13px;color:var(--muted);white-space:normal}.notification-panel>.button-link{margin-top:14px}.workspace-filter{position:relative}.workspace-filter>summary{cursor:pointer;padding:8px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}.workspace-filter fieldset{position:absolute;z-index:5;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:220px;box-shadow:0 8px 24px var(--shadow)}.workspace-filter legend{font-size:12px}.workspace-filter input{min-width:0;flex:none}
+
+.equipment-cards{display:grid;gap:18px;margin-top:18px}.equipment-cards .actions{margin-top:12px;flex-wrap:wrap}.equipment-cards details{margin-top:12px}.equipment-cards .footnote{margin-top:8px}
+
+.sharing-years{display:flex;flex-wrap:wrap;gap:0 20px}.adviser-shell #agent-records>h2{margin:26px 0 12px}.adviser-shell .card{margin-bottom:18px}
+
+/* Expense tools stay visible; sorting controls work with keyboard and touch. */
+.expense-tools {margin: 0 0 1rem; padding: .65rem 0;}
+.sort-expenses {background:transparent;color:inherit;padding:.3rem 0;border:0;font:inherit;display:inline-flex;gap:.5rem;align-items:center;white-space:nowrap;}
+.sort-expenses:hover,.sort-expenses:focus-visible {background:transparent;color:var(--accent);text-decoration:underline;}
+.category-entry {display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.35rem .6rem;border-bottom:1px solid var(--line);}
+.category-list {display:block;max-height:45vh;overflow:auto;margin-bottom:1rem;}
+.tax-treatment {margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:12px;}
+.tax-treatment h3 {margin:0 0 .5rem;}
+.import-row {margin:1rem 0;padding:1rem;border:1px solid var(--line);border-radius:12px;}
+
+.tax-treatment [hidden]{display:none!important}
+#equipment-form [hidden],#equipment-calculation [hidden],.import-row [hidden]{display:none!important}
+.equipment-advanced{margin:1rem 0;}
+.equipment-advanced>summary{cursor:pointer;color:var(--muted);padding:.35rem 0;}
+.equipment-advanced[open]>summary{margin-bottom:.8rem;}
+.equipment-result strong{font-size:1.2rem;}
+.import-row legend{max-width:100%;overflow-wrap:anywhere;}
+.import-summary{margin:.3rem 0 1rem;}
+#equipment-receipt-upload{margin-top:1.4rem;padding-top:1rem;border-top:1px solid var(--line);}

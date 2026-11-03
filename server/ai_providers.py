@@ -13,6 +13,8 @@ from flask import jsonify, request
 
 MODES = {'none': 'No AI', 'local_ollama': 'Local Ollama', 'remote_ollama': 'Existing / remote Ollama', 'cloud': 'Cloud AI'}
 CLOUD = {'openai': 'https://api.openai.com/v1', 'anthropic': 'https://api.anthropic.com/v1'}
+OLLAMA_READ_TIMEOUT = 300
+CLOUD_READ_TIMEOUT = 150
 
 
 class AIError(ValueError):
@@ -99,16 +101,25 @@ def fetch(c, path, payload=None):
     elif key: headers['Authorization'] = 'Bearer ' + key
     url = (CLOUD[c['provider']] if cloud else c['url']) + path
     req = urllib.request.Request(url, data=json.dumps(payload).encode() if payload is not None else None, headers=headers)
+    timeout = (CLOUD_READ_TIMEOUT if cloud else OLLAMA_READ_TIMEOUT) if payload else 20
+    timeout_message = ('Ollama did not finish reading this document within 5 minutes. Check the selected model and Ollama server load in Settings. '
+                       if not cloud else 'The AI service took too long to read this document. ')
+    timeout_message += 'The original is saved; retry from Document inbox or enter the figures manually.'
+    if not payload: timeout_message = 'The AI connection test timed out. Check the server address and whether the AI service is running.'
     try:
-        with urllib.request.build_opener(NoRedirect).open(req, timeout=150 if payload else 20) as response:
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=timeout) as response:
             raw = response.read(1024 * 1024 + 1)
         if len(raw) > 1024 * 1024: raise AIError('AI response exceeded the supported size.')
         return json.loads(raw)
     except urllib.error.HTTPError as exc:
         message = {401: 'AI authentication failed. Check your API key.', 403: 'The AI provider denied access. Check your key permissions.', 404: 'AI endpoint or model not found. Check Settings.', 429: 'AI quota or rate limit reached. Retry later or check provider billing.'}.get(exc.code, 'AI provider could not complete the request. Retry or enter the receipt manually.')
         raise AIError(message) from None
+    except TimeoutError:
+        raise AIError(timeout_message) from None
     except (OSError, ValueError) as exc:
         if isinstance(exc, AIError): raise
+        if isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, TimeoutError):
+            raise AIError(timeout_message) from None
         raise AIError('Cannot reach the selected AI service or read its response. Check the address, TLS and model; manual entry remains available.') from None
 
 
@@ -120,22 +131,24 @@ def models():
     return sorted({str(x.get('id') if c['mode'] == 'cloud' else x.get('name')) for x in items if isinstance(x, dict) and (x.get('id') if c['mode'] == 'cloud' else x.get('name'))})[:500]
 
 
-def extract(prompt, images):
+def extract(prompt, images, max_tokens=None):
     c = config()
     if not configured(c): raise AIError('AI is disabled. Choose an AI mode in Settings or enter the receipt manually.')
     if c['mode'] in ('local_ollama', 'remote_ollama'):
         msg = {'role': 'user', 'content': prompt}
         if images: msg['images'] = images
-        result = fetch(c, '/api/chat', {'model': c['model'], 'stream': False, 'format': 'json', 'messages': [msg], 'options': {'temperature': 0}})
+        result = fetch(c, '/api/chat', {'model': c['model'], 'stream': False, 'think': False, 'format': 'json', 'messages': [msg], 'options': {'temperature': 0, 'num_predict': max_tokens or 2048}})
+        if result.get('done_reason') == 'length':
+            raise AIError('Ollama reached its response limit before completing this document. Try another model or enter the figures manually.')
         content = result.get('message', {}).get('content', '')
     elif c['provider'] == 'openai':
         content = [{'type': 'input_text', 'text': prompt}] + [{'type': 'input_image', 'image_url': 'data:image/jpeg;base64,' + x} for x in images]
-        result = fetch(c, '/responses', {'model': c['model'], 'store': False, 'max_output_tokens': 4096, 'text': {'format': {'type': 'json_object'}}, 'input': [{'role': 'user', 'content': content}]})
+        result = fetch(c, '/responses', {'model': c['model'], 'store': False, 'max_output_tokens': max_tokens or 4096, 'text': {'format': {'type': 'json_object'}}, 'input': [{'role': 'user', 'content': content}]})
         if result.get('status') != 'completed': raise AIError('AI did not finish reading the receipt. Try another model or enter it manually.')
         content = ''.join(p.get('text', '') for o in result.get('output', []) if o.get('type') == 'message' for p in o.get('content', []) if p.get('type') == 'output_text')
     else:
         content = [{'type': 'text', 'text': prompt}] + [{'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': x}} for x in images]
-        result = fetch(c, '/messages', {'model': c['model'], 'max_tokens': 4096, 'messages': [{'role': 'user', 'content': content}]})
+        result = fetch(c, '/messages', {'model': c['model'], 'max_tokens': max_tokens or 4096, 'messages': [{'role': 'user', 'content': content}]})
         if result.get('stop_reason') != 'end_turn': raise AIError('AI did not finish reading the receipt. Try another model or enter it manually.')
         content = ''.join(x.get('text', '') for x in result.get('content', []) if x.get('type') == 'text')
     try:

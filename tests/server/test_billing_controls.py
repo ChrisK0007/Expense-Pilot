@@ -114,6 +114,7 @@ class BillingControlsTest(unittest.TestCase):
         sent=send.call_args.args;self.assertIn(target['number'],sent[1]);self.assertIn('$110.00',sent[2])
         self.assertEqual(self.get(other['id'])['emails'],[])
         target=self.get(target['id']);self.assertEqual(self.renumber(target,'RENAMED-42').status_code,200)
+        target=self.issue(self.get(target['id']))
         with app.app_context():self.assertEqual(run_reminders(self.today),0)
         target=self.get(target['id'])
         draft=self.owner.get(f"/api/billing/documents/{target['id']}/email-draft?kind=reminder_manual").json

@@ -25,7 +25,7 @@ class JourneyRoutesTest(unittest.TestCase):
         self.assertEqual(self.owner.get(path).json['route'],data['route'])
         row=self.owner.get('/api/vehicle-journeys').json[0]
         self.assertTrue(row['has_route']);self.assertNotIn('route_json',row);self.assertNotIn('route',row)
-        self.assertEqual(self.agent.get(path).json['route'],data['route'])
+        self.assertEqual(self.agent.get(path).status_code,403)
         self.assertEqual(app.test_client().get(path).status_code,401)
         self.assertEqual(self.call(self.agent,path[5:],{},'DELETE').status_code,403)
         # An ordinary web edit does not discard the phone's uploaded geometry.

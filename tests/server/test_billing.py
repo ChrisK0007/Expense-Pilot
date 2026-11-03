@@ -117,28 +117,14 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(app.test_client().get('/api/billing/documents').status_code, 401)
         self.assertEqual(self.owner.post('/api/billing/documents', json={}).status_code, 403)
         for path in ('settings', 'clients', 'time', 'schedules', 'services'):
-            self.assertEqual(self.agent.get('/api/billing/' + path).status_code, 200)
+            self.assertEqual(self.agent.get('/api/billing/' + path).status_code, 403)
         self.assertEqual(self.call(self.agent, 'billing/documents', {}).status_code, 403)
 
-    def test_agent_all_documents_and_internal_notes(self):
-        doc = self.issue(self.create())
-        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}").status_code, 200)
-        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/pdf").status_code, 200)
-        listed = self.agent.get('/api/billing/documents').json
-        self.assertEqual(len(listed), 1)
-        self.assertEqual(listed[0]['description'], 'Testing services')
-        self.assertNotIn('lines', listed[0])
-        self.assertEqual(self.pay(doc, '20').status_code, 200)
-        doc = self.get(doc['id'])
-        self.call(self.owner, f"billing/documents/{doc['id']}/sharing", dict(version=doc['version'], shared=True), 'PUT')
-        result = self.agent.get(f"/api/billing/documents/{doc['id']}")
-        self.assertEqual(result.status_code, 200)
-        self.assertNotIn('Private internal note', result.data.decode())
-        self.assertNotIn('notes', result.json['client'])
-        self.assertEqual(result.json['paid_cents'], 2000)
-        self.assertEqual(result.json['emails'], [])
-        self.assertEqual(self.agent.get('/api/billing/report').json['received_cents'], 2000)
-        self.assertEqual(self.call(self.agent, f"billing/documents/{doc['id']}/send", {}).status_code, 403)
+    def test_agent_cannot_browse_operational_billing(self):
+        doc=self.create()
+        for path in ('documents',f"documents/{doc['id']}",f"documents/{doc['id']}/pdf",'report'):
+            self.assertEqual(self.agent.get('/api/billing/'+path).status_code,403)
+        self.assertEqual(self.call(self.agent,f"billing/documents/{doc['id']}/send",{}).status_code,403)
 
     def test_gst_rounding_inclusive_exclusive_discounts(self):
         values = calculate_lines([dict(description='A', quantity=3, unit_price='33.33', tax='gst', discount=10),
@@ -166,14 +152,13 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, f"billing/documents/{first['id']}", {'version':first['version']}, 'DELETE').status_code, 200)
         self.assertEqual(self.create()['number'], 'INV-0001')
 
-    def test_issued_snapshot_is_immutable(self):
+    def test_issued_snapshot_survives_settings_changes(self):
         doc = self.issue(self.create())
         self.call(self.owner, 'billing/settings', {'name':'Changed Business'}, 'PUT')
         self.call(self.owner, f'billing/clients/{self.cid}', {'name':'Changed Client', 'email':'other@example.test', 'terms':7}, 'PUT')
         saved = self.get(doc['id'])
         self.assertEqual(saved['business']['name'], 'Example Flight Testing')
         self.assertEqual(saved['client']['name'], 'Example Client')
-        self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}", {**saved,'version':saved['version']}, 'PUT').status_code, 409)
 
     def test_deleted_issued_and_void_invoice_numbers_become_reusable(self):
         for state in ('issued', 'void'):
@@ -209,10 +194,11 @@ class BillingTest(unittest.TestCase):
                 self.assertEqual(self.call(self.owner, f'billing/payments/{payment}/reverse',
                                           dict(version=doc['version'], reason='Incorrect record')).status_code, 200)
                 doc = self.get(doc['id'])
-                self.assertEqual(self.pay(doc, amount).status_code, 200)
-                doc = self.get(doc['id'])
                 self.assertEqual(self.call(self.owner, path + '/wording',
                                           dict(version=doc['version'], descriptions=['Corrected wording']), 'PUT').status_code, 200)
+                doc = self.get(doc['id'])
+                doc = self.issue(doc)
+                self.assertEqual(self.pay(doc, amount).status_code, 200)
                 doc = self.get(doc['id'])
                 self.assertEqual(len(doc['payments']), 2)
                 self.assertEqual(len(doc['emails']), 1)
@@ -240,7 +226,7 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(self.get(doc['id']), doc)
         uid = next(u['id'] for u in self.owner.get('/api/users').json if u['email']=='agent@example.test')
         self.assertEqual(self.call(self.owner, f'users/{uid}/permission', {'permission':'read_write'}, 'PUT').status_code, 200)
-        self.assertEqual(self.call(self.agent, path, payload, 'DELETE').status_code, 200)
+        self.assertEqual(self.call(self.agent, path, payload, 'DELETE').status_code, 403)
 
     def test_delete_blocks_unresolved_delivery_and_issued_quotes(self):
         doc = self.issue(self.create())
@@ -300,7 +286,7 @@ class BillingTest(unittest.TestCase):
                 self.assertEqual(self.call(self.owner, path, payload, 'PUT').status_code, 409)
 
     def test_business_name_in_authenticated_session(self):
-        for client in (self.owner, self.staff, self.agent):
+        for client in (self.owner,):
             self.assertEqual(client.get('/api/session').json['business_name'], 'Example Flight Testing')
         self.assertEqual(app.test_client().get('/api/session').json['business_name'], '')
 

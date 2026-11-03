@@ -77,7 +77,7 @@ class VehicleLogbookTest(unittest.TestCase):
     def test_permissions_invalid_readings_and_vehicle_isolation(self):
         self.prepare()
         self.assertEqual(app.test_client().get('/api/'+self.path).status_code,401)
-        self.assertEqual(self.agent.get('/api/'+self.path).status_code,200)
+        self.assertEqual(self.agent.get('/api/'+self.path).status_code,403)
         self.assertEqual(self.call(self.agent,self.path,dict(recorded_at=self.start+1,reading='52001')).status_code,403)
         for data in [dict(recorded_at=True,reading='1'),dict(recorded_at=self.start+1,reading='-1'),dict(recorded_at=self.start+1,reading='nan'),dict(recorded_at=self.start+1,reading='51999'),dict(recorded_at=self.start+1,reading=''),dict(recorded_at=self.start-1,reading='53000')]:
             self.assertEqual(self.call(self.owner,self.path,data).status_code,400,data)

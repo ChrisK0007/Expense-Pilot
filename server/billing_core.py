@@ -56,7 +56,8 @@ def calculate_lines(items, tax_mode, gst_registered):
         gst = cents(Decimal(amount) / 11) if tax_mode == 'inclusive' and tax == 'gst' else (
             cents(Decimal(amount) / 10) if tax_mode == 'exclusive' and tax == 'gst' else 0)
         net = amount - gst if tax_mode == 'inclusive' else amount
-        result.append(dict(description=description, quantity=str(quantity), unit_price=str(unit),
+        from billing_workspace import quantity_type
+        result.append(dict(description=description, quantity=str(quantity), quantity_type=quantity_type(item.get('quantity_type')), unit_price=str(unit),
                            discount=str(discount), tax=tax, net_cents=net, gst_cents=gst,
                            total_cents=net + gst))
     subtotal = sum(x['net_cents'] for x in result)
@@ -107,18 +108,23 @@ def pdf_document(doc):
     out = io.BytesIO()
     seller = doc['business']
     client = doc['client']
-    colour = seller.get('accent', '#355c46')
+    from billing_workspace import design_values
+    design = design_values(seller.get('design', {}))
+    compact = design['layout'] == 'compact'
+    colour = design['accent'] or seller.get('accent', '#355c46')
     if not re.fullmatch(r'#[0-9a-fA-F]{6}', colour):
         colour = '#355c46'
     ink, muted, accent = colors.HexColor('#252b3b'), colors.HexColor('#737b8d'), colors.HexColor(colour)
-    font = 'Helvetica'
-    font_path = Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+    serif = design['font'] == 'serif'
+    font = 'Times-Roman' if serif else 'Helvetica'
+    registered_font = 'InvoiceSerif' if serif else 'InvoiceSans'
+    font_path = Path('/usr/share/fonts/truetype/dejavu/' + ('DejaVuSerif.ttf' if serif else 'DejaVuSans.ttf'))
     if font_path.exists():
         with _FONT_LOCK:
-            if 'InvoiceSans' not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont('InvoiceSans', str(font_path)))
-        font = 'InvoiceSans'
-    normal = ParagraphStyle('body', fontName=font, fontSize=9, leading=13, textColor=ink, spaceAfter=5)
+            if registered_font not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(registered_font, str(font_path)))
+        font = registered_font
+    normal = ParagraphStyle('body', fontName=font, fontSize=8.5 if compact else 9, leading=11 if compact else 13, textColor=ink, spaceAfter=3 if compact else 5)
     small = ParagraphStyle('small', parent=normal, fontSize=8, leading=11, textColor=muted)
     title = ParagraphStyle('title', parent=normal, fontSize=25, leading=29, textColor=accent, spaceAfter=8)
     right = ParagraphStyle('right', parent=normal, alignment=TA_RIGHT)
@@ -147,13 +153,13 @@ def pdf_document(doc):
         label = 'PAYMENT RECEIPT'
     if doc['state'] in ('draft', 'void'): label = doc['state'].upper() + ' ' + label
     right_side = [p(label, headline), Spacer(1, 5 * mm)]
-    buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k))
+    buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k) and (k != 'address' or design['show_client_address']))
     if client.get('abn'): buyer += '\nABN: ' + client['abn']
     right_side += [p(buyer, right), Spacer(1, 3 * mm)]
     metadata = [('Number', doc['number']), ('Issued', date_au(doc['issue_date'])),
                 ('Valid until' if doc['kind']=='quote' else 'Due', date_au(doc['due_date'])),
                 ('Total', 'AU ' + aud(doc['total_cents']))]
-    if doc.get('reference'): metadata.append(('Reference', doc['reference']))
+    if doc.get('reference') and design['show_reference']: metadata.append(('Reference', doc['reference']))
     details = Table([[p(k),p(v,right)] for k,v in metadata], colWidths=[23*mm,48*mm])
     details.setStyle(TableStyle([('LINEABOVE',(0,0),(-1,-1),.35,rule),('VALIGN',(0,0),(-1,-1),'TOP'),
                                 ('LEFTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(-1,-1),0)]))
@@ -162,24 +168,36 @@ def pdf_document(doc):
     top.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
                             ('RIGHTPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),12),
                             ('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
-    story = [top, Spacer(1, 4*mm)]
+    story = []
+    if design['layout'] == 'modern':
+        band = Table([[p(seller.get('name') or 'Your business', white), p(label, ParagraphStyle('band', parent=white, alignment=TA_RIGHT))]], colWidths=[103*mm,71*mm])
+        band.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),accent),('TOPPADDING',(0,0),(-1,-1),10),('BOTTOMPADDING',(0,0),(-1,-1),10)]))
+        story += [band, Spacer(1, 6*mm)]
+    story += [top, Spacer(1, (2 if compact else 4)*mm)]
     # Notes precede the item table, for flight-test dates and candidate details.
     if doc.get('notes'):
         story += [p(doc['notes']), Spacer(1, 5*mm)]
     taxable = doc['tax_mode'] != 'none'
-    headings = ['DESCRIPTION', 'QUANTITY', 'RATE', 'GST', 'TOTAL'] if taxable else ['DESCRIPTION','QUANTITY','RATE','TOTAL']
-    table_data = [[p(x, label_style if i==0 else ParagraphStyle('column'+str(i),parent=label_style,alignment=TA_RIGHT)) for i,x in enumerate(headings)]]
+    columns = [('description', 'DESCRIPTION')]
+    if design['show_quantity']: columns.append(('quantity', 'QUANTITY'))
+    if design['show_rate']: columns.append(('rate', 'RATE'))
+    if taxable: columns.append(('gst', 'GST'))
+    columns.append(('total', 'TOTAL'))
+    table_data = [[p(label, label_style if i==0 else ParagraphStyle('column'+str(i),parent=label_style,alignment=TA_RIGHT)) for i,(_,label) in enumerate(columns)]]
     for line in doc['lines']:
         description = line['description']
         if Decimal(line['discount']): description += f"\nDiscount: {line['discount']}%"
-        cells = [p(description),p(line['quantity'],right),p(aud(cents(Decimal(line['unit_price'])*100)),right)]
-        if taxable: cells.append(p('10%' if line['tax']=='gst' else 'GST-free' if line['tax']=='gst_free' else 'No GST',right))
-        cells.append(p(aud(line['total_cents']),right));table_data.append(cells)
-    widths = [80*mm,20*mm,27*mm,20*mm,27*mm] if taxable else [93*mm,24*mm,27*mm,30*mm]
+        quantity = line['quantity']
+        if design['show_unit']: quantity += ' ' + line.get('quantity_type', 'Units')
+        cells = dict(description=p(description), quantity=p(quantity,right), rate=p(aud(cents(Decimal(line['unit_price'])*100)),right),
+                     gst=p('10%' if line['tax']=='gst' else 'GST-free' if line['tax']=='gst_free' else 'No GST',right), total=p(aud(line['total_cents']),right))
+        table_data.append([cells[key] for key,_ in columns])
+    sizes = dict(quantity=30, rate=27, gst=20, total=27)
+    widths = [(174-sum(sizes[key] for key,_ in columns[1:]))*mm] + [sizes[key]*mm for key,_ in columns[1:]]
     line_table = Table(table_data,colWidths=widths,repeatRows=1,hAlign='LEFT')
     line_table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
         ('RIGHTPADDING',(0,0),(-1,-1),0),('RIGHTPADDING',(0,0),(0,-1),10),
-        ('TOPPADDING',(0,1),(-1,-1),8),('BOTTOMPADDING',(0,1),(-1,-1),8),
+        ('TOPPADDING',(0,1),(-1,-1),4 if compact else 8),('BOTTOMPADDING',(0,1),(-1,-1),4 if compact else 8),
         ('LINEBELOW',(0,0),(-1,-1),.4,rule)]))
     story += [line_table,Spacer(1,3*mm)]
     totals = [('Subtotal (ex GST)', doc['subtotal_cents']),('GST',doc['gst_cents'])] if taxable else []

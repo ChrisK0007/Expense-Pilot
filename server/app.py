@@ -33,6 +33,7 @@ if not key.exists():
         key.chmod(0o600)
     except FileExistsError: pass
 app=Flask(__name__,static_folder='static')
+import client_address; client_address.install(app)
 app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(days=30))
 CATEGORIES=['Uncategorised','Meals','Accommodation','Transport','Vehicle expenses','Bank fees','Phone & internet','Equipment','Uniform','Training','Insurance','Subscriptions','Other']
 
@@ -40,6 +41,7 @@ def db():
     if 'db' not in g:
         g.db=sqlite3.connect(DATA/'rounded.sqlite',timeout=30); g.db.row_factory=sqlite3.Row
         g.db.execute('PRAGMA foreign_keys=ON')
+        g.db.create_function('ep_casefold',1,lambda value:str(value or '').strip().casefold(),deterministic=True)
     return g.db
 @app.teardown_appcontext
 def close(_):
@@ -59,7 +61,7 @@ def errors(e): return jsonify(error=e.description),e.code
 @app.after_request
 def headers(r):
     r.headers['X-Content-Type-Options']='nosniff';r.headers['X-Frame-Options']='DENY';r.headers['Referrer-Policy']='same-origin'
-    r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     r.headers['Cache-Control']='no-store'
     if app.config['SESSION_COOKIE_SECURE']: r.headers['Strict-Transport-Security']='max-age=31536000'
     return r
@@ -73,8 +75,9 @@ def guard():
         session.clear(); g.user=None
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
+    adviser.guard()
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/security/device-session','/api/security/devices'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/workflows/questions') and not (request.endpoint=='adviser_questions'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -117,7 +120,9 @@ def index(): return app.send_static_file('index.html')
 @app.get('/api/session')
 def current():
     if 'csrf' not in session: session['csrf']=secrets.token_hex(24)
-    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+    if g.user and g.user['role']=='tax_agent':
+        return jsonify(user=g.user,csrf=session['csrf'],setup=False,version=VERSION,timezone=workspace_time.name(),api_version=1,minimum_client_api=1,capabilities={'tax_workspace':True,'account_deletion':True},features={},categories=sorted(CATEGORIES,key=str.casefold),business_name='Tax preparation',mfa_required=False)
+    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),category_labels=category_labels.labels() if g.user else {},categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'review_workflows':True,'receipt_items':True,'signin_alerts':True,'documents':True,'home_office':True,'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -199,6 +204,8 @@ def payload(d,existing=None):
     if rid:
         r=one('SELECT * FROM receipts WHERE id=?',(rid,))
         if not r or r['user_id']!=uid: fail('Receipt does not belong to this person.')
+        if one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,)): fail('This receipt is attached to an equipment deduction. Link an existing purchase from that deduction instead.',409)
+        if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as employment income.',409)
         linked=one('SELECT id FROM expenses WHERE receipt_id=?',(rid,))
         if linked and (not existing or linked['id']!=existing.get('id')): fail('This receipt is already linked to another expense.',409)
     if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']=='employee' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
@@ -209,7 +216,7 @@ def payload(d,existing=None):
 @auth()
 def expenses():
     if request.method=='GET':
-        w,a=visible();return jsonify(rows(f'SELECT e.*,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
+        w,a=visible();return jsonify(rows(f'SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
     if not can_write(): fail('Read-only access.',403)
     db().execute('BEGIN IMMEDIATE')
     d=request.get_json();uid=record_user_id();existing=None
@@ -225,7 +232,12 @@ def expenses():
         uid=t['user_id'];existing={'user_id':uid,'account_id':None}
     if not existing and d.get('vehicle_id'):
         v=tracking_vehicle(d['vehicle_id']);uid=v['user_id'];existing={'user_id':uid,'account_id':None}
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
+    automatic=None
+    if d.get('receipt_id') and not d.get('bank_transaction_id'):
+        automatic=bank_matching.choose(uid,d)
+        if automatic and automatic['expense_id']: fail('This document matches a bank-linked expense. Attach it from Document inbox to avoid a duplicate.',409)
+        if automatic: d['account_id']=automatic['local_account_id']
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);equipment_treatment.attach(c.lastrowid,d);bank_matching.attach(c.lastrowid,automatic,d.get('bank_choice')=='cash');pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -233,10 +245,11 @@ def update_expense(eid):
     e=expense(eid,True)
     if request.method=='DELETE':
         from receipt_routes import delete_receipt_record, remove_receipt_files
+        if one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(eid,)) or one('SELECT 1 FROM bank_reconciliations WHERE expense_id=? OR refund_id=?',(eid,eid)): fail('Remove the equipment or reconciliation link before deleting this expense.',409)
         db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
         if e['receipt_id']: delete_receipt_record(e['receipt_id'])
     else:
-        d=request.get_json();p=payload(d,e);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);audit('expense updated',eid)
+        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p,d);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);equipment_treatment.attach(eid,d);audit('expense updated',eid)
     db().commit()
     if request.method=='DELETE' and e['receipt_id']: remove_receipt_files(e['receipt_id'])
     return jsonify(ok=True)
@@ -292,8 +305,18 @@ import pocketsmith
 pocketsmith.register(app, db=db, one=one, rows=rows, fail=fail, audit=audit, auth=auth, can_write=can_write, day=day, DATA=DATA)
 
 
+import bank_matching
+bank_matching.register(app, auth)
+import income_documents
+income_documents.register(app, auth)
+
 import planning
 planning.register(app, db=db, rows=rows, one=one, fail=fail, audit=audit, body=tracking_body, category_names=category_names, money=money, day=day, textval=textval, vehicle=tracking_vehicle, expense=expense)
+
+import home_office
+home_office.register(app, auth)
+import tax_documents
+tax_documents.register(app, auth)
 
 if __name__=='__main__': app.run(host='0.0.0.0',port=8788)
 
@@ -301,9 +324,47 @@ import ai_providers
 ai_providers.register(app, auth)
 import public_release
 public_release.register(app, auth)
+import auto_backup
+auto_backup.register(app, auth)
 import source_access
 source_access.register(app, VERSION)
 workspace_time.register(app, auth)
 
 import notifications
 notifications.register(app, auth)
+import workspace_preferences
+workspace_preferences.register(app, auth)
+
+import signin_alerts
+signin_alerts.register(app, auth)
+
+import expense_workflows
+expense_workflows.register(app, auth)
+
+import reconciliation
+reconciliation.register(app, auth)
+import income_checks
+income_checks.register(app, auth)
+
+import equipment
+equipment.register(app, auth)
+import category_labels, equipment_treatment, equipment_import
+category_labels.register(app, auth)
+equipment_treatment.register(app, auth)
+equipment_import.register(app, auth)
+import equipment_evidence
+equipment_evidence.register(app, auth)
+
+import journey_review
+journey_review.register(app, auth)
+import review_hub
+review_hub.register(app, auth)
+import document_evidence
+document_evidence.register(app, auth)
+
+
+import annual_handover
+annual_handover.register(app, auth)
+
+import adviser
+adviser.register(app, auth)

@@ -6,7 +6,7 @@ async function main(){
  page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();await page.locator('[data-page=dashboard]').waitFor();
-  await navigate(page,'settings');await page.getByRole('button',{name:'Configure PocketSmith',exact:false}).click();
+  await navigate(page,'settings');await page.locator('[data-settings-jump=connections]').click();await page.getByRole('button',{name:'Configure PocketSmith',exact:false}).click();
   await page.getByLabel('Developer key',{exact:true}).fill('browser-pocketsmith-test-key');await page.locator('#feed-key-form button[type=submit]').click();await page.locator('#feed-config-form').waitFor();
   assert.equal(await page.locator('#feed-key').inputValue(),'');
   await page.locator('[data-feed-account]').check();await page.getByRole('button',{name:'Save bank feed settings',exact:true}).click();await page.getByText('Bank feed settings saved. Use Sync now on Bank accounts.',{exact:true}).waitFor();

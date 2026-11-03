@@ -35,7 +35,7 @@ class PlanningTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner,f'budgets/{bid}',{'version':2},'DELETE').status_code,200)
         for field,value in [('month','2026-13'),('period','weekly'),('period',None),('period',[]),('category','missing'),('scope','invalid'),('amount','NaN'),('amount',0)]:
             self.assertEqual(self.call(self.owner,'budgets',{**data,field:value}).status_code,400)
-        self.assertEqual(self.agent.get('/api/budgets?month=2026-11').status_code,200)
+        self.assertEqual(self.agent.get('/api/budgets?month=2026-11').status_code,403)
         self.assertEqual(self.call(self.agent,'budgets',data).status_code,403)
         self.assertEqual(app.test_client().get('/api/budgets?month=2026-11').status_code,401)
         self.assertEqual(self.owner.post('/api/budgets',json=data).status_code,403)
@@ -149,6 +149,6 @@ class PlanningTest(unittest.TestCase):
         for data in [dict(work_percent=60,business_percent=50),dict(work_percent='nan'),dict(depreciation=-1),dict(logbook_start='2026-07-01'),dict(logbook_start='2026-09-01',logbook_end='2026-07-01')]:
             self.assertEqual(self.call(self.owner,self.path,data,'PUT').status_code,400)
         self.assertEqual(self.call(self.agent,self.path,{},'PUT').status_code,403)
-        self.assertEqual(self.agent.get('/api/'+self.path).status_code,200)
+        self.assertEqual(self.agent.get('/api/'+self.path).status_code,403)
         self.assertEqual(app.test_client().get('/api/'+self.path).status_code,401)
         self.assertEqual(self.owner.get('/api/vehicles/99999/comparison/2026').status_code,404)

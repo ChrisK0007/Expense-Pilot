@@ -38,13 +38,13 @@ class JourneyPlaceTest(AppTest):
     def test_places_auth_scope_and_validation(self):
         self.assertEqual(app.test_client().get('/api/journey-places').status_code, 401)
         pid, payload, _ = self.change()
-        self.assertEqual(self.agent.get('/api/journey-places').json, [])
+        self.assertEqual(self.agent.get('/api/journey-places').status_code,403)
         self.assertEqual(self.call(self.agent, 'journey-places/' + pid, payload, 'PUT').status_code, 403)
         self.assertEqual(self.owner.put('/api/journey-places/' + pid, json=payload).status_code, 403)
         with app.app_context():
             db().execute("UPDATE users SET permission='read_write' WHERE email='agent@example.test'"); db().commit()
-        # A write-enabled tax agent still has a distinct address collection.
-        self.assertEqual(self.call(self.agent, 'journey-places/' + pid, payload, 'PUT').status_code, 200)
+        # Write permission does not expose private address collections.
+        self.assertEqual(self.call(self.agent, 'journey-places/' + pid, payload, 'PUT').status_code, 403)
         self.assertEqual(len(self.owner.get('/api/journey-places').json), 1)
         for invalid in [dict(name=''), dict(name='x'*61), dict(address='x'*201),
                         dict(point={'latitude': 91, 'longitude': 0}),

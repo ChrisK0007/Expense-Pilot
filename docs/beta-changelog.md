@@ -2,6 +2,178 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.19 — Simpler deductions and refined workspace (2026-11-03)
+
+- Full-page invoice and quote editing with automatic draft recovery, conflict detection and an optional live preview rendered from the actual PDF. Saving does not issue or email the invoice; paid invoices remain locked.
+- Classic, Modern and Compact invoice layouts, font and brand-colour choices, logo upload and optional quantity, unit, rate, reference and client-address display. Saved documents retain their snapshots until edited and saved.
+- Quantity types such as Hours, Days, Flight tests and Kilometres, including saved services and recurring invoice lines.
+- Optional supporting PDFs, JPGs and PNGs with invoice emails, including existing receipts. Only selected files are sent. Up to five files, 10 MB each and 20 MB combined. Invoice PDFs remain included automatically; automated reminders do not inherit supporting files.
+- Separate owner email and notification-bell preferences. Enabling email starts with future events; existing activity is not emailed as a backlog. Client reminders, security sign-in alerts and phone push preferences remain separate.
+- Calendar-year or July–June financial-year chart comparisons, full-year or matched year-to-date views and saved dashboard section visibility. Future months are blank in YTD views.
+- Recognised equipment purchases automatically show a suggested deduction with purchase date, useful-life planning estimate and use percentages prefilled. Advanced choices are under **Adjust deduction**. Saved annual business rules are reused; general depreciation is the fallback until eligible simplified-depreciation settings are selected. Special assets can be saved for accountant review without being claimed as ordinary expenses.
+- Deductions includes receipt capture and existing receipt links. Existing imported and accountant-entered annual figures are preserved. Automated values remain estimates for review, not lodged tax-return claims.
+- Direct navigation to invoices, clients, bank accounts and deductions; inline Tracking and Income groups; settings show one topic at a time. Quotes, services, recurring invoices and time stay within invoice navigation; Budgets stays under Expenses.
+
+Migration 28 adds owner preferences, recoverable draft buffers, supporting-file storage and notification delivery records. No existing financial records are rewritten.
+
+## 1.0.6-beta.18 — Optional email copies (2026-11-03)
+
+- Add a Send me a copy checkbox to invoice, quote, manual reminder, payment receipt and statement send windows. Start from the saved default and allow an override for this email without changing future sends.
+- Make the default and optional copy address clearer in Email delivery. A blank address uses the owner's account email. New installations default to no copy; existing preferences and automatic-reminder behaviour are retained.
+- Validate the choice before queuing, preserve duplicate-send protection, and avoid copying the owner twice when they are already the recipient. Invitations and SMTP test messages remain excluded.
+- Wait for the issued invoice view in the existing browser test before opening Edit, removing a timing race in release checks. No database migration or iPhone build is required.
+
+## 1.0.6-beta.17 — Linked signatures and image proportions (2026-11-03)
+
+- Keep pasted HTTPS signature images linked to their original URLs in the editor, saved signature and outgoing emails. Remove the server image downloader; uploaded and clipboard image files remain embedded.
+- Preserve pasted sizing and spacing during insertion, retain image widths, and use natural proportions instead of conflicting fixed width/height pairs. Keep linked social icons at their pasted size.
+- Allow HTTPS images through the browser image policy while retaining script, connection and other restrictions. Suppress referrers on linked signature images, remove unsafe image schemes/credentials and retain owner-only editing.
+- Identify linked images that cannot load; keep Add image as a replacement option. Existing embedded signatures still work; repaste the original to use its original links. No database migration or iPhone build is required.
+
+## 1.0.6-beta.16 — Hosted signature images (2026-11-03)
+
+- Import public HTTPS images when pasting a formatted email signature, including hosted photos and linked social icons. Preserve supported layout, links and image sizes, and embed the downloaded image bytes in outgoing email.
+- Show progress while importing and prevent saving an unfinished paste. Keep a per-image explanation when a host refuses access, requires sign-in, times out or returns an unsupported file; retain Add image replacement.
+- Bound download size, time and redirects; validate public destinations and pin connections to checked addresses while preserving TLS hostname checks. Previewing, saving and sending a saved signature never downloads remote images again.
+- Existing saved signatures remain unchanged. Repaste the original formatted signature to recover images that older versions replaced with placeholders. No database migration or iPhone build is required.
+
+## 1.0.6-beta.15 — Simpler deductions and receipt linking (2026-11-01)
+
+- Put the annual deduction and remaining value first. Keep methods, rates, history, disposal and calculation details under Advanced details, with fewer repeated confirmations.
+- Reuse a linked purchase's date, cost and use percentages. Offer a suggested treatment, an already-completed write-off, or a record for the accountant to finish. Suggest useful life for supported tablets/laptops; leave unsupported lives for review.
+- Choose annual tax settings once per year and save annual amounts directly. Preserve existing tax rules, history, GST adjustments, use splits and double-claim protections.
+- Simplify schedule review with a financial-year selector, per-asset summary and explicit Fully claimed this year option. Infer the opening value only for a purchase acquired in that year; older assets still need their remaining value. Never infer a write-off solely from an amount pooled.
+- Link an inbox receipt, upload an original, or connect a matching existing expense after a deduction is created. Receipt changes preserve deduction figures; linking a purchase excludes its ordinary claim. Unlinking returns the original to Document inbox without removing the deduction or purchase link.
+- Apply migration m027 without altering saved deductions. Preserve tax-agent shared-year restrictions and the owner iPhone API; no iPhone build is required.
+
+## 1.0.6-beta.14 — Expense organisation and equipment automation (2026-10-31)
+
+- Add editable expense category names across the web workspace and CSV export. Stable internal category identities preserve existing expenses, receipt items, budgets and rules, including special meal handling. Older mobile clients can continue using the original names.
+- Display expense tools directly above Expenses and add accessible ascending/descending sorting to Expense, Date, Workspace, Category, Status and Amount headings. Amounts sort numerically, with current filters retained.
+- Suggest equipment treatment inside expense and receipt review using confirmed usage and annual tax settings. Check the full asset cost before allocation; distinguish general depreciation, employee immediate deductions, eligible sole-trader instant write-off and cases needing review. Applying a suggestion atomically creates a linked equipment record and prevents a duplicate ordinary deduction.
+- Add saved tax settings per financial year and recognise the permanent $20,000 small-business threshold from 1 July 2026 under current legislation. Retain existing confirmed setups when settings change.
+- Import depreciation schedules from PDF/image through the configured AI provider or locally from CSV. Save originals first, read in the background, review all figures, preserve original tax cost and reported opening/closing values, carry PC/DV balances forward, and retain fully written-off assets without repeat claims. Reject partial extractions, inconsistent balances and matching existing assets. See [scope and usage](equipment-calculations.md).
+- Update pypdf to 6.21.4 to address the dependency audit’s newly reported PDF resource-exhaustion vulnerabilities.
+- Apply migration m026 without changing existing records or the owner iPhone API. No iPhone build is required.
+
+## 1.0.6-beta.13 — Focused tax access and daily workflow improvements (2026-10-30)
+
+- Replace the Needs attention sidebar item with a top-right notification bell, showing actionable items and a link to the full queue.
+- Allow simultaneous Employment, Business and Personal workspace filters on Expenses. Mixed-use records appear once if any selected allocation matches.
+- Give tax agents a separate tax-preparation workspace with owner-selected financial years and supporting documents. Default to no shared years, including existing accounts. Enforce the boundary on APIs, originals, questions and exports; hide personal spending, full bank feeds, private routes, drafts, contacts and operational settings.
+- Restrict Read & write agents to shared ordinary-expense classification and annual equipment adjustments. Owner corrections remain necessary for original income, billing and specialist expense treatments.
+- Add permanent tax-agent account removal with email confirmation, immediate session revocation and preservation of financial records and history.
+- Add reviewed automatic equipment schedules, eligible immediate deductions, GST-adjusted cost, private-use periods, annual use changes, carry-forward balances and reasoned overrides. Confirmed history remains fixed. See [calculation scope and sources](equipment-calculations.md).
+- Accept formatted signature paste with supported fonts, colours, table layouts, links and clipboard images. Sanitize before insertion, embed images in outgoing mail, and flag unavailable images for replacement.
+- Keep the invoice calendar open while changing months in Safari; preserve keyboard focus and existing due-date rules.
+- Finish in-flight background requests before signing out so a late response cannot invalidate the next sign-in session.
+- Apply migration m025 without changing the owner iPhone API. No iPhone build is required. See [tax-agent sharing](tax-agent-access.md) before granting access after the update.
+
+## 1.0.6-beta.12 — Simpler reviews and invoice corrections (2026-10-30)
+
+- Put Needs attention below Dashboard; reserve it for actionable exceptions. Respect valid phone drive classifications and keep ordinary unmatched bank transactions in Bank accounts.
+- Automatically link clear existing-expense matches after bank sync, including receipts filed before the transaction arrived. Surface ambiguous matches and changed linked sources without altering expense amounts.
+- Move optional review tools into Bank accounts, Expenses, Employment income, Vehicles and Reports. Keep adviser questions; explain the distinction between import validation and optional cross-payslip checks.
+- Remove IMAP email intake and the encrypted external backup service. Operators manage external appdata backups on Unraid. Existing originals, local backups and offline recovery of beta.11 encrypted archives remain available.
+- Add accessible calendar popups to AU date fields while retaining typed dates. Invoice due dates follow issue dates and payment terms until explicitly overridden; the choice persists when reopened.
+- Replace invoice wording/number actions with one Edit form. Issued invoices can be corrected and reissued, with previous revisions retained. Fully paid invoices are locked; partial payments constrain client, date and minimum total. Pending amendments pause reminders and payment recording until reissued.
+- Display month, year and amount on comparison chart hover, keyboard focus and touch.
+- Apply migration m024 without changing the iPhone API. Regression coverage includes migration adoption, invoice revisions, both matching arrival orders, focused attention, retired services and desktop/mobile calendar/chart workflows.
+
+## 1.0.6-beta.11 — Review workflows and sign-in alerts (2026-10-30)
+
+- Add Needs attention and Review tools, with invoice/payslip/purchase/refund bank reconciliation, partial and combined payments, stale-preview protection and reversal history.
+- Add editable merchant rules, suggestions from repeated reviewed allocations, preview/apply/undo, and receipt line itemisation feeding allocations, budgets, reports and exports.
+- Add source-text evidence highlights, missing/inconsistent figure flags, payslip period/YTD checks and non-posting annual statement comparisons.
+- Add daily drive review, bulk classification, conservative merge/split and undo; preserve recording gaps and uploaded journey identities.
+- Add an equipment register, explicit annual depreciation and disposal review, excluding linked capital purchases from ordinary forecast deductions.
+- Add record-linked adviser questions and a branded annual handover ZIP with registers, outstanding items, originals and checksums.
+- Add opt-in IMAP attachment intake into drafts, and encrypted copies to an operator-mounted external destination with isolated restore tests.
+- Add successful new-IP sign-in email alerts, grouped/capped delivery, history and browser/app session revocation. Existing SMTP configuration is required.
+- Apply migration m023 while preserving prior records and the iPhone API. No iPhone build is included. See [Review tools](review-tools.md) for setup, limits and recovery steps.
+
+## 1.0.6-beta.10 — Payslip columns and branded reports (2026-10-28)
+
+- Read the supported Pay Slip Components layout locally, including wrapped employer names, payment/period dates and separate current-pay/YTD columns. Reconcile gross earnings, PAYG, net and super totals; subtract explicitly listed salary-sacrifice super from taxable pay. Unrecognised or inconsistent layouts retain the existing AI/manual review path.
+- Stop mistaking the payroll SG (super guarantee) row for a Singapore-dollar marker. Real SGD and SG$ currency markers remain supported.
+- Let successful rereads fill previously blank employment draft fields while retaining manual corrections, zero values and notes. Show the salary-sacrifice calculation during review. Extraction still never files income automatically.
+- Add the Expense Pilot logo to every WFH and mileage PDF page, with the app’s purple headings/table headers and neutral text, rules and alternating rows. Keep report calculations, evidence and pagination unchanged.
+- No database migration or iPhone build. Tests use synthetic payroll fixtures; private source documents are not distributed.
+
+## 1.0.6-beta.9 — Faster payslip extraction with Ollama (2026-10-28)
+
+- Read complete, explicitly labelled current-pay text payslips locally even when AI is enabled. Keep YTD and ambiguous amounts out of current-pay fields. All extracted figures still require review before saving income.
+- Retain partial local fields with a visible review warning if AI is unavailable; keep manual drafts and original documents. Scanned or unsupported documents still report a clear failure when no local fields are available.
+- Use a shorter employment-document prompt, disable Ollama thinking and cap generated output at 2,048 tokens. Reject truncated responses. Allow Ollama reads up to five minutes; cloud-provider and connection-test limits remain unchanged.
+- No database migration, provider switch or iPhone build.
+
+## 1.0.6-beta.8 — Reliable payslip reading behind a proxy (2026-10-27)
+
+- Read uploaded documents in bounded background jobs and poll progress with short requests, so slow AI reads do not hold a browser request open across the proxy timeout. Apply this to capture, individual retries, bulk reprocessing and employment-document review.
+- Reuse an active read for repeated clicks; preserve original documents and manual drafts after failures. Interrupted reads can be retried from Document inbox, including after a container restart. The standard single-worker deployment handles at most two reads at once.
+- Replace raw JSON parsing errors from HTML gateway pages with useful messages and HTTP status. Retry temporary progress-check failures without repeating the upload or AI request. Report AI timeouts explicitly and recover the review button after a failed read.
+- Recheck permissions and filed/deleted documents before saving extracted suggestions. Extraction still never writes employment income or expense records. No database migration or AI-provider change.
+
+## 1.0.6-beta.7 — Document inbox, payslips and bank matching (2026-10-27)
+
+- Make notes optional for manual WFH sessions and reviewed imports. Existing notes, original reports and history are retained.
+- Rename Receipt inbox to **Document inbox**. Add payslip and annual income-statement review, with automatic gross/PAYG extraction using the configured AI provider. Explicitly labelled text payslips can be read locally without AI. Keep uncertain fields blank and YTD figures separate; require review before saving income.
+- Link each employment original to its income record, prevent simultaneous expense/income filing, check duplicate and overlapping pay, and block annual statements that would overlap the same employer’s recorded pay. Deleting income returns its original to the inbox. Keep originals in full backups.
+- File covered home-office bills directly from the inbox, choosing the cost type and confirming personal payment. New evidence is unallocated, with no extra percentage or separate bill deduction.
+- Suggest bank matches from already-synced posted AUD purchases, using exact amounts, recognisable merchants and dates within three days. Link on filing; reuse a matching existing expense where possible. Ambiguity needs review, and explicit Cash / other choices remain excluded from later automatic matching.
+- Add **Bank accounts → Match previous expenses**, with a preview, account filter and selected-match confirmation. Match only unique pairs and recheck all selected records under a write lock before applying any changes.
+- Add migration m022 for employment document links, pay periods, record versions and explicit cash choices. Earlier migrations remain unchanged. Back up before updating; an older image requires its matching pre-update backup.
+
+## 1.0.6-beta.6 — WFH import and document previews (2026-10-27)
+
+- Import WFH Logbook Australia PDFs and Expense Pilot diary CSVs through a review screen. Choose Employment or Business, complete missing work descriptions, and check dates, breaks and session timezones before saving.
+- Reject partial PDF extraction, invalid hours and overlapping sessions. Skip existing or previously removed imports, including retries after a lost response. Selected sessions save together or not at all.
+- Preserve the original report in Documents and retain original logged/updated timestamps and source values in import history. Imported sessions link to their source; PDF logbooks distinguish source timestamps from Expense Pilot import timestamps. No monetary totals from a report are imported and claim settings are unchanged.
+- View documents inside Expense Pilot: PDF page navigation and zoom, images, plain-text Word/TXT previews and cell-value Excel/CSV previews. Downloads retain original bytes. Password-protected or unsupported previews provide a download fallback.
+- Keep each new success notification visible for its full duration when messages arrive close together.
+- Process previews locally with bounded resources and authenticated owner/tax-agent access. No document content goes to an external viewer or AI service. No new schema migration.
+
+## 1.0.6-beta.5 — Fixed-rate home office, printable logbooks and documents (2026-10-27)
+
+- Simplify Home office to the fixed-rate method. Remove actual-cost selection, method comparisons and the optional employee standard-deduction comparison. Existing actual-cost settings and records are retained; the claim stays pending until fixed-rate confirmations are reviewed and saved.
+- Add bill evidence directly without entering use percentages. Save the receipt, expense and classification safely with retry protection; new evidence has no separate allocated deduction. Existing expense allocations remain unchanged, while covered bills are excluded from duplicate forecast deductions. Separate assessed equipment and other costs outside the hourly rate retain their existing checks.
+- Download a WFH logbook PDF with the financial-year summary, employment/business hours, monthly totals, session times, breaks, creation/update timestamps, work notes and evidence checklist. Clearly distinguish estimated deductions, pending claims and amounts included in the forecast.
+- Download a mileage PDF for a vehicle, date range and workspace, with distance summaries and monthly journey details. Include routes, purposes, saved odometer readings, use percentages and an optional user-entered reimbursement rate. Never invent missing odometer readings or apply reimbursement amounts to the tax forecast.
+- Add **Reports → Documents** for tax returns, private health statements and other supporting files, with titles, categories, optional financial years, notes, search, downloads and duplicate detection. Keep these files out of claims, income and receipt AI processing. Apply owner/tax-agent permissions and retain originals in manual and automatic backups.
+- Keep vehicle actions disabled while records load, so an early click cannot be lost before the form is ready.
+- Add migration m021 for document metadata without changing the twenty released migrations. Preserve CSV exports, allowances and audit history. No iPhone build. Take a full backup before updating; rollback needs its matching backup because older images do not recognise m021.
+
+## 1.0.6-beta.4 — Clearer home office and verified automatic backups (2026-10-27)
+
+- Replace the long Home office dashboard with a compact claim/hour summary and separate Hours, Bills & receipts, Claim and Allowances views. Remember the selected view on reload. Keep method comparisons and optional tax guidance expandable; only show the checks for the selected method in claim settings. Preserve calculations, records, permissions and existing migrations.
+- Add nightly automatic backups at 02:30 workspace time, keeping seven (`BACKUP_TIME`, `BACKUP_KEEP`; zero disables). Verify the database snapshot and read every completed ZIP member back against its checksum before rotating older backups. Pin receipt originals before releasing the brief database reservation; compression runs without a write lock. Isolate archives by a local installation ID. Settings → Data & privacy shows the last result and offers **Back up now**.
+- Add opt-in `TRUSTED_PROXIES` for per-visitor sign-in limits behind a verified reverse proxy. Default behaviour stays unchanged; trust exact proxy addresses and restrict direct access before enabling.
+- Reuse Docker cache metadata carried in the published beta image, without creating an Actions cache or additional build artifacts. Refresh dependency layers on the first build each UTC day and pull the current base; stable builds remain uncached.
+- Keep dependency source archives bundled with the application. No FUSE/storage warnings, repository-wide reformat or new database migration in this release.
+
+## 1.0.6-beta.3 — Home office (2026-10-27)
+
+- Add Home office under Tracking, with separate employment and sole-trader hours, breaks, workspace timezone and an edit history. Reject overlapping sessions, stale edits and accidental duplicate retries.
+- Compare fixed-rate and actual-cost deductions by financial year. One annual method prevents covered running costs being claimed again through the ordinary expense forecast. Missing confirmations or evidence leave the selected deduction pending.
+- Link original expense bills, preserve spending and use percentages, and require an assessed amount for equipment/depreciation and occupancy. Reimbursements are excluded.
+- Record employer allowances, with an explicit choice about whether they are already included in gross pay. Annual salary overrides replace the recorded total.
+- Export the diary, bills, calculations, allowances and relevant edit history to CSV. Tax agents can view/export; editing follows their existing permissions.
+- Show an optional employee standard-deduction comparison separately from the forecast. This beta does not calculate a final tax return, depreciation schedules or GST/BAS.
+- Add migration m020 without altering existing data or the 19 released migrations. Full backups retain home-office records and attachments. SQLite 3.54.1 and database health checks remain included.
+
+See the [Home office guide](home-office.md). Take a full backup before updating. An older image cannot open a database after m020; rollback requires the matching pre-update backup.
+
+## 1.0.6-beta.2 — SQLite reliability (2026-10-27)
+
+- Build and pin SQLite 3.54.1, including the upstream WAL-reset corruption fix. Verify the downloaded source checksums and the library version/source ID actually loaded by Python.
+- Preserve existing databases, receipts, credentials and all 19 migrations. This updates the database engine; it does not repair an already-corrupt file or replace user records.
+- Check HTTP availability and database structure in the Docker health check. Missing or malformed databases report unhealthy without automatic repair. Checks have a bounded execution time and include active WAL data.
+- Retain the matching SQLite source, build command, notices and version in the downloadable dependency bundles.
+- Update Pillow to 13.0.0 and pypdf to 6.21.2 to resolve the existing dependency audit findings; receipt, image and invoice workflows remain covered by the release checks.
+- Test the upgrade from Debian SQLite, retained records, backup integrity and a deliberately damaged session table. Reduce temporary browser evidence retention to 3 days.
+
+Take a full backup before updating. Keep any recovery snapshot until a fresh backup has been verified and the repaired application's records and receipt attachments have been checked. Stable remains v1.0.5; WFH development is not included in this reliability release.
+
 ## 1.0.6-beta.1 — Stable source packaging sync (2026-10-18)
 
 - Bring the v1.0.5 dependency source packaging, publication checks and documentation into beta.

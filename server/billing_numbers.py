@@ -45,6 +45,8 @@ def change_number(doc, number, bump_version=True):
     from billing import audit, db, fail, one
     if doc['kind'] != 'invoice':
         fail('Only invoice numbers can be changed.')
+    from billing_revisions import editable
+    editable(doc)
     number = validate_number(number, doc['id'])
     if number == doc['number']:
         return

@@ -4,7 +4,7 @@ const {navigate}=require('./ui_navigation.cjs');
 
 async function billingMailChecks(page,output){
   await navigate(page,'settings');
-  await page.getByRole('button',{name:'Email templates',exact:false}).click();
+  await page.locator('[data-settings-jump=email]').click();await page.getByRole('button',{name:'Email templates',exact:false}).click();
   await page.getByRole('tab',{name:'Invoices',exact:true}).waitFor();
   assert.equal(await page.getByLabel('Invoice subject',{exact:true}).inputValue(),'Invoice from {business}');
   await page.getByLabel('Invoice email body',{exact:true}).click();
@@ -27,7 +27,7 @@ async function billingMailChecks(page,output){
   assert.match(templates.signature_html,/<(?:b|strong)>Browser Test Owner<\/(?:b|strong)>/);
   await page.screenshot({path:output+'/email-signature.png',fullPage:true});
   await page.locator('#close-modal').click();
-  await page.getByRole('button',{name:'Automatic invoice reminders',exact:false}).click();
+  await page.locator('[data-settings-jump=email]').click();await page.getByRole('button',{name:'Automatic invoice reminders',exact:false}).click();
   assert.equal(await page.getByLabel('Enable automatic reminder emails').isChecked(),false);
   await page.getByLabel('Days before the due date',{exact:true}).fill('5');
   const reminderSaved=page.waitForResponse(r=>r.url().endsWith('/api/billing/reminder-settings')&&r.request().method()==='PUT'&&r.status()===200);
@@ -49,7 +49,10 @@ async function billingMailChecks(page,output){
   await page.getByRole('button',{name:'Send reminder',exact:true}).click();
   assert.match(await page.getByLabel('Subject',{exact:true}).inputValue(),/is due/);
   await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  // Cancel asynchronously reloads the invoice. Wait for that view before closing it.
+  await page.locator('#modal').getByRole('button',{name:'Send reminder',exact:true}).waitFor();
   await page.locator('#close-modal').click();
+  await page.locator('#modal').waitFor({state:'hidden'});
   await navigate(page,'clients');
   await page.getByRole('button',{name:'Statement ↗',exact:true}).first().click();
   assert.match(await page.locator('.statement-summary').innerText(),/845\.00/);

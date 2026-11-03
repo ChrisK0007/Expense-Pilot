@@ -1,10 +1,10 @@
-# Stable installation and configuration — 1.0.5
+# Installation and configuration — stable 1.0.6
 
-Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes stable 1.0.5, including the source/licence downloads tested in beta. Use the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) only for a separate testing installation. The iPhone app stays in testing; no App Store setup is needed to install the container.
+Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes stable 1.0.6. Use the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) only for a separate testing installation. The iPhone app stays in testing; no App Store setup is needed to install the container.
 
 ## Unraid installation
 
-After Community Apps approval, search **Apps** for Expense Pilot and install it. Until the listing is approved, use the [manual template instructions](guide.md#first-install-on-unraid).
+After Community Apps approval, search Apps for Expense Pilot. Until then, use the [manual template instructions](guide.md#first-install-on-unraid) from this branch.
 
 Before installing, create the persistent folder from the Unraid terminal:
 
@@ -21,7 +21,7 @@ For an additional installation, change the container name, host port and appdata
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.5` to pin this stable release.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.6` to pin this stable release.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
@@ -30,7 +30,7 @@ The portable file uses a Docker named volume, avoiding host-path permissions on 
 
 The published server image is currently Linux AMD64. This Compose file selects that platform explicitly; Apple silicon and other ARM Docker hosts need AMD64 emulation. Native ARM images and host-specific installation tests remain release follow-up work. Ollama's companion image chooses its own available native platform.
 
-The default port binds only to the host's loopback interface. For trusted LAN access, set `BIND_ADDRESS=0.0.0.0` and configure the host firewall. For access from a phone away from home use a VPN or a properly configured HTTPS reverse proxy. Do not expose unencrypted HTTP to the internet. Set `COOKIE_SECURE=true` when using HTTPS. The native app requires a direct Expense Pilot endpoint and does not bypass an external SSO wall or invalid TLS certificate.
+The default port binds only to the host's loopback interface. For trusted LAN access, set `BIND_ADDRESS=0.0.0.0` and configure the host firewall. For access from a phone away from home use a VPN or a properly configured HTTPS reverse proxy. Do not expose unencrypted HTTP to the internet. Set `COOKIE_SECURE=true` when using HTTPS, and set `TRUSTED_PROXIES` to the proxy's address or network so sign-in limits apply per visitor. The native app requires a direct Expense Pilot endpoint and does not bypass an external SSO wall or invalid TLS certificate.
 
 ## Receipt AI modes
 
@@ -44,21 +44,27 @@ The default port binds only to the host's loopback interface. For trusted LAN ac
 
 ## Email copies
 
-In **Settings → Email delivery**, enable **Send me a copy of client emails** and choose the destination (initially your owner email). The same message and PDF attachments are BCC'd for invoices, quotes, automatic/manual reminders, payment receipts and statements. Clients do not see the BCC address. Invitations and test messages are excluded. A rejected copy is recorded as a warning without retrying an already-delivered client email. Issuing an invoice without sending an email produces no email copy.
+In **Settings → Email delivery**, **Send me a copy by default** controls the starting preference. It is off for new installations. **Copy email address (optional)** can be left blank to use your account email. Every invoice, quote, manual reminder, payment receipt and statement send window has a **Send me a copy** checkbox that applies only to that email. Automatic reminders follow the saved default. Copies use BCC with the same message and PDF attachments; clients do not see the copy address. Invitations and SMTP test messages are excluded. A rejected copy is recorded as a warning without retrying an already-delivered client email. Issuing an invoice without sending email produces no copy.
 
 ## Backup and restore
 
 **Settings → Data & privacy → Download full backup / restore guide** creates a consistent database snapshot plus receipt originals and the key needed to decrypt saved credentials. It requires your current password and authenticator/recovery code when enabled. The ZIP is not encrypted: store it privately. Host `.env`, reverse-proxy configuration and earlier archives are separate. The existing `backup.sh` full host backup remains available and is useful for regular scheduled host backups. Large backups that exceed the container's temporary storage should use that host helper.
 
+### Automatic backups
+
+Expense Pilot also makes a backup every night at 02:30 in the workspace timezone (`BACKUP_TIME`) and keeps the newest seven (`BACKUP_KEEP`; `0` turns this off). If the server was off at that time, it catches up later the same day; a failed attempt retries hourly, up to three times. Each archive uses exactly the same format as the download above. Before an archive is kept, its database snapshot must pass SQLite's integrity and foreign-key checks, and every file in the completed ZIP is read back and checked against its SHA-256 checksum before older archives are removed. Failed validation leaves the existing backups in place. Compression runs after the database write reservation is released. **Settings → Data & privacy** shows the last successful backup, any failure reason, and a **Back up now** button.
+
+Archives are written to `/data/backups/<installation-id>` by default. A mounted `/backups` or an explicit `BACKUP_DIR` also gets a separate installation subfolder, so containers sharing a destination cannot prune each other’s archives. The local `backup-id` is deliberately excluded from portable ZIP and host-helper backups; restored installations get a new backup identity. Do not copy that file when cloning a data folder. That protects against a damaged database but not against losing the disk, so mount a separate folder at `/backups` on another disk if you can (the Unraid template has an **Automatic backups** path; Compose has a commented example). The folder must be writable by UID 99 / GID 100. Archives contain your records, receipts and the credential key, unencrypted, with owner-only file permissions. To restore one, use the `expense-pilot-auto-*.zip` file with the restore command below exactly as you would a downloaded backup. The `backup.sh` host helper skips `data/backups`.
+
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.5 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.6 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
 
-Before upgrading, back up and retain the previous image version. Then run `docker compose -f compose.public.yaml pull` and `docker compose -f compose.public.yaml up -d`, or update the selected Unraid container. Numbered migrations run transactionally. An older image refuses a database with newer migrations; roll back using the matching older backup and image together. Stable remains on its own release channel.
+Before upgrading, back up and retain the previous image version. Then run `docker compose -f compose.public.yaml pull` and `docker compose -f compose.public.yaml up -d`, or update the selected Unraid container. Numbered migrations run transactionally. An older image refuses a database with newer migrations; roll back using the matching older backup and image together. Upgrading from stable 1.0.5 applies migrations m020–m028. Upgrading from 1.0.6-beta.19 adds no further migration. Existing tax-agent accounts start with no shared financial years when upgrading from stable 1.0.5; choose the years to share in Access settings before the agent resumes work.
 
 ## Privacy and account lifecycle
 
@@ -82,7 +88,7 @@ The app remains Australian-focused: AUD, DD/MM/YYYY input, July–June financial
 
 Settings is grouped into Workspace, Receipts & AI, Business & email, Bank feeds, Access & security, and Data & privacy. The topic buttons jump to each section. Features are personal preferences; timezone, AI and business configuration are shared owner-managed settings. Backup downloads are optional and are not setup checklist items. They do not schedule automatic backups.
 
-The stable v1.0.5 Unraid template uses `:latest` and has no Ollama fields; the beta branch keeps its own `:beta` template. Existing containers keep their saved Unraid configuration when the image is updated. Save your AI configuration in the app before removing legacy `OLLAMA_URL` / `OLLAMA_MODEL` variables. Existing environment settings remain supported until you save in-app AI settings. If you still run v1.0.1, upgrade the image before adopting the optional-token and in-app AI setup described here.
+The stable v1.0.6 Unraid template uses `:latest` and has no Ollama fields; the beta branch keeps its own `:beta` template. Existing containers keep their saved Unraid configuration when the image is updated. Save your AI configuration in the app before removing legacy `OLLAMA_URL` / `OLLAMA_MODEL` variables. Existing environment settings remain supported until you save in-app AI settings. If you still run v1.0.1, upgrade the image before adopting the optional-token and in-app AI setup described here.
 
 `SETUP_TOKEN` is optional in stable v1.0.2 and the current beta. If set, the exact value (at least 24 characters) is required; an invalid or short configured token does not bypass protection. If blank/unset, the first person to reach the setup page can create the owner. Complete setup on a trusted network before exposing the server remotely. Existing logins and records are unaffected by removing the token. Initial owner creation remains locked once any account exists. An intentional full workspace deletion makes first-run setup available again.
 

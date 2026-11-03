@@ -21,3 +21,14 @@ class CurrencyTest(unittest.TestCase):
         self.assertEqual(currency_fields({'currency':'AUD','currency_evidence':'Total AUD 25.00'})['currency'],'AUD')
         # An ungrounded model quote cannot override independently extracted PDF text.
         self.assertEqual(currency_fields({'currency':'USD','currency_evidence':'USD'},'Example receipt. Total $25.00. Thank you.')['currency'],'AUD')
+
+    def test_super_guarantee_row_is_not_a_singapore_currency_symbol(self):
+        for separator in (' ', '  ', '\t', '\n', '\r\n'):
+            source='PAYSLIP\nSuperannuation Breakdown\nSG'+separator+'$360.00\n$1,800.00'
+            with self.subTest(separator=repr(separator)):
+                value=currency_fields({'currency':'SGD','currency_evidence':'SG $360.00'},source)
+                self.assertEqual(value['currency'],'AUD')
+                self.assertEqual(value['currency_status'],'default')
+        for source in ('Total SG$25.00', 'Currency SGD 25.00', 'SINGAPORE DOLLARS 25.00'):
+            with self.subTest(source=source):
+                self.assertEqual(currency_fields({},source)['currency'],'SGD')

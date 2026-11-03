@@ -37,6 +37,84 @@ class BillingEmailTest(unittest.TestCase):
         from pypdf import PdfReader
         return '\n'.join(page.extract_text() for page in PdfReader(io.BytesIO(raw)).pages)
 
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_invoice_copy_is_optional_per_send_and_does_not_change_default(self, smtp):
+        config={**self.email_config(),'copy_self':True,'copy_email':'copies@example.test'}
+        self.call(self.owner,'billing/email-settings',config,'PUT')
+        doc=self.create();draft=self.draft(doc)
+        self.assertTrue(draft['copy_self']);self.assertEqual(draft['copy_email'],'copies@example.test')
+        payload={**draft,'copy_self':False}
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",payload).json['state'],'sent')
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+        # Replaying the send key with a changed checkbox must not send a second email.
+        count=smtp.return_value.send_message.call_count
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**payload,'copy_self':True}).json['state'],'sent')
+        self.assertEqual(smtp.return_value.send_message.call_count,count)
+        draft=self.draft(self.get(doc['id']));self.assertTrue(draft['copy_self'])
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_email':'untrusted@example.test'}).json['state'],'sent')
+        outgoing=smtp.return_value.send_message.call_args.args[0]
+        self.assertEqual(outgoing['Bcc'],'copies@example.test')
+        self.assertTrue(any(p.get_filename()==doc['number']+'.pdf' for p in outgoing.walk()))
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_opt_in_with_default_off_and_blank_copy_address_uses_owner_email(self, smtp):
+        config={**self.email_config(),'copy_self':False,'copy_email':''}
+        self.assertEqual(self.call(self.owner,'billing/email-settings',config,'PUT').status_code,200)
+        doc=self.create();draft=self.draft(doc)
+        self.assertFalse(draft['copy_self']);self.assertEqual(draft['copy_email'],'owner@example.test')
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':True}).json['state'],'sent')
+        self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],'owner@example.test')
+        draft=self.draft(self.get(doc['id']));self.assertFalse(draft['copy_self'])
+        draft.pop('copy_self')  # Older clients keep the saved default.
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",draft).json['state'],'sent')
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+        draft=self.draft(self.get(doc['id']))
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':True,'recipient':'OWNER@example.test'}).json['state'],'sent')
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_manual_billing_email_types_honour_copy_choice(self, smtp):
+        config=self.email_config()
+        for default in (True,False):
+            self.call(self.owner,'billing/email-settings',{**config,'copy_self':default,'copy_email':'copies@example.test'},'PUT')
+            invoice=self.issue(self.create());self.pay(invoice,'20');invoice=self.get(invoice['id'])
+            for doc,kind in [(self.create(kind='quote'),'document'),(invoice,'reminder_manual'),(invoice,'receipt')]:
+                draft=self.draft(self.get(doc['id']),kind);self.assertEqual(draft['copy_self'],default)
+                result=self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':not default})
+                self.assertEqual(result.status_code,200,result.json);self.assertEqual(result.json['state'],'sent')
+                self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],None if default else 'copies@example.test')
+            path=f'billing/clients/{self.cid}/statement'
+            draft=self.owner.get('/api/'+path+'/email-draft?mode=outstanding').json
+            self.assertEqual(draft['copy_self'],default)
+            result=self.call(self.owner,path+'/send',{**draft,'mode':'outstanding','copy_self':not default})
+            self.assertEqual(result.status_code,200,result.json);self.assertEqual(result.json['state'],'sent')
+            self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],None if default else 'copies@example.test')
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_invalid_copy_choice_is_rejected_before_issuing_or_sending(self, smtp):
+        self.email_config();doc=self.create();draft=self.draft(doc)
+        path=f'billing/clients/{self.cid}/statement'
+        statement=self.owner.get('/api/'+path+'/email-draft?mode=outstanding').json
+        for value in ('false','true',0,1,None,[],{}):
+            self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':value}).status_code,400)
+            self.assertEqual(self.call(self.owner,path+'/send',{**statement,'mode':'outstanding','copy_self':value}).status_code,400)
+        self.assertEqual(self.get(doc['id'])['state'],'draft');smtp.assert_not_called()
+        with app.app_context():
+            self.assertEqual(db().execute('SELECT COUNT(*) FROM billing_outbox').fetchone()[0],0)
+            self.assertEqual(db().execute('SELECT COUNT(*) FROM billing_statement_outbox').fetchone()[0],0)
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_automatic_reminders_keep_global_copy_default_and_private_mail_excludes_copy(self, smtp):
+        config=self.email_config()
+        self.call(self.owner,'billing/reminder-settings',dict(enabled=True,before_days=0,on_due_date=True,after_days=[]),'PUT')
+        for default in (False,True):
+            self.call(self.owner,'billing/email-settings',{**config,'copy_self':default,'copy_email':''},'PUT')
+            self.issue(self.create())
+            with app.app_context():self.assertEqual(run_reminders(self.today),1)
+            self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],'owner@example.test' if default else None)
+        with app.app_context():billing.deliver('agent@example.test','Invitation','Private message',copy_self=True)
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+
     def test_reference_templates_and_personalised_fields(self):
         settings = self.owner.get('/api/billing/email-templates').json
         self.assertEqual(settings['templates'], DEFAULT_TEMPLATES)
@@ -90,13 +168,14 @@ class BillingEmailTest(unittest.TestCase):
         token = self.owner.get('/api/session').json['csrf']
         result = self.owner.post('/api/billing/signature-image', data={'file':(io.BytesIO(raw.getvalue()), 'logo.png')}, headers={'X-CSRF-Token':token})
         self.assertEqual(result.status_code, 200)
-        signature = '<div><b>Chris &amp; Co</b><br><font color="#123456" size="4">Pilot</font><br><a href="https://example.test">Website</a><img src="' + result.json['src'] + '" alt="Business logo"></div><script>alert(1)</script><img src="https://tracker.invalid/pixel" onerror="alert(1)"><a href="javascript:alert(1)">Bad link</a>'
+        signature = '<table><tr><td style="padding-right:12px;font-family:Arial"><div><b>Chris &amp; Co</b><br><font color="#123456" size="4">Pilot</font><br><a href="https://example.test">Website</a><img src="' + result.json['src'] + '" alt="Business logo"></div><script>alert(1)</script><img src="https://tracker.invalid/pixel" onerror="alert(1)"><a href="javascript:alert(1)">Bad link</a>'
         result = self.call(self.owner, 'billing/email-templates', {'signature_html':signature}, 'PUT')
         self.assertEqual(result.status_code, 200, result.json)
         cleaned = result.json['signature_html']
-        for unsafe in ('<script', 'javascript:', 'onerror', 'tracker.invalid', 'alert('):
+        for unsafe in ('<script', 'javascript:', 'onerror', 'alert('):
             self.assertNotIn(unsafe, cleaned)
         self.assertIn('<b>Chris &amp; Co</b>', cleaned)
+        self.assertIn('https://tracker.invalid/pixel', cleaned)
         self.assertEqual(clean_signature(cleaned)[0], cleaned)
         doc = self.create(); draft = self.draft(doc)
         self.assertEqual(draft['signature_html'], cleaned)
@@ -104,6 +183,7 @@ class BillingEmailTest(unittest.TestCase):
         message = smtp.return_value.send_message.call_args.args[0]
         self.assertIn('Chris & Co', message.get_body(preferencelist=('plain',)).get_content())
         html = message.get_body(preferencelist=('html',)).get_content()
+        self.assertIn('<table', html)
         self.assertIn('cid:expense-pilot-signature-0', html)
         self.assertNotIn('data:image', html)
         self.assertEqual(len([part for part in message.walk() if part.get_content_type()=='image/png']), 1)
@@ -128,7 +208,7 @@ class BillingEmailTest(unittest.TestCase):
         doc = self.get(doc['id']); draft = self.draft(doc, 'receipt')
         self.assertEqual(draft['subject'], '$110.00 payment receipt')
         self.assertNotIn('outstanding balance', draft['body'])
-        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/receipt").status_code, 200)
+        self.assertEqual(self.agent.get(f"/api/billing/documents/{doc['id']}/receipt").status_code, 403)
         self.assertEqual(self.call(self.owner, f'billing/payments/{last}/reverse', dict(version=doc['version'],reason='Correction')).status_code, 200)
         self.assertEqual(self.call(self.owner, f"billing/documents/{doc['id']}/send", draft).status_code, 409)
         self.assertEqual(self.draft(self.get(doc['id']), 'receipt')['subject'], '$40.00 payment receipt')
@@ -144,7 +224,8 @@ class BillingEmailTest(unittest.TestCase):
         self.issue(self.create(issue_date=self.day(1), due_date=self.day(2)))
         start = self.day(-10)
         url = f'/api/billing/clients/{self.cid}/statement?mode=all&start={start}&end={self.today}'
-        result = self.agent.get(url)
+        self.assertEqual(self.agent.get(url).status_code,403)
+        result = self.owner.get(url)
         self.assertEqual(result.status_code, 200)
         statement = result.json
         self.assertEqual((statement['opening_cents'], statement['invoice_cents'], statement['payment_cents'], statement['closing_cents']), (9900,11000,3300,17600))

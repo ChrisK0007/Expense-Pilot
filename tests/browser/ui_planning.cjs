@@ -6,13 +6,13 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
  const browser=await chromium.launch({headless:true,args:['--no-sandbox']}),page=await browser.newPage({viewport:{width:1440,height:1050}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  try{
-  await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();await page.locator('[data-page="budgets"]').waitFor();
+  await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();await page.locator('[data-page="expenses"]').waitFor();
   const session=await(await page.request.get(url+'/api/session')).json(),headers={'X-CSRF-Token':session.csrf};
   const post=async(path,data)=>{const r=await page.request.post(url+'/api/'+path,{headers,data});assert.ok(r.ok(),await r.text());return r.json();};
   await post('categories',{name:'Budget test fuel'});
   const vid=(await post('vehicles',{name:'Planning test car'})).id;
   await post('expenses',{date:'2026-10-12',merchant:'Planning fuel receipt',amount:'120',scope:'personal',category:'Budget test fuel',work_percent:0,business_percent:0,status:'ready',vehicle_id:vid});
-  await page.reload();await page.locator('[data-page="budgets"]').waitFor();await navigate(page,'budgets');await page.locator('#budget-month').fill('2026-10');await page.locator('#add-budget').click();await page.getByLabel('Category',{exact:true}).selectOption('Budget test fuel');await page.getByLabel('Budget amount (AUD)').fill('100');await page.getByRole('button',{name:'Save budget',exact:true}).click();await page.getByText('$20.00 over budget',{exact:true}).waitFor();
+  await page.reload();await page.locator('[data-page="expenses"]').waitFor();await navigate(page,'budgets');await page.locator('#budget-month').fill('2026-10');await page.locator('#add-budget').click();await page.getByLabel('Category',{exact:true}).selectOption('Budget test fuel');await page.getByLabel('Budget amount (AUD)').fill('100');await page.getByRole('button',{name:'Save budget',exact:true}).click();await page.getByText('$20.00 over budget',{exact:true}).waitFor();
   await page.screenshot({path:output+'/category-budgets.png',fullPage:true});await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/category-budgets-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1050});
   // A quarterly budget includes all three months, while the existing monthly one stays separate.
   await post('expenses',{date:'2026-11-30',merchant:'Quarterly budget spending',amount:'80',scope:'personal',category:'Budget test fuel',work_percent:0,business_percent:0,status:'ready'});

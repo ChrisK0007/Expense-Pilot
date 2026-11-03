@@ -41,7 +41,8 @@ def categories_api():
         name = str(body().get('name') or '').strip()
         if not name or len(name) > 80 or any(ord(c) < 32 for c in name): fail('Enter a category name of 1–80 characters.')
         db().execute('BEGIN IMMEDIATE')
-        if name.casefold() in {c.casefold() for c in category_names()}: fail('That category already exists.', 409)
+        from category_labels import labels
+        if name.casefold() in {c.casefold() for c in category_names()+list(labels().values())}: fail('That category already exists.', 409)
         db().execute('INSERT INTO custom_categories(name) VALUES (?)', (name,))
         audit('expense category created', name); db().commit()
     return jsonify(category_names())
@@ -98,11 +99,18 @@ def receipt_values(rid):
     return {**extracted, **draft_for(rid)}
 
 def clean_draft(d):
-    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip'}
+    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip','document_kind','employer','gross','withheld','period_start','period_end','amounts_basis','home_office_kind','bank_choice','bank_version','personally_paid'}
     if set(d)-allowed: fail('Unknown receipt draft field.')
     result = {}
     for key, value in d.items():
-        if key=='date': result[key] = day(value) if value else ''
+        if key=='document_kind':
+            from income_documents import KINDS
+            if value not in KINDS: fail('Invalid document type.')
+            result[key]=value
+        elif key in ('gross','withheld'): result[key]=money(value)/100 if value not in ('',None) else None
+        elif key in ('period_start','period_end'): result[key]=day(value) if value else ''
+        elif key=='personally_paid': result[key]=value is True
+        elif key=='date': result[key] = day(value) if value else ''
         elif key=='amount': result[key] = money(value)/100 if value not in ('',None) else None
         elif key in ('percent','work_percent','business_percent'):
             try: n = Decimal(str(value))
@@ -133,6 +141,7 @@ def clean_draft(d):
 @access
 def save_receipt_draft(rid):
     db().execute('BEGIN IMMEDIATE'); r=receipt(rid)
+    if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as income.',409)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already filed.',409)
     incoming=clean_draft(body());values={**draft_for(rid),**incoming}
     if 'percent' in incoming and 'work_percent' not in incoming and 'business_percent' not in incoming and values.get('scope')!='split':
@@ -161,10 +170,12 @@ def proposals(focus=None):
     focus_values=receipt_values(focus['id']) if focus else {}
     focus_scope=(focus_values.get('scope') or profile(focus['user_id'])['scope']) if focus else None
     where, args = ('r.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
-    receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id)',args)
+    receipts = rows(f'SELECT r.*,u.name AS owner FROM receipts r JOIN users u ON u.id=r.user_id WHERE {where} AND NOT EXISTS (SELECT 1 FROM expenses e WHERE e.receipt_id=r.id) AND NOT EXISTS (SELECT 1 FROM employment_income i WHERE i.receipt_id=r.id) AND NOT EXISTS(SELECT 1 FROM equipment_assets eq WHERE eq.evidence_receipt_id=r.id)',args)
     groups=[]
     for r in receipts:
-        d=receipt_values(r['id']); prefs=profile(r['user_id']); city=location_core.receipt_location(d)
+        d=receipt_values(r['id'])
+        if d.get('document_kind','expense')!='expense': continue
+        prefs=profile(r['user_id']); city=location_core.receipt_location(d)
         if not d.get('date') or d.get('category')!='Meals' or d.get('exclude_trip') or d.get('scope')=='personal': continue
         assessment=location_core.local_assessment(prefs,city if 'merchant_location' in d else d.get('merchant_city',''),'' if 'merchant_location' in d else d.get('merchant_address',''),d.get('currency','AUD'))
         scope=d.get('scope') or prefs['scope']; when=d['date']
@@ -202,6 +213,7 @@ def proposal_api(): return jsonify(proposals())
 @access
 def receipt_trip_proposal(rid):
     r=receipt(rid)
+    if one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)): fail('This document is already filed as income.',409)
     if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This receipt is already filed.',409)
     values=receipt_values(rid)
     if values.get('category')!='Meals' or not values.get('date'): fail('Enter the receipt date and select Meals before reviewing a trip.')
@@ -220,6 +232,8 @@ def accept_proposal():
     db().execute('BEGIN IMMEDIATE')
     originals=[receipt(rid) for rid in ids]; uid=originals[0]['user_id']
     if any(r['user_id']!=uid for r in originals): fail('A trip can only contain receipts for one person.')
+    if any(one('SELECT id FROM employment_income WHERE receipt_id=?',(rid,)) for rid in ids): fail('A document was already filed as income.',409)
+    if any(receipt_values(rid).get('document_kind','expense')!='expense' for rid in ids): fail('Only expense documents can be added to a trip.')
     if any(one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)) for rid in ids): fail('A receipt was already filed. Reload the draft trips.',409)
     start,end=day(d.get('start')),day(d.get('end'));location=textval(d.get('location'),100);purpose=textval(d.get('purpose'),500);scope=d.get('scope')
     if end<=start or not location or not purpose: fail('Confirm an overnight date range, location and purpose.')
@@ -241,8 +255,13 @@ def accept_proposal():
             values.pop('work_percent',None);values.pop('business_percent',None)
         if not values.get('meal'): fail('Confirm a meal type for each receipt.')
         if values.get('percent') in ('',None): values['percent']=100
+        import bank_matching
+        match=bank_matching.choose(uid,values)
+        if match and match['expense_id']: fail('This meal already has a bank-linked expense. Attach its document from the inbox first.',409)
+        if match: values['account_id']=match['local_account_id']
         p=payload(values,{'user_id':uid,'account_id':None})
         eid=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p).lastrowid
+        bank_matching.attach(eid,match,values.get('bank_choice')=='cash')
         saved.append(eid);audit('receipt trip meal accepted',eid)
     audit('receipt trip accepted',tid);db().commit();return jsonify(trip_id=tid,expense_ids=saved)
 
@@ -329,7 +348,7 @@ def journeys_api():
                 db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],old['id'],fingerprint))
                 db().commit();return jsonify(journey_routes.acknowledgement(old['id'],meta[2],route))
         jid=db().execute('INSERT INTO vehicle_journeys(vehicle_id,date,origin,destination,purpose,scope,odometer_start,odometer_end,distance_m,percent,started_at,ended_at,client_ref,route_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',values+meta+(route,)).lastrowid
-        db().execute('UPDATE vehicle_journeys SET date_timezone=? WHERE id=?', (vehicle_logbook.date_timezone(d), jid))
+        db().execute('UPDATE vehicle_journeys SET date_timezone=?,review_confirmed=1 WHERE id=?', (vehicle_logbook.date_timezone(d), jid))
         if meta[2]: db().execute('INSERT INTO journey_upload_receipts VALUES (?,?,?)',(meta[2],jid,fingerprint))
         audit('vehicle journey created',jid);db().commit();return jsonify(journey_routes.acknowledgement(jid,meta[2],route))
     where,args=('v.user_id=?',[g.user['id']]) if g.user['role']=='employee' else ('1=1',[])
@@ -341,6 +360,30 @@ def journeys_api():
         return send_file(io.BytesIO(out.getvalue().encode('utf-8-sig')),mimetype='text/csv',as_attachment=True,download_name='expense-pilot-vehicle-journeys.csv')
     for item in data: item['has_route']=item.pop('route_json') is not None
     return jsonify(data)
+
+@bp.get('/vehicles/<int:vid>/report.pdf')
+@access
+def mileage_report(vid):
+    from record_reports import mileage_pdf
+    from billing import business
+    v=vehicle(vid)
+    if not request.args.get('from') or not request.args.get('to'): fail('Choose a report start and end date.')
+    start,end=day(request.args['from']),day(request.args['to'])
+    if start>end: fail('The report end must be on or after its start.')
+    scope=request.args.get('scope','all')
+    if scope not in ('all','work','business','personal'): fail('Choose a valid report workspace.')
+    rate=None
+    value=request.args.get('rate','').strip()
+    if value:
+        try:
+            rate=Decimal(value)
+            if not rate.is_finite() or not 0<=rate<=1000 or rate.as_tuple().exponent < -4: raise ValueError()
+        except (ValueError,InvalidOperation): fail('Enter a reimbursement rate from 0 to 1000 with up to four decimal places, or leave it blank.')
+    clause='' if scope=='all' else ' AND scope=?'
+    journeys=rows('SELECT * FROM vehicle_journeys WHERE vehicle_id=? AND date BETWEEN ? AND ?'+clause+' ORDER BY date,COALESCE(started_at,0),id',(vid,start,end)+(() if scope=='all' else (scope,)))
+    person=one('SELECT name FROM users WHERE id=?',(v['user_id'],))['name']
+    pdf=mileage_pdf(v,person,business().get('name',''),journeys,start,end,scope,rate)
+    return send_file(io.BytesIO(pdf),mimetype='application/pdf',as_attachment=True,download_name=f'expense-pilot-mileage-{vid}-{start}-{end}.pdf')
 
 @bp.route('/vehicle-journeys/<int:jid>',methods=['GET','PUT','DELETE'])
 @access
@@ -364,7 +407,7 @@ def journey_api(jid):
         meta=vehicle_logbook.metadata(d,j)
         route=journey_routes.archive(d['route']) if 'route' in d else j['route_json']
         db().execute('UPDATE vehicle_journeys SET vehicle_id=?,date=?,origin=?,destination=?,purpose=?,scope=?,odometer_start=?,odometer_end=?,distance_m=?,percent=?,started_at=?,ended_at=?,client_ref=?,route_json=? WHERE id=?',values+meta+(route,jid))
-        db().execute('UPDATE vehicle_journeys SET date_timezone=? WHERE id=?', (vehicle_logbook.date_timezone(d,j), jid))
+        db().execute('UPDATE vehicle_journeys SET date_timezone=?,review_confirmed=1 WHERE id=?', (vehicle_logbook.date_timezone(d,j), jid))
     audit('vehicle journey updated',jid);db().commit();return jsonify(ok=True)
 
 def register(app, **deps):

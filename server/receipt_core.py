@@ -5,7 +5,9 @@ CODES=('AUD','USD','NZD','CAD','SGD','HKD','FJD','EUR','GBP','JPY','CNY','THB','
 def markers(text):
     upper=text.upper()
     found=set(re.findall(r'(?<![A-Z])('+'|'.join(CODES)+r')(?![A-Z])',upper))
-    for pattern,code in [(r'\b(?:AU|A)\s*\$|AUSTRALIAN DOLLARS?','AUD'),(r'\bUS\s*\$|US DOLLARS?|U\.S\. DOLLARS?','USD'),(r'\bNZ\s*\$|NEW ZEALAND DOLLARS?','NZD'),(r'\bCA\s*\$|CANADIAN DOLLARS?','CAD'),(r'\bSG\s*\$|SINGAPORE DOLLARS?','SGD'),(r'\bHK\s*\$|HONG KONG DOLLARS?','HKD'),(r'€|\bEUROS?\b','EUR'),(r'£|POUNDS? STERLING','GBP')]:
+    # Standalone SG is also a payroll row label (super guarantee). A separated
+    # dollar amount, including on the next PDF line, is not an SG$ symbol.
+    for pattern,code in [(r'\b(?:AU|A)\s*\$|AUSTRALIAN DOLLARS?','AUD'),(r'\bUS\s*\$|US DOLLARS?|U\.S\. DOLLARS?','USD'),(r'\bNZ\s*\$|NEW ZEALAND DOLLARS?','NZD'),(r'\bCA\s*\$|CANADIAN DOLLARS?','CAD'),(r'\bSG\$|SINGAPORE DOLLARS?','SGD'),(r'\bHK\s*\$|HONG KONG DOLLARS?','HKD'),(r'€|\bEUROS?\b','EUR'),(r'£|POUNDS? STERLING','GBP')]:
         if re.search(pattern,upper):found.add(code)
     return found
 

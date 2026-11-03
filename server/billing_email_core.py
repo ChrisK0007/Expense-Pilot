@@ -1,6 +1,7 @@
 """Email template defaults and a small, deliberately limited signature format."""
 import base64
 import io
+import ipaddress
 import re
 from html import escape
 from html.parser import HTMLParser
@@ -49,15 +50,16 @@ def validate_template(key, value):
 
 def signature_image(raw):
     from PIL import Image, UnidentifiedImageError
-    if len(raw) > 100 * 1024:
-        raise ValueError('Signature images must be under 100 KB.')
+    if len(raw) > 2 * 1024 * 1024:
+        raise ValueError('Choose a signature image under 2 MB.')
     try:
         with Image.open(io.BytesIO(raw)) as img:
-            if img.format not in ('PNG', 'JPEG', 'WEBP') or img.width > 300 or img.height > 600:
+            if img.format not in ('PNG', 'JPEG', 'WEBP') or img.width * img.height > 16000000:
                 raise ValueError('Use a PNG, JPEG or WebP image no wider than 300 px and no taller than 600 px.')
             img.load()
             out = io.BytesIO()
-            img.convert('RGBA').save(out, format='PNG', optimize=True)
+            img = img.convert('RGBA'); img.thumbnail((300, 600))
+            img.save(out, format='PNG', optimize=True)
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         raise ValueError('Choose a valid signature image.') from None
     if len(out.getvalue()) > 100 * 1024:
@@ -70,14 +72,34 @@ def safe_link(value):
             and urlsplit(value).scheme.lower() in ('https', 'http', 'mailto', 'tel'))
 
 
+def linked_signature_image(value):
+    """Validate an image reference without resolving or downloading its destination."""
+    if not isinstance(value, str) or len(value) > 4096 or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in value):
+        return False
+    try:
+        url = urlsplit(value)
+        host = (url.hostname or '').encode('idna').decode('ascii').lower()
+        if url.scheme.lower() != 'https' or not host or url.username is not None or url.password is not None or url.port not in (None, 443) or any(c in host for c in ('%', '\\')):
+            return False
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            return bool(re.fullmatch(r'[a-z0-9-]+(?:\.[a-z0-9-]+)+', host)) and not host.endswith(('.localhost', '.local', '.internal'))
+        return address.is_global and not address.is_multicast
+    except (ValueError, UnicodeError):
+        return False
+
+
 class SignatureParser(HTMLParser):
-    tags = {'p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'span', 'font', 'a', 'img', 'small', 'big', 'mark'}
+    tags = {'p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'span', 'font', 'a', 'img', 'small', 'big', 'mark', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'hr', 'ul', 'ol', 'li'}
     blocked = {'script', 'style', 'iframe', 'object', 'svg', 'math', 'template'}
 
-    def __init__(self):
+    def __init__(self, image_fallbacks=None):
+        self.image_fallbacks=list(image_fallbacks or [])
+        self.missing_sources=[]
         super().__init__(convert_charrefs=True)
         self.parts, self.plain, self.stack = [], [], []
-        self.skip, self.images = 0, 0
+        self.skip, self.images, self.missing_images = 0, 0, 0
 
     def handle_starttag(self, tag, attrs):
         if self.skip or tag in self.blocked:
@@ -95,40 +117,88 @@ class SignatureParser(HTMLParser):
                 clean['color'] = attributes['color']
             if attributes.get('size') in ('1', '2', '3', '4', '5', '6', '7'):
                 clean['size'] = attributes['size']
-        if tag in ('span', 'font', 'p', 'div', 'mark'):
+        if tag not in ('br', 'hr'):
             styles = []
             for item in attributes.get('style', '').split(';'):
                 name, _, value = item.partition(':')
                 name, value = name.strip().lower(), value.strip().lower()
                 if name in ('color', 'background-color') and re.fullmatch(r'#[0-9a-f]{6}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)', value):
                     styles.append(f'{name}:{value}')
-                if name == 'font-size' and value in ('10px', '12px', '14px', '16px', '18px', '20px', '24px'):
+                if name in ('font-size', 'line-height') and re.fullmatch(r'(?:[8-9]|[1-3][0-9]|40)(?:\.\d)?(?:px|pt)', value):
+                    styles.append(f'{name}:{value}')
+                if name == 'font-family' and re.fullmatch(r"[a-z0-9 ,\"'-]{1,120}", value):
+                    styles.append(f'{name}:{value}')
+                if name == 'font-weight' and value in ('normal','bold','400','500','600','700') or name == 'font-style' and value in ('normal','italic') or name == 'text-decoration' and value in ('none','underline','line-through') or name == 'text-align' and value in ('left','right','center') or name == 'vertical-align' and value in ('top','middle','bottom') or name == 'border-collapse' and value in ('collapse','separate'):
+                    styles.append(f'{name}:{value}')
+                if name in ('padding','padding-left','padding-right','padding-top','padding-bottom','margin','margin-left','margin-right','margin-top','margin-bottom','border-spacing') and re.fullmatch(r'(?:0|[0-3]?[0-9](?:px|pt))(?: (?:0|[0-3]?[0-9](?:px|pt))){0,3}', value):
+                    styles.append(f'{name}:{value}')
+                if name in ('border','border-left','border-right','border-top','border-bottom') and re.fullmatch(r'[0-3]px solid #[0-9a-f]{6}', value):
+                    styles.append(f'{name}:{value}')
+                if name in ('width','height','max-width') and re.fullmatch(r'(?:[1-9][0-9]?|[1-5][0-9]{2}|600)px|(?:[1-9][0-9]?|100)%|auto', value):
                     styles.append(f'{name}:{value}')
             if styles:
                 clean['style'] = ';'.join(styles)
+        if tag in ('table','td','th','img'):
+            for key in ('width','height','cellpadding','cellspacing','border','colspan','rowspan'):
+                value=attributes.get(key,'')
+                if re.fullmatch(r'[0-9]{1,3}',value) and int(value)<=600: clean[key]=value
+            if attributes.get('align') in ('left','right','center'): clean['align']=attributes['align']
+            if attributes.get('valign') in ('top','middle','bottom'): clean['valign']=attributes['valign']
+        if tag == 'font' and re.fullmatch(r"[a-zA-Z0-9 ,\"'-]{1,120}",attributes.get('face','')): clean['face']=attributes['face']
         if tag == 'img':
             self.images += 1
             if self.images > 3:
                 raise ValueError('Use at most three signature images.')
             source = attributes.get('src', '')
+            linked = linked_signature_image(source)
             match = re.fullmatch(r'data:image/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=]+)', source)
-            if not match:
+            if not match and not linked and self.image_fallbacks:
+                source=self.image_fallbacks.pop(0)
+                match=re.fullmatch(r'data:image/png;base64,([A-Za-z0-9+/=]+)',source)
+            if not match and not linked:
+                self.missing_images += 1
+                self.missing_sources.append(attributes.get('alt', 'Image '+str(self.images))[:100])
+                label='[Add image: '+attributes.get('alt','logo')[:100]+']'
+                self.parts.append('<span>'+escape(label)+'</span>'); self.plain.append(label)
                 return
-            try:
-                clean['src'] = signature_image(base64.b64decode(match[1], validate=True))
-            except (ValueError, TypeError):
-                raise ValueError('Invalid signature image. Use the image upload button.') from None
+            if linked:
+                clean['src'] = source
+                clean['referrerpolicy'] = 'no-referrer'
+            else:
+                try:
+                    clean['src'] = signature_image(base64.b64decode(match[1], validate=True))
+                except (ValueError, TypeError):
+                    raise ValueError('Invalid signature image. Use the image upload button.') from None
+            # A pasted width controls size; let the original image determine height.
+            # Retain height-only sizing using contain so constrained layouts cannot stretch it.
+            image_styles = dict(item.split(':', 1) for item in clean.get('style', '').split(';') if ':' in item)
+            width = image_styles.get('width') or (clean['width']+'px' if clean.get('width') not in (None, '0') else None)
+            height = image_styles.get('height') or (clean['height']+'px' if clean.get('height') not in (None, '0') else None)
+            if width and width != 'auto':
+                image_styles.update(width=width, height='auto')
+                clean.pop('height', None)
+                if width.endswith('px'): clean['width'] = width[:-2]
+                else: clean.pop('width', None)
+            elif height and height != 'auto':
+                image_styles.update(width='auto', height=height)
+                clean.pop('width', None)
+            else:
+                image_styles.update(height='auto')
+            image_styles.setdefault('max-width', '100%' if width or height else '300px')
+            image_styles['object-fit'] = 'contain'
+            clean['style'] = ';'.join(f'{key}:{value}' for key, value in image_styles.items())
             clean['alt'] = attributes.get('alt', 'Signature image')[:200]
+            clean = dict(sorted(clean.items()))
             self.plain.append('[' + clean['alt'] + ']')
         self.parts.append('<' + tag + ''.join(' ' + key + '="' + escape(value, quote=True) + '"' for key, value in clean.items()) + '>')
-        if tag not in ('br', 'img'):
+        if tag not in ('br', 'img', 'hr'):
             self.stack.append(tag)
-        if tag in ('br', 'p', 'div'):
+        if tag in ('br', 'p', 'div', 'tr', 'li'):
             self.plain.append('\n')
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
-        if tag not in ('br', 'img'):
+        if tag not in ('br', 'img', 'hr'):
             self.handle_endtag(tag)
 
     def handle_endtag(self, tag):
@@ -141,7 +211,7 @@ class SignatureParser(HTMLParser):
                 self.parts.append('</' + current + '>')
                 if current == tag:
                     break
-        if tag in ('p', 'div'):
+        if tag in ('p', 'div', 'tr', 'li'):
             self.plain.append('\n')
 
     def handle_data(self, data):
@@ -150,10 +220,10 @@ class SignatureParser(HTMLParser):
             self.plain.append(data)
 
 
-def clean_signature(value):
+def clean_signature(value, image_fallbacks=None):
     if not isinstance(value, str) or len(value) > 450000:
         raise ValueError('Use at most three images under 100 KB each and 5,000 characters of text.')
-    parser = SignatureParser()
+    parser = SignatureParser(image_fallbacks)
     parser.feed(value)
     html = ''.join(parser.parts) + ''.join('</' + tag + '>' for tag in reversed(parser.stack))
     plain = re.sub(r'\n{3,}', '\n\n', ''.join(parser.plain)).strip()

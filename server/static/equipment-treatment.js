@@ -1,0 +1,61 @@
+'use strict';
+const TaxTreatment=(()=>{
+ const financialYear=date=>Number(date.slice(0,4))-(Number(date.slice(5,7))<7?1:0);
+ const yearOptions=year=>{const start=Math.max(1900,Math.min(year,financialYear(today()))-10),end=Math.min(2098,Math.max(financialYear(today()),year)+2);return Array.from({length:end-start+1},(_,i)=>[start+i,`${start+i}–${start+i+1}`]).reverse();};
+ async function profileDialog(year,done=()=>{}){
+  const uid=S.user?.id,p=await api('workflows/equipment/tax-profile/'+year);
+  if(!owner()||S.user?.id!==uid)return;
+  document.querySelector('#equipment-profile-dialog')?.remove();
+  const dialog=document.createElement('dialog');dialog.id='equipment-profile-dialog';document.body.append(dialog);
+  dialog.innerHTML=`<div class="modal-title"><h2>Annual deduction settings · ${year}–${Number(year)+1}</h2><button type="button" class="ghost" id="close-equipment-profile" aria-label="Close tax settings">✕</button></div><form id="equipment-profile-form">${select('Depreciation rules','tax_profile_mode',[['general','Employment / general depreciation'],['simplified','Eligible sole trader — simplified depreciation']],p.mode==='simplified'?'simplified':'general')}<p id="tax-profile-explanation"></p><p class="footnote">Saved once for this financial year. Your accountant can check the selection. Existing deductions keep their saved calculations when this changes.</p><button type="submit">Save tax settings</button></form>`;
+  dialog.showModal();dialog.onclose=()=>dialog.remove();dialog.querySelector('#close-equipment-profile').onclick=()=>dialog.close();
+  const mode=dialog.querySelector('#tax_profile_mode');
+  const show=()=>dialog.querySelector('#tax-profile-explanation').textContent=mode.value==='simplified'?'Choose this if you are a sole trader carrying on a business with aggregated turnover under $10 million and use simplified depreciation for all eligible assets, including eligible employment assets.':'Use the general rules for employment and business equipment. Eligible small purchases may be claimed at once; other purchases are depreciated.';
+  mode.onchange=show;show();
+  formHandler('#equipment-profile-form',async d=>{const simplified=d.tax_profile_mode==='simplified';await api('workflows/equipment/tax-profile/'+year,{mode:d.tax_profile_mode,version:p.version,confirmed:true,sole_trader:simplified,small_business:simplified,whole_regime:simplified},'PUT');dialog.close();await done();toast('Annual tax settings saved.');});
+ }
+ function mount(form,gather,existing={}){
+  if(!owner())return {payload:async()=>null};
+  const section=document.createElement('section');section.className='tax-treatment';form.querySelector('.modal-footer').before(section);
+  if(existing.equipment_id){section.innerHTML='<p>This purchase has a saved deduction. <a href="#/equipment">View deduction and receipts →</a></p>';section.querySelector('a').onclick=()=>$('#modal').close();return {payload:async()=>null};}
+  section.innerHTML=`<div id="equipment-hint"><button type="button" class="ghost" id="check-equipment">Equipment purchase? Check deduction</button></div><div id="equipment-treatment-fields" hidden><div id="tax-treatment-result" aria-live="polite"></div><label class="check"><input type="checkbox" name="tax_apply" checked>Save the suggested equipment deduction</label><p class="footnote">Recorded once, linked to this purchase and ready for your accountant to review.</p><details class="equipment-advanced"><summary>Adjust deduction</summary>${existing.standalone?'':field('Equipment purchased','tax_asset_name','text','','maxlength="200"')}<div class="grid2">${field('Useful life (years)','tax_life','number','','min="0.1" max="100" step="0.1"')}${select('Depreciation method','tax_depreciation_method',[['diminishing_value','Diminishing value'],['prime_cost','Equal annual amounts']])}${field('First used / ready for use','tax_first_use','date','','')}${field('GST credit entitlement (AUD)','tax_gst_credit','number',0,'min="0" step="0.01"')}${select('Purchase type','tax_purchase_type',[['standard','New ordinary equipment'],['previous','Previously used privately or already depreciated'],['special','Special asset / accountant review']])}${select('Part of a set or identical purchases over $300 this year?','tax_grouped',[['no','No'],['yes','Yes / unsure']],'no')}</div>${field('Calculation notes (optional)','tax_basis','text','','maxlength="2000"')}<p class="footnote" id="tax-life-help">Suggested lives are planning estimates. Adjust the dates, use and cost where needed.</p><div class="actions"><button type="button" class="secondary" id="edit-tax-profile">Annual tax settings</button><button type="button" class="ghost" id="refresh-tax-treatment">Refresh suggestion</button></div><div id="tax-assumptions"></div></details></div>`;
+  let opened=false,revision=0,timer,last=null,lastBasis='',priorDate='',manualLife=false,manualName=false;
+  const input=id=>section.querySelector('#tax_'+id);
+  const values=()=>{const d=gather(),type=input('purchase_type').value;
+   return {...d,automatic:true,equipment_override:existing.standalone||manualName,name:existing.standalone?d.name:input('asset_name').value,first_use:dateValue(input('first_use'))||d.date,gst_credit:input('gst_credit').value||0,life:manualLife?input('life').value:'',basis:input('basis').value,purpose:d.notes||'',depreciation_method:input('depreciation_method').value,asset_confirmed:true,purpose_confirmed:true,eligible_asset:type==='standard',previous_use:type==='previous',not_grouped:input('grouped').value==='no'};
+  };
+  function candidate(d){if(d.reimbursed||d.trip_id||d.vehicle_id||d.meal||d.category==='Meals'||(d.items&&d.items.length))return false;return existing.standalone||d.category==='Equipment'||/\b(airpods?|earphones?|headphones?|headset|ipad|tablet|laptop|macbook|computer|monitor|printer|camera|suitcase|flight bag|smartphone|iphone|desk|chair)\b/i.test([d.name,d.merchant,d.notes].join(' '));}
+  function sync(){const d=gather();if(d.date&&d.date!==priorDate){if(!input('first_use').value||dateValue(input('first_use'))===priorDate)input('first_use').value=dateAU(d.date);priorDate=d.date;}if(!existing.standalone&&!manualName)input('asset_name').value=(d.notes||d.merchant||'Equipment').slice(0,200);return d;}
+  async function run(showErrors=false){
+   const n=++revision;
+   try{sync();const d=values();if(!d.date||!(Number(d.amount)>0)||!(Number(d.work_percent)+Number(d.business_percent)>0)){section.querySelector('#tax-treatment-result').innerHTML='<p class="muted">Enter the purchase amount and work/business use to see your suggested deduction.</p>';last=null;return;}
+    const r=await api('workflows/equipment/suggest',d);if(n!==revision||!section.isConnected)return;last=r;lastBasis=JSON.stringify(d);
+    if(!manualLife)input('life').value=r.calculation?.life||r.preset?.life||'';
+    const heading=r.ready?(r.status==='immediate'?'Immediate deduction available':'Depreciation estimate available'):r.status==='ordinary'?'Ordinary expense':'Save for accountant review';
+    section.querySelector('#tax-treatment-result').innerHTML=`<div class="notice"><strong>${heading}</strong>${r.ready?`<p class="deduction-amount">${money(r.annual_cents)} <span>estimated deduction · FY ${r.year}–${r.year+1}</span></p>`:''}${r.ready&&r.status==='immediate'?`<p>Employment ${money(r.work_cents)} · Business ${money(r.business_cents)}</p>`:''}<p>${esc(r.ready&&r.status==='depreciation'?`Calculated automatically using a ${r.calculation.life}-year life estimate and the percentages above.`:r.reason)}</p>${r.profile.assumed&&Number(d.business_percent)>0?'<p>Using general rules. Eligible small-business write-offs can be selected under Adjust deduction → Annual tax settings.</p>':''}${!r.ready&&r.status!=='ordinary'?'<p>The purchase and receipt will be saved as equipment; its cost will not also be claimed as an ordinary expense.</p>':''}</div>`;
+    section.querySelector('[name=tax_apply]').disabled=r.status==='ordinary';
+    section.querySelector('#tax-assumptions').innerHTML='<p class="footnote">'+(r.assumptions||[]).map(esc).join('<br>')+'</p>';
+   }catch(e){last=null;if(showErrors&&section.isConnected)section.querySelector('#tax-treatment-result').innerHTML=`<p class="error">${esc(e.message)}</p>`;}
+  }
+  function start(){if(opened)return;opened=true;section.querySelector('#equipment-treatment-fields').hidden=false;section.querySelector('#equipment-hint').hidden=true;try{sync();}catch{}run();}
+  section.querySelector('#check-equipment').onclick=()=>{manualName=true;start();};
+  section.querySelector('#refresh-tax-treatment').onclick=()=>run(true);
+  section.querySelector('#edit-tax-profile').onclick=()=>{try{const d=values();profileDialog(financialYear(d.first_use||d.date),()=>run(true)).catch(e=>toast(e.message));}catch(e){toast(e.message);}};
+  const changed=event=>{if(event.target.name==='tax_apply')return;if(event.target===input('life'))manualLife=true;if(event.target===input('asset_name'))manualName=true;revision++;clearTimeout(timer);try{const d=gather();if(!opened&&candidate(d)&&!d.reimbursed)start();}catch{}if(opened)timer=setTimeout(()=>{if(section.isConnected&&!section.hidden)run();},350);};
+  form.addEventListener('input',changed);form.addEventListener('change',changed);try{if(candidate(gather()))start();}catch{}
+  return {section,start,refresh:()=>run(),payload:async()=>{
+   clearTimeout(timer);revision++;
+   if(!opened||section.hidden||!form.elements.tax_apply.checked)return null;
+   sync();const d=values(),shown=last,shownBasis=lastBasis;
+   if(d.reimbursed||d.trip_id||d.vehicle_id||d.meal||d.category==='Meals'||(d.items&&d.items.length))return null;
+   const r=await api('workflows/equipment/suggest',d);
+   if(r.status==='ordinary')return null;
+   if(!r.ready&&r.status!=='manual_review'){await run(true);throw Error(r.reason);}
+   // A user's edit can change the method before the debounced preview finishes.
+   // Recheck that edit now; still stop for unexpected rule/profile changes.
+   if(shown&&((shownBasis===JSON.stringify(d)&&shown.method!==r.method)||(shown.year===r.year&&shown.profile.version!==r.profile.version))){await run(true);throw Error('The suggestion changed. Check it before saving.');}
+   return {...d,confirmed:true,pending_review:!r.ready,method:r.method,profile_version:r.profile.version,expense_basis:{date:d.date,amount:d.amount,work_percent:d.work_percent,business_percent:d.business_percent}};
+  }};
+ }
+ return {mount,profileDialog,financialYear,yearOptions};
+})();

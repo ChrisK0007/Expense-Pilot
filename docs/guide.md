@@ -1,16 +1,16 @@
 # User guide and operations
 
-This branch documents **stable 1.0.5**. Beta 1.0.6-beta.1 remains available separately; see the [beta guide](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/guide.md) for beta installation defaults. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **stable 1.0.6**. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
 ## Security and supported accounts
 
-Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner and tax agent. Legacy role checks elsewhere in this repository support those historical records only.
+Expense Pilot is for sole traders and people tracking employment expenses. Supported logins are the owner and invited tax agents (read-only by default, optional read/write). Employee invitations and sign-in are removed. Existing employee accounts are disabled and hidden from access management; historical financial records and attribution remain available to the owner. Tax-agent access follows the selected sharing scope. Legacy role checks elsewhere in this repository support those historical records only.
 
 Website and supported iPhone sessions expire after 30 days without authenticated activity. Using the app renews the server session and persistent cookie. Explicit sign-out, password/security changes and account disabling still revoke access. Use Sign out on a shared computer. After upgrading from a release with the old 12-hour browser expiry, an already-expired session needs one fresh sign-in. Pending 2FA sign-ins are also revoked on logout. Password attempts are limited per account and per source address, including concurrent requests. PDF parsing runs in a child process limited to 256 MiB, 8 CPU seconds and a 15-second wall timeout. Images are restricted to JPEG/PNG/WebP and 25 megapixels.
 
-Use HTTPS and set `COOKIE_SECURE=true` for secure-only cookies and HSTS. The existing local HTTP mode remains compatible with LAN setup, but it is unencrypted; the sign-in screen now warns about it. Do not port-forward 8788 directly to the internet. A VPN or HTTPS reverse proxy is required for remote use. Source address limits deliberately ignore untrusted forwarding headers; users behind the same proxy may share its limit.
+Use HTTPS and set `COOKIE_SECURE=true` for secure-only cookies and HSTS. The existing local HTTP mode remains compatible with LAN setup, but it is unencrypted; the sign-in screen now warns about it. Do not port-forward 8788 directly to the internet. A VPN or HTTPS reverse proxy is required for remote use. Source address limits ignore forwarding headers unless the proxy is trusted. Behind a reverse proxy or tunnel, set `TRUSTED_PROXIES` to the proxy's address or network (for example `172.18.0.2`); otherwise every visitor shares the proxy's limit and repeated failed sign-ins from anyone block sign-in for everyone for 15 minutes. Only list addresses you control, and keep the container port unreachable except through the proxy where possible.
 
 Back up your appdata before updating the container. Existing expenses, receipts, trips and invoices are preserved. An already installed iPhone app works with this server update; no Xcode reinstall is required for server security fixes.
 
@@ -24,7 +24,7 @@ The native iPhone app is developed separately and remains in testing. It is opti
 
 - Split one expense between employment and business, with personal use calculated as the remainder. For example, a $100 receipt at 30% employment and 20% business records $30 and $20, with 50% personal. Percentages must be whole numbers and cannot total more than 100%. Reviewed allocations feed each corresponding tax forecast total. Refunds and reimbursements keep the same treatment; rounding reconciles to the combined allocated amount.
 - Existing expenses retain their previous allocations. CSV exports append separate employment/business/personal percentages and employment/business AUD allocations. Split records appear in both relevant report filters without duplicating the receipt.
-- Receipt inbox sits directly below Dashboard. Business, Tracking, Income and Reports open compact popup menus with keyboard and mobile support.
+- Document inbox sits directly below Dashboard. Business, Tracking, Income and Reports open compact popup menus with keyboard and mobile support.
 - Settings → Features saves choices per login, across devices. The Employment expenses only preset hides business tools, vehicles, bank imports and the tax forecast; individual switches can restore them. Records, permissions and tax calculations are preserved. Existing data remains available in expense reports.
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
@@ -56,7 +56,7 @@ Australian location data attribution and age are recorded in `server/datasets/RE
 - Separate overnight spending with linked breakfast/lunch/dinner/incidentals, allowance records and comparison estimates.
 - Monthly, quarterly or yearly category budgets, vehicle odometer records and vehicle-method comparison estimates.
 - Owner and tax-agent logins, with per-agent Read only / Read & write permissions.
-- Automatic tax-agent access to all financial records, including personal expenses and unfiled receipts.
+- Owner-selected tax-agent financial years and supporting documents, with a focused tax-preparation workspace.
 - Financial-year CSV exports, activity history, password changes and account disabling.
 - Persistent SQLite database, Docker health check and backup helper.
 
@@ -100,7 +100,7 @@ When a tested image is published, use the normal Unraid Docker update controls t
 Do not run this at the same time as the Unraid template installation. Add this line to your generated `.env`:
 
 ```text
-IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.5
+IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.6
 ```
 
 Then:
@@ -135,9 +135,9 @@ Extraction runs when you choose **Read with AI** or enable **Read with AI after 
 | Role | Access |
 | --- | --- |
 | Owner | All records, invoicing, clients, SMTP settings, imports, people and reports |
-| Tax agent | Read all financial records; optionally create/edit financial records with Read & write permission |
+| Tax agent | View shared tax records; optionally adjust ordinary-expense classification and annual equipment amounts |
 
-All active tax-agent accounts see the whole financial workspace, including personal records and unfiled receipts. There are no per-record sharing checkboxes. Set each agent’s permission in Tax agent access; existing agents default to Read only. Downgrades take effect on the next API request; reload the agent’s browser to update visible controls. Owner-only account administration, business configuration and SMTP/email sending are excluded from financial write access. Disabling an account revokes active sessions. Account creation sends an invitation through the configured SMTP account. The generated password expires after 48 hours and must be replaced on first sign-in. All people can manage their own password and authenticator 2FA in Settings.
+Tax agents have a dedicated workspace for shared tax records. Choose years and supporting documents in **Settings → Tax agent access → Sharing**; new and upgraded accounts start with no shared years. Read & write permits bounded tax adjustments, not operational banking or billing. Sharing and permission changes apply on the next request. Disable revokes sessions; **Remove account** permanently removes the login while retaining financial records and history. Invitations use configured SMTP, expire after 48 hours and require a new password. Each agent manages their own password and 2FA. See [tax-agent access](tax-agent-access.md).
 
 For terminal-only recovery:
 
@@ -162,7 +162,7 @@ The host script discovers the container’s actual `/data` mount, stops it if ru
 2. Open **Settings → Email delivery (SMTP)**. Enter your provider's SMTP hostname, port, username, password/app password, sender name/address and optional reply-to address. Choose STARTTLS (usually port 587) or SSL/TLS (usually port 465). Save, then use **Send test email** to send one message to your saved sender address.
 3. Add billing contacts in **Clients**. Client payment terms are applied to new invoices.
 4. Choose **Invoices → New invoice** or **Quotes → New quote**. Add line items, quantities, rates, discounts and GST treatment. Save a draft, inspect it and download the PDF.
-5. **Issue & email** opens a recipient, subject and message preview. Nothing is sent until you click **Send email**. The PDF is attached. You can also **Issue without email** and send the downloaded file yourself.
+5. **Issue & email** opens a recipient, subject and message preview. Nothing is sent until you click **Send email**. The PDF is attached. **Send me a copy** is optional on each send: it starts from your saved email preference, and changing it here affects only this message. You can also **Issue without email** and send the downloaded file yourself.
 6. Record deposits or partial/full payments when received. Overdue balances are highlighted. **Send reminder** opens an editable manual reminder. **Email payment receipt** uses the partial-payment or paid-in-full template and attaches the recorded payments and remaining balance. The payment form can also open a receipt preview after saving; cancelling the email keeps the payment.
 7. Mark an issued quote accepted, then **Convert to invoice**. Each quote can have one linked invoice; deleting the invoice releases the quote for another conversion.
 
@@ -172,11 +172,13 @@ The app supports authenticated SMTP and TLS-enabled SMTP relays. It does not rea
 
 SMTP passwords are encrypted in the database and never returned to the browser. A blank password field keeps the saved password; **Remove the saved SMTP password** clears it. Back up the whole data folder including `session.key`: this key is needed to decrypt the password after a restore. This protects the database value, not against someone with access to both the database and its key.
 
+**Settings → Email delivery (SMTP)** has **Send me a copy by default**. It is off on new installations; existing preferences are retained. Leave **Copy email address (optional)** blank to use your account email, or enter a preferred destination. The send window lets you override this default for invoices, quotes, manual reminders, payment receipts and statements. Automatic reminders follow the saved default. Copies use BCC; invitations and SMTP test messages are excluded.
+
 **Settings → Email templates** has Invoices, Quotes, Reminders, Receipts, Statements and Signature tabs. Each message has separate subject/body text, insertable fields and a sample preview. Templates start with the supplied reference wording; **Use default wording** restores a tab's defaults before saving. Existing custom invoice/quote wording is preserved. Invoice and quote notes/payment terms stay under **Invoice & quote defaults**.
 
 Fields include `{kind}`, `{number}`, `{client}`, `{business}`, `{total}`, `{balance}`, `{due_date}`, `{full_name}`, `{latest_payment}` and `{date_range}` where relevant. Client contact name falls back to the client business name; full name uses the owner's profile; latest payment excludes reversed records. The default manual reminder avoids saying overdue before the due date has passed.
 
-The signature supports bold, italic, underline, text size, colour, highlighting, links and up to three embedded images (no wider than 300 px, no taller than 600 px and under 100 KB). Images are included in the email rather than fetched from a remote server. A plain-text alternative is included. Signatures apply to client billing emails, not invitations or SMTP test messages. You can omit the signature in an individual send preview.
+Paste a formatted signature into the Signature editor. Supported fonts, colours, table layouts, spacing and links are retained; scripts and unsupported styles are removed. HTTPS photos and social icons remain linked to their original URLs in both the saved signature and outgoing emails. Pasted image widths are retained and heights follow the original proportions, so photos are not stretched. The image URLs must remain publicly accessible, and recipients may need to allow remote images in their email app. A failed image stays linked and is identified in the editor; select it and use Add image to upload a replacement if preferred. Add image and clipboard image files still create embedded images (up to 2 MB before fitting to 300 × 600 px, under 100 KB after fitting). Up to three images are supported. Paste the original formatted signature again to switch previously embedded images to their original links; their old URLs were not saved. Save email templates to keep changes. A plain-text alternative is included. Signatures apply to client billing emails, not invitations or SMTP test messages. You can omit the signature in an individual send preview.
 
 **Settings → Automatic reminders** is off by default. The owner can enable reminders for a chosen number of days before due, on the due date, and up to six overdue dates. Only issued, unpaid invoices with a client email are eligible. **Reminder options** on an invoice allows an individual pause. Dates use the workspace timezone; the container checks once per minute. Each scheduled date is claimed once across workers/restarts; missed days are not sent as a batch after downtime. Failed/uncertain sends are not automatically retried. Pause the schedule before changing templates if you do not want scheduled sends during editing.
 
@@ -187,7 +189,7 @@ Each outgoing document has a delivery history. **Sent / mail server accepted** m
 ### Billing records and access
 
 - Business and client details are copied into each draft. Editing and saving the draft refreshes those details. Issued line items and business/client details are locked, so changing a client address or business name does not rewrite old invoices. Stable v1.0.2 allows the invoice number to be amended separately.
-- Tax agents can read/download all invoices/quotes, payments and client records, including internal client notes. Read & write agents can maintain those records. SMTP settings and outgoing email remain owner-only.
+- Tax agents see issued, non-void invoices and in-year payments relevant to shared financial years. Quotes, drafts, internal client notes, contact management, operational billing and email settings remain unavailable to agents.
 - Invoices use AUD. Line amounts and GST are rounded to cents with decimal arithmetic. Prices may include GST, exclude GST or carry no GST; individual GST-free lines and percentage discounts are supported.
 - Payments are records of money already received. They do not charge a card, transfer funds or issue refunds. A mistaken payment record can be reversed with a reason. An unpaid issued document can be voided; its history remains available. **Delete invoice** permanently removes the invoice and its payment, wording and email history after confirmation. Payment totals and income reports update, linked time is released, the original quote returns to Accepted, and recurring schedules continue. In v1.0.2, permanent deletion makes that number available for the next automatically numbered invoice; when several are available the most recently deleted is used first. Voiding does not release the number. This applies to deletions made after upgrading to 1.0.2. Pending or uncertain email delivery must be resolved first. Credit notes and actual refund processing are not yet implemented.
 - **Services & prices** keeps common line items ready to use. In v1.0.2, choose **Edit** to update a saved description, unit price or GST treatment. Changes apply when the service is next added to an invoice or quote; existing lines retain their saved values.
@@ -204,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected stable image (currently **1.0.5**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected stable image (currently **1.0.6**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -259,7 +261,7 @@ The owner can switch automatic reminders on or off while creating an invoice or 
 
 Settings → Automatic invoice reminders controls the shared sending switch and dates. Choose a reminder before the due date, on the due date, and up to six separate days after it. The summary shows the schedule. Switching global sending off keeps the schedule saved. An invoice must also allow reminders, be issued, and have an unpaid balance and client email address. Dates use the workspace timezone. Changing the schedule can make an existing invoice eligible to send today; drafts, paid invoices and voided invoices are skipped.
 
-Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Receipt inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
+Deleting a saved expense now also deletes its attached receipt, saved draft, extraction data and cached previews. It is removed from Expenses, Document inbox and the reports that use those records. The confirmation describes this permanent removal. Existing backup archives are not rewritten. A linked PocketSmith source transaction remains ignored in the bank history so syncing does not recreate the deleted expense.
 
 
 ## Invoice numbers and custom reminders
@@ -267,3 +269,22 @@ Deleting a saved expense now also deletes its attached receipt, saved draft, ext
 In v1.0.2, leave **Invoice number (optional)** blank when creating an invoice to assign it automatically, or enter a unique number. For an existing invoice, use **Edit invoice number** in its details; draft editing also includes the number. Use up to 50 letters, numbers, spaces, full stops, underscores or hyphens. Numbers cannot duplicate an existing invoice or quote, even with different capitalisation. Payments and line items stay linked. Already sent emails and downloaded PDFs retain their old number; new previews and downloads use the new one. Resolve any pending or uncertain email before renumbering.
 
 Open an invoice's **Reminder options** to set a custom schedule and individual subject/message templates for before/on-due, overdue and manual reminders. Insert fields and preview the message using that invoice's values. Turn an override off to follow the latest shared settings. The shared signature remains included and automatic sending must still be enabled in Settings. Duplicates and newly created recurring schedules copy the invoice's reminder choices; each resulting invoice can be customised independently. Renumbering does not resend a reminder already attempted for the same due date and day.
+
+Trust only the actual forwarding proxy addresses. Do not trust an entire Docker subnet just because the proxy is on it. A trusted proxy must replace or append the real client address in `X-Forwarded-For`. If Docker NAT makes direct clients and the tunnel appear as the same gateway IP, first restrict the app port to the proxy or use a dedicated proxy network; trusting that gateway while allowing direct connections would let those clients forge their address. Leave `TRUSTED_PROXIES` blank until the forwarding path is verified.
+
+
+## Document inbox and payslips
+
+Use **Document inbox → Capture documents**, or **Employment income → Upload payslip / statement**. JPEG, PNG, WebP and PDFs (up to 8 pages) use the existing 12 MB upload limit. Select the document type if known. Uploading and reading only create drafts.
+
+Review a payslip’s employer, payment date, gross taxable pay and PAYG tax withheld. Use this pay’s amounts, not YTD or net pay, and exclude employer super. Missing or ambiguous figures stay blank. Confirm the amounts in AUD before saving. The original can be viewed from Employment income. Use an annual income statement instead of payslips for the same pay; select its tax year ending 30 June. Existing overlapping records must be reviewed first. Legacy manual totals may need their type updated before importing more pay. Duplicate detection uses the entered employer name; check differently spelled employer names yourself.
+
+Text payslips with explicit labels can be read locally. Complex layouts, photos and scans use your configured AI provider; with AI disabled, enter unsupported documents manually. Payroll originals are sensitive: the upload screen states when extraction sends a document to the configured provider. No extraction result becomes income until reviewed and saved. Tax returns and other reference-only files still belong in **Reports → Documents**.
+
+For a covered home-office bill, select **File as → Home-office bill evidence**, choose its cost type, confirm it was personally incurred and not reimbursed, then save. It is classified immediately, with no separate allocated deduction. Existing allocated expenses still need review through the Home office linking flow.
+
+## Matching receipt expenses to bank feeds
+
+Sync PocketSmith first. The inbox looks for posted AUD purchases with the same amount, a recognisable merchant and a date within three days. A unique match appears under **Bank account / transaction** and is linked when you save. If it is already represented by an expense without a document, the original attaches to that expense and its existing financial details are retained. A missing match falls back to Cash / other; multiple matches require an explicit choice. Pending items, transfers, credits, foreign-currency feeds, ignored items and changed/missing source transactions are excluded from automatic matching. These can still be reviewed through the existing bank-feed workflow.
+
+For older records, open **Bank accounts → Match previous expenses → Review suggested matches**. Filter by account, check the selected expense/transaction pairs and apply them. The preview checks up to 2,000 unmatched expenses and only offers unique matches in both directions. It does not create expenses or change their amounts/allocations. If anything changes during review, refresh the preview. Explicit Cash / other choices are excluded. Bank matching reads the local synced ledger and never sends changes to PocketSmith.
