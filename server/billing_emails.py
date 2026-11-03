@@ -272,9 +272,9 @@ def queue_document_email(doc, recipient, subject, message, key, kind='document',
     return cur.lastrowid, attachment, filename
 
 
-def deliver_queued(oid, recipient, subject, message, attachment, filename, signature):
+def deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=None):
     from billing import audit, db, deliver
-    state, error = deliver(recipient, subject, message, attachment, filename, signature_html=signature, copy=True)
+    state, error = deliver(recipient, subject, message, attachment, filename, signature_html=signature, copy=True, copy_self=copy_self)
     db().execute('UPDATE billing_outbox SET state=?,error=? WHERE id=?', (state, error, oid))
     audit('client email ' + state, oid)
     db().commit()

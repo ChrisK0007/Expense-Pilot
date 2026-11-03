@@ -13,10 +13,13 @@ from app import app, db
 import billing
 
 invitations={}
+client_emails=[]
 def fake_delivery(recipient,subject,message,*args,**kwargs):
     if not recipient.endswith('@example.test'):
         raise ValueError('Browser tests may only use example.test recipients.')
     invitations[recipient]=message
+    if kwargs.get('copy'):
+        client_emails.append(dict(recipient=recipient,subject=subject,copy_self=kwargs.get('copy_self')))
     return 'sent',''
 billing.deliver=fake_delivery
 with app.app_context():
@@ -27,6 +30,10 @@ with app.app_context():
 @app.get('/test/invitations')
 def captured_invitations():
     return jsonify(invitations)
+
+@app.get('/test/client-emails')
+def captured_client_emails():
+    return jsonify(client_emails)
 
 import pocketsmith
 from pocketsmith_fixture import BrowserClient

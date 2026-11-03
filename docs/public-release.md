@@ -44,7 +44,7 @@ The default port binds only to the host's loopback interface. For trusted LAN ac
 
 ## Email copies
 
-In **Settings → Email delivery**, enable **Send me a copy of client emails** and choose the destination (initially your owner email). The same message and PDF attachments are BCC'd for invoices, quotes, automatic/manual reminders, payment receipts and statements. Clients do not see the BCC address. Invitations and test messages are excluded. A rejected copy is recorded as a warning without retrying an already-delivered client email. Issuing an invoice without sending an email produces no email copy.
+In **Settings → Email delivery**, **Send me a copy by default** controls the starting preference. It is off for new installations. **Copy email address (optional)** can be left blank to use your account email. Every invoice, quote, manual reminder, payment receipt and statement send window has a **Send me a copy** checkbox that applies only to that email. Automatic reminders follow the saved default. Copies use BCC with the same message and PDF attachments; clients do not see the copy address. Invitations and SMTP test messages are excluded. A rejected copy is recorded as a warning without retrying an already-delivered client email. Issuing an invoice without sending email produces no copy.
 
 ## Backup and restore
 
