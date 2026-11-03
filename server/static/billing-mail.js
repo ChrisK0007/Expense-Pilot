@@ -18,6 +18,9 @@ const BillingMail=(()=>{
   function signaturePreview(draft){
     return draft.signature_html?`${check('include_signature','Include email signature',true)}<div class="email-signature-preview" id="compose-signature"></div>`:'';
   }
+  function copyOption(draft){
+    return `<div class="email-copy-option">${check('copy_self','Send me a copy',draft.copy_self===true)}<p class="footnote">Optional BCC to ${esc(draft.copy_email)}. This choice applies only to this email.</p></div>`;
+  }
   function bindSignaturePreview(draft){
     if(!draft.signature_html)return;
     mountSignature($('#compose-signature'),draft.signature_html);
@@ -127,10 +130,10 @@ const BillingMail=(()=>{
   async function compose(doc,kind='document'){
     const draft=await api(`billing/documents/${doc.id}/email-draft?kind=${kind}`);
     if(!draft.ready){toast('Add your SMTP account in Settings → Email delivery first.');return;}
-    modal(kind==='receipt'?`Email payment receipt · ${esc(doc.number)}`:kind==='reminder_manual'?'Payment reminder':`Email ${esc(doc.number)}`,`<form id="client-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}<div class="notice">Attachment: <strong>${esc(draft.filename)}</strong><br>${doc.state==='draft'?'Sending issues and locks this draft.':'The current document and recorded payments are included.'}</div><a class="button-link secondary" href="${esc(draft.attachment_url)}">Preview PDF</a><div class="modal-footer"><button type="submit">Send email</button><button type="button" class="secondary" id="cancel-client-email">Cancel</button></div></form>`);
+    modal(kind==='receipt'?`Email payment receipt · ${esc(doc.number)}`:kind==='reminder_manual'?'Payment reminder':`Email ${esc(doc.number)}`,`<form id="client-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}${copyOption(draft)}<div class="notice">Attachment: <strong>${esc(draft.filename)}</strong><br>${doc.state==='draft'?'Sending issues and locks this draft.':'The current document and recorded payments are included.'}</div><a class="button-link secondary" href="${esc(draft.attachment_url)}">Preview PDF</a><div class="modal-footer"><button type="submit">Send email</button><button type="button" class="secondary" id="cancel-client-email">Cancel</button></div></form>`);
     $('#modal').classList.add('billing-dialog');bindSignaturePreview(draft);
     on('#cancel-client-email',()=>Billing.view(doc.id));
-    formHandler('#client-email-form',async(data,form)=>{const result=await api(`billing/documents/${doc.id}/send`,{...data,message_kind:kind,include_signature:form.elements.include_signature?.checked??false,version:draft.version,request_key:draft.request_key});await Billing.view(doc.id);if(['invoices','quotes'].includes(page))await Billing.documents(doc.kind);toast(result.state==='sent'?'Email accepted by your mail server.':result.error||'Delivery is still being processed.');});
+    formHandler('#client-email-form',async(data,form)=>{const result=await api(`billing/documents/${doc.id}/send`,{...data,message_kind:kind,include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await Billing.view(doc.id);if(['invoices','quotes'].includes(page))await Billing.documents(doc.kind);toast(result.state==='sent'?'Email accepted by your mail server.':result.error||'Delivery is still being processed.');});
   }
   async function statement(cid,options={mode:'all'}){
     const query=new URLSearchParams(Object.entries(options).filter(([,value])=>value));
@@ -147,9 +150,9 @@ const BillingMail=(()=>{
   async function composeStatement(cid,options){
     const query=new URLSearchParams(Object.entries(options).filter(([,value])=>value)),draft=await api(`billing/clients/${cid}/statement/email-draft?${query}`);
     if(!draft.ready)return toast('Add your SMTP account in Settings → Email delivery first.');
-    modal('Email client statement',`<form id="statement-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}<p>Attachment: ${esc(draft.filename)}</p><a class="button-link secondary" href="/api/billing/clients/${cid}/statement/pdf?${query}">Preview statement PDF</a><div class="modal-footer"><button type="submit">Send statement</button><button type="button" class="secondary" id="cancel-statement-email">Cancel</button></div></form>`);
+    modal('Email client statement',`<form id="statement-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}${copyOption(draft)}<p>Attachment: ${esc(draft.filename)}</p><a class="button-link secondary" href="/api/billing/clients/${cid}/statement/pdf?${query}">Preview statement PDF</a><div class="modal-footer"><button type="submit">Send statement</button><button type="button" class="secondary" id="cancel-statement-email">Cancel</button></div></form>`);
     bindSignaturePreview(draft);on('#cancel-statement-email',()=>statement(cid,options));
-    formHandler('#statement-email-form',async(data,form)=>{const result=await api(`billing/clients/${cid}/statement/send`,{...data,...options,include_signature:form.elements.include_signature?.checked??false,version:draft.version,request_key:draft.request_key});await statement(cid,options);toast(result.state==='sent'?'Statement accepted by your mail server.':result.error||'Delivery is still being processed.');});
+    formHandler('#statement-email-form',async(data,form)=>{const result=await api(`billing/clients/${cid}/statement/send`,{...data,...options,include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await statement(cid,options);toast(result.state==='sent'?'Statement accepted by your mail server.':result.error||'Delivery is still being processed.');});
   }
   function invoiceReminderStatus(doc,schedule){
     if(!doc.reminders_enabled)return 'Off for this invoice. You can still send a reminder manually.';

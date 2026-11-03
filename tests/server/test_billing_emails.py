@@ -37,6 +37,84 @@ class BillingEmailTest(unittest.TestCase):
         from pypdf import PdfReader
         return '\n'.join(page.extract_text() for page in PdfReader(io.BytesIO(raw)).pages)
 
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_invoice_copy_is_optional_per_send_and_does_not_change_default(self, smtp):
+        config={**self.email_config(),'copy_self':True,'copy_email':'copies@example.test'}
+        self.call(self.owner,'billing/email-settings',config,'PUT')
+        doc=self.create();draft=self.draft(doc)
+        self.assertTrue(draft['copy_self']);self.assertEqual(draft['copy_email'],'copies@example.test')
+        payload={**draft,'copy_self':False}
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",payload).json['state'],'sent')
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+        # Replaying the send key with a changed checkbox must not send a second email.
+        count=smtp.return_value.send_message.call_count
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**payload,'copy_self':True}).json['state'],'sent')
+        self.assertEqual(smtp.return_value.send_message.call_count,count)
+        draft=self.draft(self.get(doc['id']));self.assertTrue(draft['copy_self'])
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_email':'untrusted@example.test'}).json['state'],'sent')
+        outgoing=smtp.return_value.send_message.call_args.args[0]
+        self.assertEqual(outgoing['Bcc'],'copies@example.test')
+        self.assertTrue(any(p.get_filename()==doc['number']+'.pdf' for p in outgoing.walk()))
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_opt_in_with_default_off_and_blank_copy_address_uses_owner_email(self, smtp):
+        config={**self.email_config(),'copy_self':False,'copy_email':''}
+        self.assertEqual(self.call(self.owner,'billing/email-settings',config,'PUT').status_code,200)
+        doc=self.create();draft=self.draft(doc)
+        self.assertFalse(draft['copy_self']);self.assertEqual(draft['copy_email'],'owner@example.test')
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':True}).json['state'],'sent')
+        self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],'owner@example.test')
+        draft=self.draft(self.get(doc['id']));self.assertFalse(draft['copy_self'])
+        draft.pop('copy_self')  # Older clients keep the saved default.
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",draft).json['state'],'sent')
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+        draft=self.draft(self.get(doc['id']))
+        self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':True,'recipient':'OWNER@example.test'}).json['state'],'sent')
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_manual_billing_email_types_honour_copy_choice(self, smtp):
+        config=self.email_config()
+        for default in (True,False):
+            self.call(self.owner,'billing/email-settings',{**config,'copy_self':default,'copy_email':'copies@example.test'},'PUT')
+            invoice=self.issue(self.create());self.pay(invoice,'20');invoice=self.get(invoice['id'])
+            for doc,kind in [(self.create(kind='quote'),'document'),(invoice,'reminder_manual'),(invoice,'receipt')]:
+                draft=self.draft(self.get(doc['id']),kind);self.assertEqual(draft['copy_self'],default)
+                result=self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':not default})
+                self.assertEqual(result.status_code,200,result.json);self.assertEqual(result.json['state'],'sent')
+                self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],None if default else 'copies@example.test')
+            path=f'billing/clients/{self.cid}/statement'
+            draft=self.owner.get('/api/'+path+'/email-draft?mode=outstanding').json
+            self.assertEqual(draft['copy_self'],default)
+            result=self.call(self.owner,path+'/send',{**draft,'mode':'outstanding','copy_self':not default})
+            self.assertEqual(result.status_code,200,result.json);self.assertEqual(result.json['state'],'sent')
+            self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],None if default else 'copies@example.test')
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_invalid_copy_choice_is_rejected_before_issuing_or_sending(self, smtp):
+        self.email_config();doc=self.create();draft=self.draft(doc)
+        path=f'billing/clients/{self.cid}/statement'
+        statement=self.owner.get('/api/'+path+'/email-draft?mode=outstanding').json
+        for value in ('false','true',0,1,None,[],{}):
+            self.assertEqual(self.call(self.owner,f"billing/documents/{doc['id']}/send",{**draft,'copy_self':value}).status_code,400)
+            self.assertEqual(self.call(self.owner,path+'/send',{**statement,'mode':'outstanding','copy_self':value}).status_code,400)
+        self.assertEqual(self.get(doc['id'])['state'],'draft');smtp.assert_not_called()
+        with app.app_context():
+            self.assertEqual(db().execute('SELECT COUNT(*) FROM billing_outbox').fetchone()[0],0)
+            self.assertEqual(db().execute('SELECT COUNT(*) FROM billing_statement_outbox').fetchone()[0],0)
+
+    @patch('billing.smtplib.SMTP_SSL')
+    def test_automatic_reminders_keep_global_copy_default_and_private_mail_excludes_copy(self, smtp):
+        config=self.email_config()
+        self.call(self.owner,'billing/reminder-settings',dict(enabled=True,before_days=0,on_due_date=True,after_days=[]),'PUT')
+        for default in (False,True):
+            self.call(self.owner,'billing/email-settings',{**config,'copy_self':default,'copy_email':''},'PUT')
+            self.issue(self.create())
+            with app.app_context():self.assertEqual(run_reminders(self.today),1)
+            self.assertEqual(smtp.return_value.send_message.call_args.args[0]['Bcc'],'owner@example.test' if default else None)
+        with app.app_context():billing.deliver('agent@example.test','Invitation','Private message',copy_self=True)
+        self.assertIsNone(smtp.return_value.send_message.call_args.args[0]['Bcc'])
+
     def test_reference_templates_and_personalised_fields(self):
         settings = self.owner.get('/api/billing/email-templates').json
         self.assertEqual(settings['templates'], DEFAULT_TEMPLATES)

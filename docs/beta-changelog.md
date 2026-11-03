@@ -2,6 +2,13 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.18 — Optional email copies (2026-11-03)
+
+- Add a Send me a copy checkbox to invoice, quote, manual reminder, payment receipt and statement send windows. Start from the saved default and allow an override for this email without changing future sends.
+- Make the default and optional copy address clearer in Email delivery. A blank address uses the owner's account email. New installations default to no copy; existing preferences and automatic-reminder behaviour are retained.
+- Validate the choice before queuing, preserve duplicate-send protection, and avoid copying the owner twice when they are already the recipient. Invitations and SMTP test messages remain excluded.
+- Wait for the issued invoice view in the existing browser test before opening Edit, removing a timing race in release checks. No database migration or iPhone build is required.
+
 ## 1.0.6-beta.17 — Linked signatures and image proportions (2026-11-03)
 
 - Keep pasted HTTPS signature images linked to their original URLs in the editor, saved signature and outgoing emails. Remove the server image downloader; uploaded and clipboard image files remain embedded.

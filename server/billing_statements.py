@@ -87,7 +87,7 @@ def download_statement(cid):
 @bp.get('/clients/<int:cid>/statement/email-draft')
 @owner
 def statement_email_draft(cid):
-    from billing import date_au, jsonify, mail_settings, request, template_text
+    from billing import date_au, email_copy_defaults, jsonify, mail_settings, request, template_text
     from billing_emails import email_templates, sender_full_name
     statement, config = statement_data(cid, request.args), mail_settings()
     client, seller = statement['client'], statement['business']
@@ -95,7 +95,7 @@ def statement_email_draft(cid):
     template = templates['templates']['statement_' + statement['mode']]
     values = dict(client=client['contact'] or client['name'], business=seller['name'], full_name=sender_full_name(),
                   date_range=(date_au(statement['start']) + ' to ' + date_au(statement['end'])) if statement['start'] else '')
-    return jsonify(recipient=client['email'], subject=template_text(template['subject'], values), body=template_text(template['body'], values),
+    return jsonify(**email_copy_defaults(config), recipient=client['email'], subject=template_text(template['subject'], values), body=template_text(template['body'], values),
                    signature_html=templates['signature_html'], from_email=config['from_email'], ready=bool(config['host'] and config['from_email']),
                    request_key=secrets.token_hex(24), version=statement['version'], filename=statement_filename(statement))
 
@@ -103,10 +103,11 @@ def statement_email_draft(cid):
 @bp.post('/clients/<int:cid>/statement/send')
 @owner
 def send_statement(cid):
-    from billing import audit, body, db, deliver, email, fail, header, jsonify, mail_settings, now, one, request_key, txt
+    from billing import audit, body, db, deliver, email, email_copy_choice, fail, header, jsonify, mail_settings, now, one, request_key, txt
     from billing_core import pdf_statement
     from billing_emails import clean_signature, email_templates
     payload = body()
+    copy_self = email_copy_choice(payload)
     key = request_key(payload.get('request_key'))
     recipient, subject, message = email(payload.get('recipient'), True), header(payload.get('subject')), txt(payload.get('body'), 20000)
     if not subject or not message:
@@ -131,7 +132,7 @@ def send_statement(cid):
                        (cid, recipient, subject, message, signature, key, now(), json.dumps(statement))).lastrowid
     audit('statement email queued', cid)
     db().commit()
-    state, error = deliver(recipient, subject, message, attachment, statement_filename(statement), signature_html=signature, copy=True)
+    state, error = deliver(recipient, subject, message, attachment, statement_filename(statement), signature_html=signature, copy=True, copy_self=copy_self)
     db().execute('UPDATE billing_statement_outbox SET state=?,error=? WHERE id=?', (state, error, oid))
     audit('statement email ' + state, cid)
     db().commit()

@@ -252,12 +252,12 @@ def add_payment(did):
 @bp.get('/documents/<int:did>/email-draft')
 @owner
 def email_draft(did):
-    from billing import document, jsonify, mail_settings, request, secrets
+    from billing import document, email_copy_defaults, jsonify, mail_settings, request, secrets
     from billing_emails import document_message
     doc, config = document(did), mail_settings()
     kind = request.args.get('kind') or ('reminder_manual' if request.args.get('reminder') == '1' else 'document')
     draft = document_message(doc, kind)
-    return jsonify(**draft, recipient=doc['client']['email'], from_email=config['from_email'],
+    return jsonify(**draft, **email_copy_defaults(config), recipient=doc['client']['email'], from_email=config['from_email'],
                    attachment_url=f'/api/billing/documents/{did}/' + ('receipt' if kind == 'receipt' else 'pdf'),
                    filename=doc['number'] + ('-receipt' if kind == 'receipt' else '') + '.pdf',
                    ready=bool(config['host'] and config['from_email']), request_key=secrets.token_hex(24), version=doc['version'])
@@ -266,9 +266,10 @@ def email_draft(did):
 @bp.post('/documents/<int:did>/send')
 @owner
 def send_document(did):
-    from billing import body, db, document, email, fail, header, jsonify, mail_settings, one, request_key, revision, txt
+    from billing import body, db, document, email, email_copy_choice, fail, header, jsonify, mail_settings, one, request_key, revision, txt
     from billing_emails import clean_signature, deliver_queued, email_templates, queue_document_email
     payload = body()
+    copy_self = email_copy_choice(payload)
     key = request_key(payload.get('request_key'))
     recipient, subject, message = email(payload.get('recipient'), True), header(payload.get('subject')), txt(payload.get('body'), 20000)
     if not subject or not message:
@@ -290,5 +291,5 @@ def send_document(did):
     signature = clean_signature(email_templates()['signature_html'])[0] if payload.get('include_signature', True) else ''
     oid, attachment, filename = queue_document_email(doc, recipient, subject, message, key, kind, signature)
     db().commit()
-    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature)
+    state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=copy_self)
     return jsonify(state=state, error=error)
