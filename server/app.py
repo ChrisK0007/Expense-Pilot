@@ -332,6 +332,8 @@ workspace_time.register(app, auth)
 
 import notifications
 notifications.register(app, auth)
+import workspace_preferences
+workspace_preferences.register(app, auth)
 
 import signin_alerts
 signin_alerts.register(app, auth)

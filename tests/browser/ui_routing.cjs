@@ -28,7 +28,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   // In-place rendering after saves must not create phantom Back entries.
   await page.evaluate(()=>render());await page.goBack();await check('recurring','Recurring invoices');
   await page.goForward();await check('quotes','Quotes');
-  await navigate(page,'settings');await page.locator('#manage-tax-agents').click();
+  await navigate(page,'settings');await page.locator('[data-settings-jump=security]').click();await page.locator('#manage-tax-agents').click();
   await check('settings/tax-agent-access','Settings / Tax agent access');
   await page.reload();await check('settings/tax-agent-access','Settings / Tax agent access');
   await page.locator('#back-to-settings').click();await check('settings','Settings');

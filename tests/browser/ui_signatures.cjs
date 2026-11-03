@@ -6,7 +6,7 @@ const fixtures={
  '/two.png':'iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAIAAABwJOjsAAAAJUlEQVR4nO3NMQEAAAgDIDX5ohtjDxRgM5mGq6xisVgsFovFFQ85GgEoWQ9ZQgAAAABJRU5ErkJggg=='
 };
 (async()=>{
- for(const [engine,type] of [['chromium',chromium],['webkit',webkit]]){
+ for(const [engine,type] of [['chromium',chromium],['webkit',webkit]].filter(([name])=>!process.env.UI_BROWSER||process.env.UI_BROWSER===name)){
   const browser=await type.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[],imageRequests=[];
   context.setDefaultTimeout(25000);page.on('pageerror',e=>errors.push(e.message));fs.mkdirSync(output,{recursive:true});
   await context.route('https://signature.example.test/**',route=>{const request=route.request(),data=fixtures[new URL(request.url()).pathname];imageRequests.push(request.headers());return data?route.fulfill({contentType:'image/png',body:Buffer.from(data,'base64')}):route.fulfill({status:404,body:'No image'});});

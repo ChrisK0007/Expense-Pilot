@@ -1,7 +1,7 @@
 const {chromium,webkit}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
 (async()=>{
- for(const [engine,type] of [['chromium',chromium],['webkit',webkit]]){
+ for(const [engine,type] of [['chromium',chromium],['webkit',webkit]].filter(([name])=>!process.env.UI_BROWSER||process.env.UI_BROWSER===name)){
   const browser=await type.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
   context.setDefaultTimeout(25000);page.on('pageerror',e=>errors.push(e.message));fs.mkdirSync(output,{recursive:true});
   async function post(path,data,method='POST'){const s=await(await context.request.get(url+'/api/session')).json(),r=await context.request.fetch(url+'/api/'+path,{method,data,headers:{'X-CSRF-Token':s.csrf}});assert.equal(r.status(),200,await r.text());return r.json();}

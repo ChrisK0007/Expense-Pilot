@@ -1,7 +1,7 @@
 'use strict';
 const Workflows=(()=>{
  let tab='reconciliation',year=Number(today().slice(0,4))-(Number(today().slice(5,7))<7?1:0),driveDate=today();
- const labels={reconciliation:'Bank reconciliation',rules:'Categorisation rules',income:'Payslip checks',items:'Receipt items',journeys:'Drive review',equipment:'Equipment',questions:'Adviser questions',handover:'Annual handover'};
+ const labels={reconciliation:'Bank reconciliation',rules:'Categorisation rules',income:'Payslip checks',items:'Receipt items',journeys:'Drive review',equipment:'Deductions',questions:'Adviser questions',handover:'Annual handover'};
  const button=(label,action,id='',extra='')=>`<button type="button" class="secondary" data-workflow="${action}" data-id="${esc(id)}" ${extra}>${label}</button>`;
  const amount=n=>n==null?'':(n/100).toFixed(2);
  const table=(headers,rows)=>rows.length?`<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:'<p class="empty">Nothing to show yet.</p>';
@@ -9,7 +9,7 @@ const Workflows=(()=>{
  function actions(root,handlers){root.querySelectorAll('[data-workflow]').forEach(b=>b.onclick=async()=>{const fn=handlers[b.dataset.workflow];if(!fn)return;b.disabled=true;try{await fn(b.dataset.id,b);}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});}
  const routes={reconciliation:'reconciliation',rules:'rules',income:'payslip_checks',items:'receipt_items',journeys:'drive_review',equipment:'equipment',questions:'adviser_questions',handover:'annual_handover'};
  const parents={reconciliation:'banks',rules:'expenses',income:'employment',items:'expenses',journeys:'vehicles',equipment:'expenses',questions:'reports',handover:'reports'};
- function links(parent){const keys=Object.keys(parents).filter(k=>parents[k]===parent);if(parent==='expenses')return `<nav class="section-tools expense-tools" aria-label="Expense tools"><div class="actions">${keys.map(k=>`<a class="button-link secondary" href="#/${routes[k]}">${labels[k]}</a>`).join('')}<button class="secondary" id="manage-expense-categories">Categories</button></div></nav>`;return `<details class="section-tools"><summary>${parent==='employment'?'Optional payslip checks':parent==='vehicles'?'Drive tools':parent==='reports'?'Adviser tools':'Expense tools'}</summary><div class="actions">${keys.map(k=>`<a class="button-link secondary" href="#/${routes[k]}">${labels[k]}</a>`).join('')}</div></details>`;}
+ function links(parent){const keys=Object.keys(parents).filter(k=>parents[k]===parent);if(parent==='expenses')return `<nav class="section-tools expense-tools" aria-label="Expense tools"><div class="actions">${keys.map(k=>`<a class="button-link secondary" href="#/${routes[k]}">${labels[k]}</a>`).join('')}<button class="secondary" id="manage-expense-categories">Categories</button><a class="button-link secondary" href="#/budgets">Budgets</a></div></nav>`;return `<details class="section-tools"><summary>${parent==='employment'?'Optional payslip checks':parent==='vehicles'?'Drive tools':parent==='reports'?'Adviser tools':'Expense tools'}</summary><div class="actions">${keys.map(k=>`<a class="button-link secondary" href="#/${routes[k]}">${labels[k]}</a>`).join('')}${parent==='reports'?'<a class="button-link secondary" href="#/documents">Documents</a>':''}</div></details>`;}
  async function show(next){tab=next;navigate(routes[next]);}
  async function pageView(next){
   if(!next&&page!==routes[tab])return;
@@ -24,7 +24,7 @@ const Workflows=(()=>{
   $('#content').innerHTML=heading('Needs attention','Review the records that still need a decision.')+`<div class="toolbar">${yearField()}${select('Sort','attention-sort',[['priority','Priority'],['date','Oldest first'],['amount','Largest amount']])}${select('Show','attention-kind',[['all','All items']])}${button('Refresh','refresh')}</div><div id="attention-list" class="panel workflow-panel">Loading…</div>`;
   const root=$('#attention-list');
   try{
-   const data=await api('workflows/attention/'+year);if(!root.isConnected)return;
+   const data=await Notifications.items(year);if(!root.isConnected)return;
    $('#attention-kind').innerHTML='<option value="all">All items</option>'+[...new Set(data.items.map(i=>i.kind))].map(k=>`<option value="${esc(k)}">${esc(k.replaceAll('_',' '))}</option>`).join('');
    function draw(){const sort=$('#attention-sort').value,kind=$('#attention-kind').value;let items=data.items.filter(i=>kind==='all'||i.kind===kind);if(sort==='date')items.sort((a,b)=>a.date.localeCompare(b.date));if(sort==='amount')items.sort((a,b)=>b.amount_cents-a.amount_cents);
     root.innerHTML=`<p class="footnote">${esc(data.notice)}</p><p>${items.length} item(s)</p>`+table(['Record','Needs review','Date','Amount',''],items.map((r,i)=>[esc(r.title),esc(r.detail),esc(dateAU(r.date)),r.amount_cents?money(r.amount_cents):'—',button('Review','open',i)]));
@@ -33,7 +33,7 @@ const Workflows=(()=>{
    $('#attention-sort').onchange=draw;$('#attention-kind').onchange=draw;$('#workflow-year').onchange=e=>{year=Number(e.target.value);attention();};actions($('#content'),{refresh:attention});draw();
   }catch(e){if(root.isConnected)root.innerHTML=`<p class="error">${esc(e.message)}</p>`;}
  }
- async function openAttention(r){if(r.kind==='bank')await BankFeeds.review(r.id,()=>Notifications.mount());else if(r.kind==='expense'){const e=E.find(e=>e.id===r.id);if(e)expenseModal(e);}else if(r.kind==='journey'){driveDate=r.date;show('journeys');}else if(r.kind==='income_check')show('income');else if(r.kind==='asset')show('equipment');else if(r.kind==='question')show('questions');else navigate(r.page);}
+ async function openAttention(r){if(r.notification){await Notifications.open(r);return;}if(r.kind==='bank')await BankFeeds.review(r.id,()=>Notifications.mount());else if(r.kind==='expense'){const e=E.find(e=>e.id===r.id);if(e)expenseModal(e);}else if(r.kind==='journey'){driveDate=r.date;show('journeys');}else if(r.kind==='income_check')show('income');else if(r.kind==='asset')show('equipment');else if(r.kind==='question')show('questions');else navigate(r.page);}
  async function confirmPreview(title,data,html,apply){
   modal(title,`<p class="notice">Check these changes before applying. If any source record changes, you will need a new preview.</p>${html}<div class="modal-footer"><button id="workflow-apply">Apply changes</button></div>`);
   bind('#workflow-apply',async()=>{const b=$('#workflow-apply');b.disabled=true;try{await apply(data.token);$('#modal').close();await refresh();await pageView();toast('Changes applied.');}catch(e){toast(e.message);b.disabled=false;}});
