@@ -1,0 +1,20 @@
+name: Prepare browser validation tools
+on:
+  push:
+    branches: [feature/beta19-browser-tools]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download pinned browser tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/browser-tools"
+          npm install --prefix "$RUNNER_TEMP/browser-tools" playwright@1.62.1
+          PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/browser-tools/browsers" node "$RUNNER_TEMP/browser-tools/node_modules/playwright/cli.js" install chromium --only-shell
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-tools
+          path: ${{ runner.temp }}/browser-tools
+          retention-days: 1
