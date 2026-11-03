@@ -2,6 +2,8 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md). The published beta image remains beta.19 until the next application prerelease.
+
 ## 1.0.6-beta.19 — Simpler deductions and refined workspace (2026-11-03)
 
 - Full-page invoice and quote editing with automatic draft recovery, conflict detection and an optional live preview rendered from the actual PDF. Saving does not issue or email the invoice; paid invoices remain locked.

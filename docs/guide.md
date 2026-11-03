@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.6-beta.1**. Stable is **1.0.5**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.6-beta.19**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -29,7 +29,7 @@ The native iPhone app is developed separately and remains in testing. It is opti
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
 
-Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
+Update a beta Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
 
 ---
 
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.6-beta.1**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.6-beta.19**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 

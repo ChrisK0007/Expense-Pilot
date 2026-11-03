@@ -6,7 +6,7 @@
 
 Self-hosted expense tracking and invoicing for Australian sole traders and people tracking employment expenses. Run the Docker container on your own server and use it in a browser.
 
-**Stable Docker release: 1.0.5.** The optional iPhone app remains in testing and is not required to use Expense Pilot.
+**Stable Docker release: 1.0.6.** The optional iPhone app remains in testing and is not required to use Expense Pilot.
 
 This checkout is the beta channel; use the [beta installation guide](docs/public-release.md) and a separate test data volume.
 
@@ -19,7 +19,9 @@ Development use of AI is separate from the app’s optional receipt-reading feat
 ## What it does
 
 - Track Employment, Business and Personal expenses, including split allocations and retained receipt originals.
-- Review receipt drafts with optional AI assistance and organise overnight trip spending.
+- Review receipts and payslips with optional AI assistance; keep originals and organise overnight trip spending.
+- Estimate equipment deductions, import depreciation schedules and link receipts for accountant review.
+- Track home-office hours and evidence, and export branded WFH and mileage reports.
 - Manage clients, quotes, invoices, payments, recurring drafts and email reminders.
 - Import bank CSVs or connect your own PocketSmith account, then review and match transactions.
 - Share selected financial years and tax evidence with a tax agent, with read-only or limited tax-adjustment access.
@@ -30,8 +32,8 @@ Records live in the Docker data volume. Optional AI, bank feeds and email use th
 
 | Channel | Image | Documentation |
 | --- | --- | --- |
-| Stable — 1.0.5 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.5` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) |
-| Beta — 1.0.6-beta.1 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.6-beta.1` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+| Stable — 1.0.6 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.6` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) |
+| Beta — 1.0.6-beta.19 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.6-beta.19` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
 
 **Use the template and instructions from the same branch as your image.** AI is configured in the app and the setup token is optional.
 
