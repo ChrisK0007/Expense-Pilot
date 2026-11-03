@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.6-beta.1**. Stable is **1.0.5**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **stable 1.0.6**. For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -29,7 +29,7 @@ The native iPhone app is developed separately and remains in testing. It is opti
 - Receipt currency is a compact editable field. AUD is the default unless extraction detects another currency. Edits save with the draft or expense; foreign amounts still require the actual AUD amount paid.
 - Replaced the repeated “Private · AUD” labels with “Totals in AUD”. This is a display currency label, not a privacy setting or currency converter.
 
-Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:beta`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
+Update a stable Unraid container using `ghcr.io/chrisk0007/expense-pilot:latest`, keeping its own `/data` mount. Use the image tag for the channel you intend to run. Refresh the browser after updating.
 
 ---
 
@@ -71,27 +71,27 @@ Use `:latest` for stable or `:beta` for a separate testing installation. Public 
 Prepare the data folder from the Unraid terminal (adjust the path if you use a different appdata share):
 
 ```bash
-mkdir -p /mnt/user/appdata/expense-pilot-beta/data
-chown 99:100 /mnt/user/appdata/expense-pilot-beta/data
-chmod 770 /mnt/user/appdata/expense-pilot-beta/data
+mkdir -p /mnt/user/appdata/expense-pilot/data
+chown 99:100 /mnt/user/appdata/expense-pilot/data
+chmod 770 /mnt/user/appdata/expense-pilot/data
 ```
 
 After Community Apps approval, search Apps for Expense Pilot and install it. Until then, use the manual template instructions below. You do not need to download the application source or run prepare.sh for a registry-image installation.
 
 ### Unraid Docker page
 
-The beta template is supplied in `deploy/unraid/expense-pilot.xml`. Copy it to `/boot/config/plugins/dockerMan/templates-user/my-expense-pilot.xml`, then go to **Docker → Add Container** and select the Expense Pilot template. Set:
+The stable template is supplied in `deploy/unraid/expense-pilot.xml`. Copy it to `/boot/config/plugins/dockerMan/templates-user/my-expense-pilot.xml`, then go to **Docker → Add Container** and select the Expense Pilot template. Set:
 
 | Setting | Value |
 | --- | --- |
-| Repository | `ghcr.io/chrisk0007/expense-pilot:beta` |
+| Repository | `ghcr.io/chrisk0007/expense-pilot:latest` |
 | Network | Bridge |
-| Web port | Host 8787 → container 8788 |
-| Appdata | `/mnt/user/appdata/expense-pilot-beta/data` → `/data` |
+| Web port | Host 8788 → container 8788 |
+| Appdata | `/mnt/user/appdata/expense-pilot/data` → `/data` |
 | Setup token | Optional; blank, or a random value of at least 24 characters |
 | Secure cookie | `false` for LAN HTTP setup; `true` when using HTTPS |
 
-The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8787`, create your owner login (enter a setup token only if configured). Complete owner setup before exposing the server remotely. No default password is provided. Enable **Autostart** for the container in Unraid.
+The template keeps the database and receipts outside the image. Replace `<server-ip>` below with your Unraid server’s LAN IP address. Open `http://<server-ip>:8788`, create your owner login (enter a setup token only if configured). Complete owner setup before exposing the server remotely. No default password is provided. Enable **Autostart** for the container in Unraid.
 
 When a tested image is published, use the normal Unraid Docker update controls to pull it. Keep the `/data` mapping unchanged. Back up before updating.
 
@@ -100,7 +100,7 @@ When a tested image is published, use the normal Unraid Docker update controls t
 Do not run this at the same time as the Unraid template installation. Add this line to your generated `.env`:
 
 ```text
-IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.6-beta.1
+IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.6
 ```
 
 Then:
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.6-beta.1**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected stable image (currently **1.0.6**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -244,7 +244,7 @@ The Community Apps template uses the public project icon:
 https://raw.githubusercontent.com/ChrisK0007/Expense-Pilot/main/server/static/expense-pilot-logo.png
 ```
 
-Existing installations may keep their working local icon at `file:///mnt/user/appdata/expense-pilot-beta/data/expense-pilot-logo.png`. Container startup still creates this file when missing. For a different appdata location, adjust the local URL accordingly. To change an existing template, open **Docker → expense-pilot → Edit → Advanced View → Icon URL**, paste the URL and Apply. Image updates do not replace saved Unraid template settings.
+Existing installations may keep their working local icon at `file:///mnt/user/appdata/expense-pilot/data/expense-pilot-logo.png`. Container startup still creates this file when missing. For a different appdata location, adjust the local URL accordingly. To change an existing template, open **Docker → expense-pilot → Edit → Advanced View → Icon URL**, paste the URL and Apply. Image updates do not replace saved Unraid template settings.
 
 This is the container-list icon. Your invoice business logo is separately set in **Settings → Business profile & branding**. The current template's `--memory 1g` extra parameter controls memory; change it to `--memory 2g` only if your workload needs it.
 

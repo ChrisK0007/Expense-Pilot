@@ -2,7 +2,7 @@
 
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
-| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.5` |
+| Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.6` |
 | Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.6-beta.19` |
 
 The Docker server and web interface are released independently of the optional iPhone app, which remains in testing. See the [stable changelog](CHANGELOG.md) for shipped changes and [GitHub Releases](https://github.com/ChrisK0007/Expense-Pilot/releases) for versioned downloads.
@@ -15,7 +15,7 @@ Use the [stable setup guide](https://github.com/ChrisK0007/Expense-Pilot/blob/ma
 
 ## Run stable and beta separately
 
-For normal existing stable use, keep `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.5`). On Unraid use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. Preserve the `/data` mapping and deployment settings.
+For normal existing stable use, keep `ghcr.io/chrisk0007/expense-pilot:latest` (or pin `:1.0.6`). On Unraid use **Docker → Check for Updates → Update**, then refresh the browser and check the version in Settings. Preserve the `/data` mapping and deployment settings.
 
 For testing, use the beta image with a different container name, host port and data directory. For example, use container `expense-pilot-beta`, host port `8787` mapped to container `8788`, and `/mnt/user/appdata/expense-pilot-beta/data` mapped to `/data`. First-run tokens are optional. Keep test email/reminders disabled unless deliberately testing delivery to addresses you control.
 
@@ -25,7 +25,7 @@ Never mount the same data directory into two running installations. Do not point
 
 Back up each instance before upgrading. Startup runs numbered migrations; existing records and receipt paths are retained. An older image refuses a database containing newer migrations. Rollback therefore means restoring the matching older backup and image together, not only changing the image tag. Keep the current data volume intact until recovery is verified.
 
-Stable 1.0.0 → 1.0.1 adds migration m008 for PocketSmith. Stable 1.0.2 adds migrations m009–m019 from the beta series; do not downgrade its database directly to stable 1.0.1. Check [backup architecture](architecture.md#backups) and the [full-backup guide](public-release.md#backup-and-restore).
+Stable 1.0.0 → 1.0.1 adds migration m008 for PocketSmith. Stable 1.0.2 adds migrations m009–m019 from the beta series; do not downgrade its database directly to stable 1.0.1. Stable 1.0.6 adds migrations m020–m028; moving from 1.0.6-beta.19 to stable adds none. Existing tax agents must be assigned shared years after upgrading from stable 1.0.5. Check [backup architecture](architecture.md#backups) and the [full-backup guide](public-release.md#backup-and-restore).
 
 ## Development and promotion
 
@@ -58,18 +58,20 @@ To check anonymous pulls without using your saved Docker login, substitute the c
 
 ```bash
 ep_public_config=$(mktemp -d)
-docker --config "$ep_public_config" pull ghcr.io/chrisk0007/expense-pilot:1.0.5
+docker --config "$ep_public_config" pull ghcr.io/chrisk0007/expense-pilot:1.0.6
 docker --config "$ep_public_config" pull ghcr.io/chrisk0007/expense-pilot:latest
 rm -r "$ep_public_config"
 ```
+
+The stable publishing workflow also verifies anonymous pulls of the numbered, `latest` and commit tags in a separate job after release creation. It checks every public release asset against `SHA256SUMS`. A failed public-verification job can be retried without republishing an immutable image.
 
 For beta, check its numbered tag and `:beta` instead. Compare the returned digests with the publishing run.
 
 The repository and container package have separate visibility controls. Keep required pull requests and the `test-and-publish` check on both `main` and `beta`; keep force pushes and deletions disabled. A sole maintainer can leave required approvals off. Private vulnerability reporting should be available through the [security policy](../SECURITY.md).
 
-## Published build references
+## Earlier published build references
 
-These records identify the published software; they do not certify a particular host installation or Community Apps approval.
+These historical records identify earlier published software; they do not certify a particular host installation or Community Apps approval.
 
 | Version | Runtime revision | Publishing run |
 | --- | --- | --- |

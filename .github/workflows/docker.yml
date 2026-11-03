@@ -259,3 +259,37 @@ jobs:
           cp "docs/release-notes/$VERSION.md" "$RUNNER_TEMP/release-notes.md"
           printf '\nPublished image: `%s`\n' "$DIGEST" >> "$RUNNER_TEMP/release-notes.md"
           gh release create "v$VERSION" release-assets/* --target "$GITHUB_SHA" --title "Expense Pilot v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --latest
+  verify-public-release:
+    needs: [test-and-publish, github-release]
+    if: needs.test-and-publish.outputs.moving_tag == 'latest'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verify anonymous image pulls and matching digests
+        env:
+          VERSION: ${{ needs.test-and-publish.outputs.version }}
+          DIGEST: ${{ needs.test-and-publish.outputs.digest }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          image="ghcr.io/${REPOSITORY,,}"
+          ep_public_config=$(mktemp -d)
+          trap 'rm -rf "$ep_public_config"' EXIT
+          for tag in "$VERSION" latest "sha-${GITHUB_SHA:0:7}"; do
+            docker --config "$ep_public_config" pull "$image:$tag"
+            docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image:$tag" | grep -Fx "$DIGEST"
+          done
+          echo "Anonymous pulls verified for $VERSION, latest and sha-${GITHUB_SHA:0:7}: $DIGEST" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify public release assets and checksums
+        env:
+          VERSION: ${{ needs.test-and-publish.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/public-assets"
+          cd "$RUNNER_TEMP/public-assets"
+          base="https://github.com/$REPOSITORY/releases/download/v$VERSION"
+          for asset in SHA256SUMS application-source.zip source-manifest.json dependency-notices.zip dependency-inventory.json dependency-sources.zip dependency-sources-manifest.json LICENSE COPYRIGHT THIRD_PARTY_NOTICES.md; do
+            curl --fail --silent --show-error --location --retry 3 "$base/$asset" --output "$asset"
+          done
+          sha256sum --check SHA256SUMS
+          echo "All ten stable release assets downloaded anonymously; SHA256SUMS verified." >> "$GITHUB_STEP_SUMMARY"
