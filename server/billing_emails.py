@@ -126,12 +126,8 @@ def paste_signature():
         cleaned,plain=clean_signature(value,images);missing=0
         errors=[]
     else:
-        import signature_images
-        sources=[(src,label) for src,label in parser.image_sources if not src.startswith('data:image/')]
-        resolved,failures=signature_images.import_images([src for src,label in sources])
-        cleaned,plain=clean_signature(value,resolved_images=resolved)
-        missing=parser.missing_images-sum(src in resolved for src,label in sources)
-        errors=[dict(image=label,reason=failures[src]) for src,label in sources if src in failures]
+        missing=parser.missing_images
+        errors=[dict(image=label,reason='Use a public HTTPS image link or replace this image with Add image.') for label in parser.missing_sources]
     return jsonify(html=cleaned,missing_images=missing,image_errors=errors)
 
 

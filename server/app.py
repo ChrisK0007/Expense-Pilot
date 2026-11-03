@@ -61,7 +61,7 @@ def errors(e): return jsonify(error=e.description),e.code
 @app.after_request
 def headers(r):
     r.headers['X-Content-Type-Options']='nosniff';r.headers['X-Frame-Options']='DENY';r.headers['Referrer-Policy']='same-origin'
-    r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     r.headers['Cache-Control']='no-store'
     if app.config['SESSION_COOKIE_SECURE']: r.headers['Strict-Transport-Security']='max-age=31536000'
     return r
