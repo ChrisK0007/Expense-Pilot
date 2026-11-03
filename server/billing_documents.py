@@ -303,3 +303,25 @@ def send_document(did):
     db().commit()
     state, error = deliver_queued(oid, recipient, subject, message, attachment, filename, signature, copy_self=copy_self, attachments=attachments)
     return jsonify(state=state, error=error)
+
+
+
+@bp.get('/documents/<int:did>/revisions')
+@owner
+def document_revisions(did):
+    """Read immutable prior snapshots without changing or reissuing a document."""
+    from billing import document, rows, json, jsonify
+    current = document(did)
+    items = []
+    fields = ('kind','number','state','issue_date','due_date','reference','notes',
+              'payment_details','tax_mode','lines','total_cents','gst_cents','paid_cents','balance_cents')
+    for row in rows('SELECT id,version,previous,changed_at FROM billing_revision_history WHERE document_id=? ORDER BY id DESC', (did,)):
+        old = json.loads(row['previous'])
+        snapshot = {key: old[key] for key in fields if key in old}
+        # Client private notes, seller logo bytes and delivery internals are not
+        # part of the revision viewer response.
+        snapshot['client'] = {key: old.get('client', {}).get(key, '') for key in ('name','address','email','abn')}
+        items.append(dict(id=row['id'], version=row['version'], changed_at=row['changed_at'], document=snapshot))
+    response = jsonify(current_version=current['version'], items=items)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
