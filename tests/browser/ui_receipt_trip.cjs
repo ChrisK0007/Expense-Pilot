@@ -122,10 +122,20 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await navigate(page,'receipts');await open('Receipt trip teal');
   assert.equal(await page.getByLabel('Location',{exact:true}).inputValue(),'Richmond, NSW 2753');
   await page.getByLabel('Location',{exact:true}).fill('Richmond, QLD 4822');
-  await page.getByLabel('Employment (%)').fill('40');await page.getByLabel('Business (%)').fill('50');
-  await page.getByRole('button',{name:'Save expense',exact:true}).click();await page.getByText('Expense saved.',{exact:true}).waitFor();
+  await page.getByText('Immediate deduction available',{exact:true}).waitFor();
+  // Save before the debounced estimate refreshes: an intentional percentage
+  // change must use the fresh calculation without a false stale-rule warning.
+  await page.evaluate(()=>{
+   for(const [id,value] of [['receipt_work_percent','40'],['receipt_business_percent','50']]){
+    const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));
+   }
+   document.getElementById('receipt-review').requestSubmit();
+  });
+  await page.getByText('Expense saved.',{exact:true}).waitFor();
   const split=(await api('expenses')).find(e=>e.receipt_id===splitReceipt);
   assert.equal(split.scope,'split');assert.equal(split.work_percent,40);assert.equal(split.business_percent,50);
+  const deduction=(await api('workflows/equipment?year=2026')).assets.find(a=>a.expense_id===split.id);
+  assert.ok(deduction);assert.equal(deduction.calculation.method,'diminishing_value');
   const filedLocation=(await api('receipts')).find(r=>r.id===splitReceipt);
   assert.equal(filedLocation.location,'Richmond, QLD 4822');
   assert.equal(filedLocation.draft.merchant_address,'123 Example Street, Richmond NSW 2753');
