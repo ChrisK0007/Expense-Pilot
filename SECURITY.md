@@ -15,7 +15,7 @@ Security fixes target the current stable release. Beta builds are for testing an
 - Complete first-owner setup on a trusted network. Current stable and beta releases allow token-free setup when `SETUP_TOKEN` is blank/unset. If a token is configured, it is enforced. Create the owner account before exposing a new installation remotely.
 - Use HTTPS with `COOKIE_SECURE=true`, or a trusted VPN, for remote access. Do not expose the HTTP port directly to the internet.
 - Keep `/data`, its `session.key`, deployment settings and backups private. Receipt originals and the database are not encrypted at rest by the application; stored integration credentials require both the database and key for recovery.
-- Treat the owner and Docker host administrator as trusted. Tax agents can read the workspace's financial records, including personal records and unfiled receipts; read/write access is an additional permission, not per-record sharing.
+- Treat the owner and Docker host administrator as trusted. Tax agents can access only owner-selected financial years and their tax evidence; personal spending, unfiled receipts, full bank feeds and operational settings are excluded. Read/write access permits limited tax adjustments. New and upgraded accounts have no shared years until the owner selects them. See [tax-agent access](docs/tax-agent-access.md).
 - Review optional AI, SMTP and PocketSmith destinations and permissions. Self-hosting does not prevent data being sent to an integration you enable.
 - Keep Docker, the host and the selected Expense Pilot release current. Retain a tested backup before upgrading.
 

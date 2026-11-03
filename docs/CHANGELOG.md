@@ -1,6 +1,6 @@
 # Changelog
 
-Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.5**. The iPhone app is versioned separately and remains in testing.
+Stable Docker release history starts at **v1.0**, listed in release order. The current stable image is **v1.0.6**. The iPhone app is versioned separately and remains in testing.
 
 Prerelease changes are recorded separately in the [beta changelog](beta-changelog.md).
 
@@ -64,3 +64,19 @@ No database migration is added. Back up the existing data directory, update the 
 - Attach source packages, inventories and checksums to numbered stable GitHub releases.
 
 No database migration is added. Preserve the existing data volume and back up before updating. The image is larger because dependency sources accompany it. The iPhone app remains in testing.
+
+## v1.0.6 — Refined workspace and simpler deductions (2026-11-03)
+
+Promotes the complete tested 1.0.6-beta.1–beta.19 series to stable.
+
+- Simplify equipment deductions with automatic treatment suggestions, purchase details and use splits, saved annual rules, schedule import and receipt linking after creation. Retain accountant-entered figures and guard against duplicate ordinary deductions.
+- Add full-page invoice and quote editing, recoverable drafts, actual PDF previews, three branded layouts, quantity types, selected supporting attachments and optional email copies. Keep paid invoices locked; retain earlier issued revisions.
+- Support pasted formatted signatures with linked HTTPS images and natural proportions.
+- Refine navigation and topic-based settings, use the notification bell for actionable exceptions, and add owner notification preferences and calendar/financial-year dashboard comparisons.
+- Improve Document inbox with background reads, local payslip extraction, retry recovery, bank matching and retained originals.
+- Add fixed-rate home-office diaries and reviewed imports, supporting tax documents, branded WFH and mileage PDFs, and verified nightly local backups.
+- Limit tax agents to selected financial years and supporting tax records; add permanent account removal and new-IP sign-in alerts.
+- Add multiple workspace filters, renamed categories, sortable expenses, calendar popups with Safari fixes and due dates that follow payment terms until overridden.
+- Update the SQLite runtime and audited dependencies, preserving matching source archives and licence downloads.
+
+Back up the complete data directory before upgrading. Startup applies migrations m020–m028 from stable 1.0.5; beta.19 already has these migrations. Keep the existing `/data` mount. After upgrading from stable 1.0.5, select the financial years to share with existing tax agents. Rollback requires the matching previous image and backup. The optional iPhone app is not updated by this release.
