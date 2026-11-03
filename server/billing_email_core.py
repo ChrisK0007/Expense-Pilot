@@ -75,8 +75,10 @@ class SignatureParser(HTMLParser):
     tags = {'p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'span', 'font', 'a', 'img', 'small', 'big', 'mark', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'hr', 'ul', 'ol', 'li'}
     blocked = {'script', 'style', 'iframe', 'object', 'svg', 'math', 'template'}
 
-    def __init__(self, image_fallbacks=None):
+    def __init__(self, image_fallbacks=None, resolved_images=None):
         self.image_fallbacks=list(image_fallbacks or [])
+        self.resolved_images=resolved_images or {}
+        self.image_sources=[]
         super().__init__(convert_charrefs=True)
         self.parts, self.plain, self.stack = [], [], []
         self.skip, self.images, self.missing_images = 0, 0, 0
@@ -130,9 +132,13 @@ class SignatureParser(HTMLParser):
             if self.images > 3:
                 raise ValueError('Use at most three signature images.')
             source = attributes.get('src', '')
+            self.image_sources.append((source, attributes.get('alt', 'Image '+str(self.images))[:100]))
             match = re.fullmatch(r'data:image/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=]+)', source)
             if not match and self.image_fallbacks:
                 source=self.image_fallbacks.pop(0)
+                match=re.fullmatch(r'data:image/png;base64,([A-Za-z0-9+/=]+)',source)
+            if not match and source in self.resolved_images:
+                source=self.resolved_images[source]
                 match=re.fullmatch(r'data:image/png;base64,([A-Za-z0-9+/=]+)',source)
             if not match:
                 self.missing_images += 1
@@ -175,10 +181,10 @@ class SignatureParser(HTMLParser):
             self.plain.append(data)
 
 
-def clean_signature(value, image_fallbacks=None):
+def clean_signature(value, image_fallbacks=None, resolved_images=None):
     if not isinstance(value, str) or len(value) > 450000:
         raise ValueError('Use at most three images under 100 KB each and 5,000 characters of text.')
-    parser = SignatureParser(image_fallbacks)
+    parser = SignatureParser(image_fallbacks, resolved_images)
     parser.feed(value)
     html = ''.join(parser.parts) + ''.join('</' + tag + '>' for tag in reversed(parser.stack))
     plain = re.sub(r'\n{3,}', '\n\n', ''.join(parser.plain)).strip()

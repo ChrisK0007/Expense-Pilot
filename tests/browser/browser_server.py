@@ -38,4 +38,26 @@ def unavailable_ai(*args, **kwargs):
     raise ai_providers.AIError('Ollama did not finish reading this synthetic document.')
 ai_providers.extract=unavailable_ai
 
+# Signature downloads are synthetic too; no browser fixture contacts image hosts.
+import signature_images
+signature_downloads=[]
+def signature_fixture(url,deadline):
+    import io,time
+    from PIL import Image
+    from billing_email_core import signature_image
+    signature_downloads.append(url)
+    time.sleep(.3)
+    colours={'https://signature.example.test/s/photo/preview':'blue',
+             'https://signature.example.test/one.png':'green',
+             'https://signature.example.test/two.png':'purple'}
+    if url not in colours:
+        raise signature_images.ImageImportError('The image host refused the download or requires sign-in. Use Add image instead.')
+    out=io.BytesIO();Image.new('RGB',(80,80),colours[url]).save(out,'PNG')
+    return signature_image(out.getvalue())
+signature_images.fetch_image=signature_fixture
+
+@app.get('/test/signature-downloads')
+def captured_signature_downloads():
+    return jsonify(signature_downloads)
+
 app.run(host='0.0.0.0',port=int(os.environ.get('PORT','8788')),threaded=True)

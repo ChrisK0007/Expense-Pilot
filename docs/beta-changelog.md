@@ -2,6 +2,13 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.16 — Hosted signature images (2026-11-03)
+
+- Import public HTTPS images when pasting a formatted email signature, including hosted photos and linked social icons. Preserve supported layout, links and image sizes, and embed the downloaded image bytes in outgoing email.
+- Show progress while importing and prevent saving an unfinished paste. Keep a per-image explanation when a host refuses access, requires sign-in, times out or returns an unsupported file; retain Add image replacement.
+- Bound download size, time and redirects; validate public destinations and pin connections to checked addresses while preserving TLS hostname checks. Previewing, saving and sending a saved signature never downloads remote images again.
+- Existing saved signatures remain unchanged. Repaste the original formatted signature to recover images that older versions replaced with placeholders. No database migration or iPhone build is required.
+
 ## 1.0.6-beta.15 — Simpler deductions and receipt linking (2026-11-01)
 
 - Put the annual deduction and remaining value first. Keep methods, rates, history, disposal and calculation details under Advanced details, with fewer repeated confirmations.

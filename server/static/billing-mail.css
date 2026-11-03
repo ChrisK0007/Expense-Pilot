@@ -13,3 +13,5 @@
 .template-token{background:var(--hover);color:var(--accent);border-color:var(--line)}
 
 .signature-editor table,.email-signature-preview table{width:auto;max-width:100%;white-space:normal;border-collapse:collapse}.signature-editor td,.email-signature-preview td{border:0;padding:0;vertical-align:top;background:transparent}.signature-editor img,.email-signature-preview img{max-width:100%;height:auto}.signature-editor,.email-signature-preview{overflow:auto}
+
+#signature-import-status{white-space:pre-line}#signature-import-status[hidden]{display:none}.signature-editor[aria-busy=true]{opacity:.65}
