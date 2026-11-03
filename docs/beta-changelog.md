@@ -2,6 +2,13 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
+## 1.0.6-beta.17 — Linked signatures and image proportions (2026-11-03)
+
+- Keep pasted HTTPS signature images linked to their original URLs in the editor, saved signature and outgoing emails. Remove the server image downloader; uploaded and clipboard image files remain embedded.
+- Preserve pasted sizing and spacing during insertion, retain image widths, and use natural proportions instead of conflicting fixed width/height pairs. Keep linked social icons at their pasted size.
+- Allow HTTPS images through the browser image policy while retaining script, connection and other restrictions. Suppress referrers on linked signature images, remove unsafe image schemes/credentials and retain owner-only editing.
+- Identify linked images that cannot load; keep Add image as a replacement option. Existing embedded signatures still work; repaste the original to use its original links. No database migration or iPhone build is required.
+
 ## 1.0.6-beta.16 — Hosted signature images (2026-11-03)
 
 - Import public HTTPS images when pasting a formatted email signature, including hosted photos and linked social icons. Preserve supported layout, links and image sizes, and embed the downloaded image bytes in outgoing email.

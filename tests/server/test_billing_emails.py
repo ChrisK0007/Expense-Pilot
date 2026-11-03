@@ -94,9 +94,10 @@ class BillingEmailTest(unittest.TestCase):
         result = self.call(self.owner, 'billing/email-templates', {'signature_html':signature}, 'PUT')
         self.assertEqual(result.status_code, 200, result.json)
         cleaned = result.json['signature_html']
-        for unsafe in ('<script', 'javascript:', 'onerror', 'tracker.invalid', 'alert('):
+        for unsafe in ('<script', 'javascript:', 'onerror', 'alert('):
             self.assertNotIn(unsafe, cleaned)
         self.assertIn('<b>Chris &amp; Co</b>', cleaned)
+        self.assertIn('https://tracker.invalid/pixel', cleaned)
         self.assertEqual(clean_signature(cleaned)[0], cleaned)
         doc = self.create(); draft = self.draft(doc)
         self.assertEqual(draft['signature_html'], cleaned)
