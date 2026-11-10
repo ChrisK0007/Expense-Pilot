@@ -29,8 +29,15 @@ function pdf(lines){
   const session=await get('session'),upload=await context.request.post(url+'/api/receipts',{headers:{'X-CSRF-Token':session.csrf},multipart:{document_kind:'home_office',file:{name:'synthetic-internet-bill.pdf',mimeType:'application/pdf',buffer:pdf(['Synthetic internet bill',bill.payee,'Total AUD 82.19'])}}});
   assert.equal(upload.status(),200,await upload.text());const rid=(await upload.json()).id;
   await post('receipts/'+rid+'/draft',{document_kind:'home_office',merchant:bill.payee,date:bill.date,amount:82.19,home_office_kind:'internet'},'PUT');
-  await page.goto(url+'/#/receipts');await page.getByRole('heading',{name:'Document inbox',exact:true}).waitFor();
-  await page.locator('.receipt-card').filter({hasText:'synthetic-internet-bill.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  const openReceipt=async filename=>{
+   const tabs=page.locator('.inbox-segments');
+   await tabs.locator('[aria-pressed=true]').waitFor();
+   const card=page.locator('.receipt-card').filter({hasText:filename});
+   if(!await card.isVisible())await tabs.locator('[aria-pressed=false]').click();
+   await card.getByRole('button',{name:/^Review & categorise/}).click();
+  };
+  await page.goto(url+'/#/receipts');await page.getByRole('heading',{name:'Inbox',exact:true}).waitFor();
+  await openReceipt('synthetic-internet-bill.pdf');
   await page.waitForFunction(()=>document.querySelector('#receipt-bank-status')?.textContent.includes('This transaction will be linked'));
   assert.equal(await page.getByLabel('Employment (%)').isVisible(),false);assert.equal(await page.getByLabel('Business (%)').isVisible(),false);
   await page.locator('#receipt-personally-paid').check();
@@ -58,11 +65,11 @@ function pdf(lines){
   await page.unroute(extractRoute);
   assert.equal((await get('employment')).length,0);
   await page.getByRole('button',{name:'Done',exact:true}).click();
-  await page.locator('.receipt-card').filter({hasText:'retry-payslip.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  await openReceipt('retry-payslip.pdf');
   await page.locator('#income-read').click();await page.getByLabel('Gross taxable pay (AUD)',{exact:true}).waitFor();
   await page.waitForFunction(()=>document.querySelector('#income-document-form #gross')?.value==='3000');
   await page.locator('#close-modal').click();
-  await page.locator('.receipt-card').filter({hasText:'synthetic-payslip.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  await openReceipt('synthetic-payslip.pdf');
   await page.getByRole('heading',{name:'Review employment document',exact:true}).waitFor();
   assert.equal(await page.getByLabel('Gross taxable pay (AUD)',{exact:true}).inputValue(),'3000');assert.equal(await page.getByLabel('PAYG tax withheld (AUD)',{exact:true}).inputValue(),'650');
   assert.equal(await page.getByLabel('Payment date',{exact:true}).inputValue(),'16/10/2026');
@@ -77,7 +84,7 @@ function pdf(lines){
   assert.equal(partial.status(),200,await partial.text());const partialId=(await partial.json()).id;
   const partialRead=await post('receipts/'+partialId+'/extract',{});
   assert.equal(partialRead.gross,1000);assert.equal(partialRead.withheld,null);assert.ok(partialRead.extraction_warning);
-  await page.goto(url+'/#/receipts');await page.locator('.receipt-card').filter({hasText:'partial-payslip.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  await page.goto(url+'/#/receipts');await openReceipt('partial-payslip.pdf');
   await page.getByRole('status').filter({hasText:'AI reading was unavailable.'}).waitFor();
   assert.equal(await page.getByLabel('Gross taxable pay (AUD)',{exact:true}).inputValue(),'1000');
   assert.equal(await page.getByLabel('PAYG tax withheld (AUD)',{exact:true}).inputValue(),'');
@@ -90,7 +97,7 @@ function pdf(lines){
   const tableUpload=await context.request.post(url+'/api/receipts',{headers:{'X-CSRF-Token':(await get('session')).csrf},multipart:{document_kind:'payslip',file:{name:'synthetic-components.pdf',mimeType:'application/pdf',buffer:components}}});
   assert.equal(tableUpload.status(),200,await tableUpload.text());const tableId=(await tableUpload.json()).id;
   await post('receipts/'+tableId+'/draft',{document_kind:'payslip',date:'',gross:null,withheld:null,period_start:'',period_end:'',notes:'Keep this draft note'},'PUT');
-  await page.reload();await page.locator('.receipt-card').filter({hasText:'synthetic-components.pdf'}).getByRole('button',{name:'Review & categorise',exact:false}).click();
+  await page.reload();await openReceipt('synthetic-components.pdf');
   await page.locator('#income-read').click();
   await page.waitForFunction(()=>document.querySelector('#income-document-form #gross')?.value==='4050');
   assert.equal(await page.getByLabel('PAYG tax withheld (AUD)',{exact:true}).inputValue(),'900');
@@ -104,6 +111,38 @@ function pdf(lines){
   await page.screenshot({path:output+'/payslip-components-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});assert.equal(await page.locator('#modal').evaluate(el=>el.scrollWidth>el.clientWidth),false);
   await page.screenshot({path:output+'/payslip-components-mobile.png',fullPage:true});
+  await page.locator('#close-modal').click();
+  await page.setViewportSize({width:1440,height:1050});
+  const addReady=async(name,amount)=>{
+   const uploaded=await context.request.post(url+'/api/receipts',{
+    headers:{'X-CSRF-Token':(await get('session')).csrf},
+    multipart:{document_kind:'expense',file:{name:name+'.pdf',mimeType:'application/pdf',buffer:pdf([name,String(amount)])}}
+   });
+   assert.ok(uploaded.ok(),await uploaded.text());
+   const id=(await uploaded.json()).id;
+   await post('receipts/'+id+'/draft',{document_kind:'expense',merchant:name,date:'2026-10-12',amount,currency:'AUD',scope:'work'},'PUT');
+   return id;
+  };
+  const nextId=await addReady('Ready queue second',19.70),firstId=await addReady('Ready queue first',26.10);
+  await page.reload();
+  await page.getByRole('searchbox',{name:'Search Inbox'}).fill('Ready queue');
+  await openReceipt('Ready queue first.pdf');
+  await page.locator('#inbox-review #receipt-review').waitFor();
+  await page.locator('#receipt_merchant').fill('Ready queue first checked');
+  page.once('dialog',dialog=>dialog.dismiss());
+  await page.locator('#close-modal').click();
+  assert.equal(await page.locator('#inbox-review #receipt-review').isVisible(),true);
+  await page.getByRole('button',{name:'Save & next',exact:true}).click();
+  await page.waitForFunction(id=>document.querySelector('#inbox-review dialog[open]')?.dataset.receiptId===id,nextId);
+  assert.equal((await get('expenses')).filter(e=>e.receipt_id===firstId&&e.merchant==='Ready queue first checked').length,1);
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.locator('#close-modal').click();
+  await page.getByRole('button',{name:/^Draft/}).click();
+  assert.equal(await page.locator('.receipt-card').filter({hasText:'Ready queue second'}).count(),0);
+  await page.getByRole('button',{name:'More',exact:true}).click();
+  await page.locator('[data-more-page=settings]').click();
+  await page.getByRole('heading',{name:'Settings',exact:true}).waitFor();
   assert.deepEqual(errors,[]);console.log('PASS: document inbox, background payslip reading, HTML error recovery, saved-original retry, income source, home-office filing, automatic bank links and previous-expense matching on desktop/mobile.');
  }catch(e){console.error('Browser errors:',errors);await page.screenshot({path:output+'/document-inbox-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

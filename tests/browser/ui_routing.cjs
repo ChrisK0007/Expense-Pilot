@@ -8,7 +8,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
  page.on('pageerror',e=>errors.push(e.message));
  const check=async(key,title)=>{
   await page.waitForURL('**/#/'+key);
-  await page.locator('.topline > span:first-child').filter({hasText:title}).waitFor();
+  await page.locator('.topline > span:first-child').filter({hasText:title}).waitFor({state:'attached'});
   await page.locator('#content h1').waitFor();
   assert.equal(await page.title(),title+' · Expense Pilot');
  };
@@ -38,14 +38,14 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   assert.equal(await page.locator('#modal').evaluate(d=>d.open),false);
   await page.goForward();await check('budgets','Category budgets');
   await page.reload();await check('budgets','Category budgets');
-  for(const [key,title] of [['receipts','Document inbox'],['trips','Trips & meals'],['vehicles','Vehicles'],['banks','Bank accounts'],['employment','Employment income'],['tax','Tax forecast'],['reports','Expense reports'],['clients','Clients'],['services','Services & prices'],['time','Billable time'],['income','Income report']]){
+  for(const [key,title] of [['receipts','Inbox'],['trips','Trips & meals'],['vehicles','Vehicles'],['banks','Bank accounts'],['employment','Employment income'],['tax','Tax forecast'],['reports','Expense reports'],['clients','Clients'],['services','Services & prices'],['time','Billable time'],['income','Income report']]){
    await navigate(page,key);await check(key,title);await page.reload();await check(key,title);
   }
-  await page.goto(url+'/#/missing-page');await check('dashboard','Dashboard');
+  await page.goto(url+'/#/missing-page');await check('dashboard','Overview');
   // Feature restrictions apply to direct links too, without deleting any records.
   await navigate(page,'settings');await page.locator('[data-settings-jump=workspace]').click();await page.locator('#feature-form [name="business"]').uncheck();
   await page.locator('#feature-form [type="submit"]').click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();
-  await page.goto(url+'/#/invoices');await check('dashboard','Dashboard');
+  await page.goto(url+'/#/invoices');await check('dashboard','Overview');
   await navigate(page,'settings');await page.locator('[data-settings-jump=workspace]').click();await page.locator('#feature-form [name="business"]').check();
   await page.locator('#feature-form [type="submit"]').click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();
   await page.setViewportSize({width:390,height:844});

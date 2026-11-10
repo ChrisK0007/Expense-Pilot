@@ -23,7 +23,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await page.locator('[data-settings-jump=data]').click();await page.locator('#settings-data').getByText('Automatic backups on',{exact:true}).waitFor();
   assert.equal(await page.locator('#settings-data #auto-backup-now').count(),1);
   assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
-  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Data & privacy',exact:true}).click();
+  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Backups & data',exact:true}).click();
   assert.equal(await page.locator('.settings-group:visible').getAttribute('id'),'settings-data');
   await page.locator('[data-settings-jump=workspace]').click();await page.locator('#configure-timezone').click();
   await page.locator('#timezone').fill('America/Los_Angeles');await page.getByRole('button',{name:'Save timezone',exact:true}).click();await page.getByText('Workspace timezone saved.',{exact:false}).waitFor();

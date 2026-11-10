@@ -23,7 +23,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8790',output=process.env.UI_OUT
   await navigate(page,'settings');await page.locator('#setup-checklist').waitFor();
   assert.equal(await page.evaluate(()=>S.timezone),'Europe/London');
   assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
-  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Email',exact:true}).click();
+  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Email delivery',exact:true}).click();
   await page.locator('#mail-settings').waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:output+'/new-workspace-settings-mobile.png',fullPage:true});

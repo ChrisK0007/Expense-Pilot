@@ -8,8 +8,8 @@ async function main(){
  try{
   await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();
   await page.locator('[data-page=dashboard]').waitFor();
-  assert.deepEqual(await page.locator('nav > button[data-page]').evaluateAll(elements=>elements.slice(0,4).map(el=>el.dataset.page)),['dashboard','receipts','invoices','clients']);
-  assert.equal(await page.locator('.brand small').innerText(),'a clearer view of every dollar');
+  assert.deepEqual(await page.locator('.workspace-navigation .workspace-nav-group').first().locator('[data-page]').evaluateAll(elements=>elements.map(el=>el.dataset.page)),['dashboard','expenses','banks','receipts','equipment']);
+  assert.equal(await page.locator('.brand small').innerText(),'A clearer view of every dollar');
   assert.equal(await page.getByText('Private workspace · AUD',{exact:true}).count(),0);
   await page.locator('[data-page=invoices]').waitFor();
   await page.screenshot({path:output+'/navigation-popup.png',fullPage:true});
@@ -44,7 +44,7 @@ async function main(){
   await navigate(page,'settings');await page.screenshot({path:output+'/feature-settings.png',fullPage:true});
   for(const label of ['Employment tracking','Business features','Trips & meals','Vehicle tracking','Bank accounts & imports','Tax forecast'])await page.locator('#feature-form').getByLabel(label,{exact:true}).check();
   await page.getByRole('button',{name:'Save features',exact:true}).click();await page.getByText('Feature preferences saved.',{exact:true}).waitFor();await navigate(page,'invoices');await page.getByRole('heading',{name:'Invoices',exact:true}).waitFor();
-  await page.setViewportSize({width:390,height:844});await page.locator('[data-page=invoices]').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/navigation-popup-mobile.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'More',exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/navigation-popup-mobile.png',fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: split expense creation/editing, validation, reports, compact currency, sidebar popup keyboard/mobile navigation, persisted feature settings and retained tax totals.');
  }catch(e){await page.screenshot({path:output+'/splits-failure.png',fullPage:true});throw e;}finally{await browser.close();}
 }

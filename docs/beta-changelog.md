@@ -4,6 +4,13 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.2 — Web workspace redesign (2026-11-10)
+
+- Align the web sidebar and mobile tabs with the iOS app, with related destinations grouped under Workspace, Tracking, Income and Records.
+- Put quick actions, key figures and items needing attention at the top of Overview. The year comparison, financial-year forecast, income and expense breakdowns, invoice balances and allocation figures remain available.
+- Group Inbox items into Ready for review and Draft. On desktop, review the original alongside its details and use Save & next to continue through the ready queue.
+- Bring expense search, filters and totals together. Group Settings by account, workspace, browser and server administration.
+
 ## 1.0.7-beta.1 — Mileage estimates and WFH sync (2026-11-10)
 
 This starts the 1.0.7 prerelease series with the application changes first published as `1.0.6-beta.21`.
