@@ -19,6 +19,8 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('button',{name:'Issue without email',exact:true}).waitFor();await page.locator('#close-modal').click();
   await page.locator('#billing-search').fill('Design completion quote');assert.equal(await page.locator('#billing-table tbody tr').count(),1);
   await shot('quotes');
+  await page.locator('#billing-search').fill('');await page.setViewportSize({width:390,height:844});
+  const sortNumber=page.locator('#billing-table [data-sort=number]');await sortNumber.waitFor({state:'visible'});await sortNumber.click();assert.equal(await sortNumber.getAttribute('aria-pressed'),'true');await fits('quote sorting on mobile');await shot('quote-sort-mobile');await page.setViewportSize({width:1440,height:1050});
   // Search is applied to the saved register without dropping any record actions.
   for(const [route,id] of [['clients','client-search'],['services','service-search'],['time','time-search']]){
    await navigate(page,route);await page.locator('#'+id).waitFor();await page.locator('#'+id).fill('No matching design record 938472');

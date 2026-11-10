@@ -1,6 +1,6 @@
 'use strict';
 const BankFeeds=(()=>{
- let filter='review',offset=0,reviewRevision=0;
+ let filter='review',offset=0,reviewRevision=0,mountRevision=0;
  const stamp=v=>v?WorkspaceTime.stamp(v):'Not synced yet';
  const amount=t=>new Intl.NumberFormat('en-AU',{style:'currency',currency:t.currency}).format(t.amount_cents/100);
  const busy=async(button,fn)=>{button.disabled=true;try{await fn();}catch(e){toast(e.message);}finally{button.disabled=false;}};
@@ -25,8 +25,9 @@ const BankFeeds=(()=>{
  }
  async function mount(){
   const host=$('#bank-feeds');if(!host)return;
+  const generation=++mountRevision;++reviewRevision;
   const [c,result]=await Promise.all([owner()?api('pocketsmith'):Promise.resolve(null),api(`bank-transactions?state=${filter}&offset=${offset}`)]);
-  if(!host.isConnected)return;
+  if(!host.isConnected||generation!==mountRevision)return;
   if(host.contains($('#modal')))undockModal();
   host.innerHTML=WorkspaceUI.metrics([['Transactions in this view',result.total,'Use the status filter to change the view','bank'],['Account labels',A.length,'Labels used for imports and matching','card'],['Enabled feed accounts',c?.accounts?.filter(a=>a.enabled&&a.available).length||0,c?.connected?'Last sync: '+stamp(c.last_sync):'Connect PocketSmith to start syncing','check']])+`<div class="bank-review-layout"><section class="panel feed-panel"><div class="feed-heading"><div><h2>PocketSmith bank feed</h2><p class="muted">${c?c.connected?`Connected to ${esc(c.display_name)} · ${c.auto_sync?'Hourly sync on':'Manual sync'}`:'Connect PocketSmith to bring bank transactions into your review queue.':'Review synced bank transactions and match them to expenses.'}</p></div>${owner()?`<div class="feed-actions"><button class="secondary" id="feed-settings">${c.connected?'Connection settings':'Connect PocketSmith'}</button>${c.connected?`<button id="feed-sync" ${c.syncing||c.retry_after>Date.now()/1000?'disabled':''}>${c.syncing?'Syncing…':'Sync now'}</button>`:''}</div>`:''}</div>
    ${c?.connected?`<p class="footnote">Last successful sync: ${esc(stamp(c.last_sync))}${c.auto_sync&&c.next_sync?` · Next check: ${esc(stamp(c.next_sync*1000))}`:''}</p>`:''}${c?.last_error?`<p class="error">${esc(c.last_error)}${c.retry_after>Date.now()/1000?` Retry after ${esc(stamp(c.retry_after*1000))}.`:''}</p>`:''}
@@ -44,7 +45,7 @@ const BankFeeds=(()=>{
   host.querySelectorAll('[data-bank-review]').forEach(b=>b.onclick=()=>review(Number(b.dataset.bankReview)).catch(e=>toast(e.message)));
  }
  async function review(id,onChanged=null){
-  const token=++reviewRevision,result=await api('bank-transactions/'+id);if(token!==reviewRevision)return;
+  const origin=page,token=++reviewRevision,result=await api('bank-transactions/'+id);if(token!==reviewRevision||page!==origin)return;
   const t=result.transaction,candidates=result.matches,host=page==='banks'?$('#bank-review-detail'):null;
   if(host)document.querySelectorAll('[data-bank-review]').forEach(b=>{const selected=Number(b.dataset.bankReview)===id;b.setAttribute('aria-pressed',String(selected));b.closest('tr').classList.toggle('selected',selected);});
   const eligible=!result.reconciled&&!t.expense_id&&!t.missing&&t.source_status==='posted'&&!t.is_transfer&&t.amount_cents!==0;
@@ -59,7 +60,7 @@ const BankFeeds=(()=>{
    ${eligible?`<h3>Possible existing expenses</h3>${candidates.length?candidates.map(e=>`<section class="receipt-match"><p>${esc(e.merchant)} · ${esc(dateAU(e.date))} · ${money(e.amount_cents)}</p><button class="secondary" data-feed-view="${e.id}">View expense →</button>${bookkeeper()?`<button data-feed-link="${e.id}">Match this expense</button>`:''}</section>`).join(''):`<p class="muted">${t.currency==='AUD'?'No unlinked expenses with the same amount and account within three days.':'Automatic matching is available for AUD accounts. Enter the converted AUD amount when adding an expense.'}</p>`}`:''}
    ${eligible&&t.amount_cents>0?'<p class="notice">This is money coming in. Only add it if it refunds an expense. Salary, invoice payments and transfers should not become negative expenses.</p>':''}
    <div class="modal-footer">${bookkeeper()?`${t.changed?'<button class="secondary" id="feed-ack">Acknowledge change</button>':''}${!t.expense_id&&!result.reconciled?`<button class="secondary" id="feed-ignore">${t.state==='ignored'?'Restore to review':'Ignore transaction'}</button>`:''}${eligible&&t.local_account_id?`<button id="feed-create">${t.amount_cents>0?'Record expense refund':'Create expense'}</button>`:''}`:''}</div>`,{host});
-  const act=async(action,extra={})=>{await api('bank-transactions/'+id,{version:t.version,action,...extra});$('#modal').close();await refresh();if(onChanged)await onChanged();else await mount();toast('Bank transaction updated.');};
+  const act=async(action,extra={})=>{await api('bank-transactions/'+id,{version:t.version,action,...extra});$('#modal').close();await refresh();if(onChanged)await onChanged();if(page==='banks'||!onChanged)await mount();toast('Bank transaction updated.');};
   const open=eid=>{const e=E.find(x=>x.id===eid)||candidates.find(x=>x.id===eid);if(e)expenseModal(e);else toast('Expense not found. Refresh the page.');};
   bind('#feed-reconciliation',()=>{$('#modal').close();navigate('reconciliation');});
   bind('#feed-open-linked',()=>open(t.expense_id));

@@ -103,11 +103,12 @@ const WorkspaceUI=(()=>{
   return `<div class="page-metrics">${items.map(([label,value,note,glyph='reports'])=>`<section class="page-metric"><h2><span class="metric-icon">${icon(glyph)}</span>${esc(label)}</h2><strong>${esc(value)}</strong>${note?`<small>${esc(note)}</small>`:''}</section>`).join('')}</div>`;
  }
  function searchBar(id,label,count=''){
-  return `<div class="record-toolbar"><div class="record-search"><label for="${id}">${esc(label)}</label><input type="search" id="${id}" placeholder="${esc(label)}"></div>${count?`<span class="record-count">${esc(count)}</span>`:''}</div>`;
+  return `<div class="record-toolbar"><div class="record-search"><label for="${id}">${esc(label)}</label><input type="search" id="${id}" placeholder="${esc(label)}"></div>${count?`<span class="record-count" aria-live="polite">${esc(count)}</span>`:''}</div>`;
  }
  function filterTable(id,selector){
   const input=document.getElementById(id);if(!input)return;
-  input.oninput=()=>{const query=input.value.trim().toLocaleLowerCase();document.querySelectorAll(selector).forEach(row=>{row.hidden=!!query&&!row.textContent.toLocaleLowerCase().includes(query);});};
+  const count=input.closest('.record-toolbar').querySelector('.record-count'),original=count?.textContent;
+  input.oninput=()=>{const query=input.value.trim().toLocaleLowerCase(),rows=[...document.querySelectorAll(selector)];rows.forEach(row=>{row.hidden=!!query&&!row.textContent.toLocaleLowerCase().includes(query);});if(count)count.textContent=query?rows.filter(row=>!row.hidden).length+' of '+rows.length+' records':original;};
  }
  let recordObserver=null;
  function mountRecords(){

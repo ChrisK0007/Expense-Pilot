@@ -118,6 +118,9 @@ dialog.billing-dialog .document-actions {gap:9px}
 dialog.billing-dialog .document-actions>* {font-size:13px}
 dialog.billing-dialog .document-meta {padding:14px 18px;border-radius:11px;background:var(--soft)}
 dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.email-supporting-files) {border-radius:12px}
+#modal:not(.receipt-docked) {border-radius:16px;padding:22px;max-height:calc(100dvh - 38px)}
+#modal:not(.receipt-docked) .modal-title {padding-bottom:13px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+#modal .modal-title h2 {overflow-wrap:anywhere}
 
 /* Banking */
 .pilot-shell #content[data-workspace-page=banks]>.grid3 {margin:18px 0}
@@ -288,6 +291,11 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
  .record-count {padding:0;font-size:11px}
  .pilot-shell table[data-record-cards] {display:block;width:100%;min-width:0}
  .pilot-shell table[data-record-cards]>thead {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ .pilot-shell table[data-record-cards]:has(thead button)>thead {position:static;width:auto;height:auto;overflow:visible;clip-path:none;display:block;border-bottom:1px solid var(--line)}
+ .pilot-shell table[data-record-cards]:has(thead button)>thead tr {display:flex;flex-wrap:wrap;gap:8px 14px;padding:12px 15px}
+ .pilot-shell table[data-record-cards]:has(thead button)>thead th {display:block;padding:0;background:none;white-space:normal}
+ .pilot-shell table[data-record-cards]:has(thead button)>thead th:not(:has(button)) {display:none}
+ .pilot-shell table[data-record-cards]>thead button {min-height:30px}
  .pilot-shell table[data-record-cards]>tbody {display:block;width:100%}
  .pilot-shell table[data-record-cards]>tbody>tr {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;padding:15px;border-bottom:1px solid var(--line)}
  .pilot-shell table[data-record-cards]>tbody>tr[hidden] {display:none}
@@ -335,4 +343,5 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
  .record-detail .document-viewer .preview-controls button {font-size:11px;padding:7px}
  .adviser-response textarea {min-height:140px}
  dialog.billing-dialog {padding:16px;max-height:calc(100dvh - 24px);width:calc(100vw - 20px)}
+ #modal:not(.receipt-docked) {padding:16px;max-height:calc(100dvh - 24px)}
 }
