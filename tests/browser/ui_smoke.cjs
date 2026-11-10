@@ -45,7 +45,11 @@ async function main() {
     await navigate(page,'receipts');
     await page.getByRole('button',{name:'Review & categorise',exact:false}).nth(1).waitFor();
     assert.equal(await page.getByRole('button',{name:'Review & categorise',exact:false}).count(),2);
-    await page.waitForFunction(()=>document.querySelectorAll('.receipt-thumbnail').length===2&&[...document.querySelectorAll('.receipt-thumbnail')].every(i=>i.complete&&i.naturalWidth>0));
+    for(const filename of ['receipt.pdf','second.pdf']){
+     await page.locator('.inbox-row').filter({hasText:filename}).getByRole('button',{name:/^Review & categorise/}).click();
+     await page.waitForFunction(()=>document.querySelector('#inbox-review .receipt-preview img')?.naturalWidth>0);
+     await page.locator('#close-modal').click();
+    }
     await page.screenshot({path:output+'/receipts-desktop.png',fullPage:true});
     await page.evaluate(()=>{S.ai_configured=true;});
     await navigate(page,'receipts');
@@ -59,9 +63,14 @@ async function main() {
       const response=await route.fetch(),records=await response.json();
       await route.fulfill({response,json:records.map(r=>r.id===reprocessedId&&scanAttempts>1?{...r,scan_status:'scanned',extraction:{merchant:'Reprocessed test merchant',date:'2026-10-08',amount:25.5,currency:'AUD',category:'Equipment'}}:r)});
     });
-    await page.locator('.reprocess-receipt').first().click();
+    const reprocessFirst=async()=>{
+     await page.locator('.inbox-row .reprocess-receipt:not([disabled])').first().waitFor({state:'attached'});
+     await page.locator('.inbox-row').first().getByRole('button',{name:/Document actions/}).click();
+     await page.locator('.action-popup:popover-open .reprocess-receipt').click();
+    };
+    await reprocessFirst();
     await page.getByText('Reprocessing failed. Test AI temporarily unavailable',{exact:true}).waitFor();
-    await page.locator('.reprocess-receipt:not([disabled])').first().click();
+    await reprocessFirst();
     await page.getByLabel('Merchant / payee').waitFor();
     assert.equal(await page.getByLabel('Merchant / payee').inputValue(),'Reprocessed test merchant');
     assert.equal(await page.getByLabel('Receipt date').inputValue(),'08/10/2026');

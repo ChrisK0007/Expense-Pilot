@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=
 const money=c=>new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format((c||0)/100),today=()=>WorkspaceTime.day();
 let S={},E=[],T=[],A=[],U=[],V=[],page='dashboard',filters={scopes:['work','business','personal'],status:'all',search:'',fy:'all'};
 const role=()=>S.user?.role,owner=()=>role()==='owner',bookkeeper=()=>owner()||(role()==='tax_agent'&&S.user.permission==='read_write'),editor=()=>bookkeeper();
-const pageTitles={attention:'Needs attention',reconciliation:'Bank reconciliation',rules:'Categorisation rules',payslip_checks:'Payslip checks',receipt_items:'Receipt items',drive_review:'Drive review',equipment:'Deductions',adviser_questions:'Adviser questions',annual_handover:'Annual handover',documents:'Documents',home_office:'Home office',budgets:'Category budgets',dashboard:'Dashboard',expenses:'Expenses',receipts:'Document inbox',employment:'Employment income',tax:'Tax forecast',trips:'Trips & meals',vehicles:'Vehicles',banks:'Bank accounts',reports:'Expense reports',team:'Settings / Tax agent access',settings:'Settings',invoices:'Invoices',quotes:'Quotes',clients:'Clients',time:'Billable time',recurring:'Recurring invoices',services:'Services & prices',income:'Income report'};
+const pageTitles={attention:'Needs attention',reconciliation:'Bank reconciliation',rules:'Categorisation rules',payslip_checks:'Payslip checks',receipt_items:'Receipt items',drive_review:'Drive review',equipment:'Deductions',adviser_questions:'Adviser questions',annual_handover:'Annual handover',documents:'Documents',home_office:'Home office',budgets:'Category budgets',dashboard:'Overview',expenses:'Expenses',receipts:'Inbox',employment:'Employment income',tax:'Tax forecast',trips:'Trips & meals',vehicles:'Vehicles',banks:'Bank accounts',reports:'Expense reports',team:'Settings / Tax agent access',settings:'Settings',invoices:'Invoices',quotes:'Quotes',clients:'Clients',time:'Billable time',recurring:'Recurring invoices',services:'Services & prices',income:'Income report'};
 const pageParents={reconciliation:'banks',rules:'expenses',payslip_checks:'employment',receipt_items:'expenses',drive_review:'vehicles',adviser_questions:'reports',annual_handover:'reports'};
 let routesReady=false;
 function pageFromURL(){const path=location.hash.startsWith('#/')?location.hash.slice(2):'';return path==='settings/tax-agent-access'?'team':path||'dashboard';}
@@ -23,6 +23,10 @@ function pageURL(key){return '#/'+(key==='team'?'settings/tax-agent-access':key)
 async function navigate(key,{replace=false}={}){
  if(typeof BillingWorkspace!=='undefined'&&BillingWorkspace.active()){try{await BillingWorkspace.leave();}catch(e){toast(e.message);return;}}
  if(!routesReady)return;
+ if(!Receipts.canLeaveReview()){
+  if(location.hash!==pageURL(page))history.replaceState(null,'',pageURL(page));
+  return;
+ }
  page=allowedPage(key);const hash=pageURL(page);
  if(location.hash!==hash)history[replace?'replaceState':'pushState'](null,'',hash);
  document.querySelectorAll('dialog[open]').forEach(d=>d.close());
@@ -110,27 +114,87 @@ function dateValue(input){const iso=dateISO(input.value);if(iso&&((input.dataset
 function field(label,name,type='text',value='',extra=''){if(type==='date'){type='text';value=dateAU(value);extra=extra.replace(/\b(min|max)=/g,'data-$1=')+' data-date="au" inputmode="numeric" placeholder="DD/MM/YYYY" maxlength="10"';}return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" value="${esc(value)}" ${extra}></div>`}
 function select(label,name,options,value=''){return `<div class="field"><label for="${name}">${label}</label><select id="${name}" name="${name}">${options.map(([v,t])=>`<option value="${esc(v)}" ${String(v)===String(value)?'selected':''}>${esc(t)}</option>`).join('')}</select></div>`}
 function formData(form){const data=Object.fromEntries(new FormData(form));form.querySelectorAll('[data-date=au]').forEach(input=>{if(!input.disabled)data[input.name]=dateValue(input);});return data;}
-function modal(title,html){$('#modal').classList.remove('billing-dialog');$('#modal').setAttribute('aria-labelledby','modal-heading');$('#modal').innerHTML=`<div class="modal-title"><h2 id="modal-heading">${title}</h2><button class="ghost" id="close-modal" aria-label="Close">✕</button></div>${html}`;$('#modal').showModal();bind('#close-modal',()=>$('#modal').close())}
-function formHandler(id,fn){$(id).addEventListener('submit',async ev=>{ev.preventDefault();const form=ev.target;if(form.dataset.submitting)return;form.dataset.submitting='true';const buttons=[...document.querySelectorAll('button')].filter(b=>b.type==='submit'&&b.form===form),disabled=buttons.map(b=>b.disabled);buttons.forEach(b=>b.disabled=true);try{await fn(formData(form),form)}catch(err){let el=form.querySelector('.error');if(!el){el=document.createElement('div');el.className='error';form.append(el)}el.textContent=err.message;el.scrollIntoView({block:'nearest'});}finally{delete form.dataset.submitting;buttons.forEach((b,i)=>b.disabled=disabled[i]);}})}
-async function boot(){routesReady=false;try{const previous=S.user?.id;S=await api('session');if(!S.user||S.user.id!==previous){document.querySelectorAll('#document-viewer,#home-office-import,#equipment-profile-dialog').forEach(d=>d.close());E=[];T=[];A=[];U=[];V=[];page='dashboard';$('#modal').close();$('#modal').innerHTML='';}if(S.mfa_required)return Security.challenge();if(!S.user)return login();if(S.user.must_change_password)return Security.changeRequired();await refresh();routesReady=true;navigate(pageFromURL(),{replace:true})}catch(e){$('#root').textContent=e.message}}
+function undockModal(){
+ const dialog=$('#modal');
+ if(!dialog.classList.contains('receipt-docked'))return;
+ if(dialog.open)dialog.close();
+ dialog.classList.remove('receipt-docked');
+ dialog.onclose=null;
+ document.body.append(dialog);
+}
+function modal(title,html,{host=null,beforeClose=null}={}){
+ const dialog=$('#modal');
+ if(!host)undockModal();
+ else if(dialog.parentElement!==host){
+  if(dialog.open)dialog.close();
+  host.append(dialog);
+  dialog.classList.add('receipt-docked');
+ }
+ dialog.classList.remove('billing-dialog');
+ dialog.setAttribute('aria-labelledby','modal-heading');
+ dialog.innerHTML=`<div class="modal-title"><h2 id="modal-heading">${title}</h2><button type="button" class="ghost" id="close-modal" aria-label="Close">✕</button></div>${html}`;
+ if(!dialog.open){if(host)dialog.show();else dialog.showModal();}
+ bind('#close-modal',()=>{if(!beforeClose||beforeClose())dialog.close();});
+}
+function formHandler(id,fn){
+ $(id).addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const form=ev.target;
+  if(form.dataset.submitting)return;
+  form.dataset.submitting='true';
+  const buttons=[...document.querySelectorAll('button')].filter(b=>b.type==='submit'&&b.form===form);
+  const disabled=buttons.map(b=>b.disabled);
+  buttons.forEach(b=>b.disabled=true);
+  try{await fn(formData(form),form,ev.submitter);}
+  catch(err){
+   let el=form.querySelector('.error');
+   if(!el){el=document.createElement('div');el.className='error';form.append(el);}
+   el.textContent=err.message;el.scrollIntoView({block:'nearest'});
+  }finally{
+   delete form.dataset.submitting;
+   buttons.forEach((b,i)=>b.disabled=disabled[i]);
+  }
+ });
+}
+async function boot(){routesReady=false;undockModal();try{const previous=S.user?.id;S=await api('session');if(!S.user||S.user.id!==previous){document.querySelectorAll('#document-viewer,#home-office-import,#equipment-profile-dialog').forEach(d=>d.close());E=[];T=[];A=[];U=[];V=[];page='dashboard';$('#modal').close();$('#modal').innerHTML='';}if(S.mfa_required)return Security.challenge();if(!S.user)return login();if(S.user.must_change_password)return Security.changeRequired();await refresh();routesReady=true;navigate(pageFromURL(),{replace:true})}catch(e){$('#root').textContent=e.message}}
 async function refresh(){if(role()==='tax_agent'){E=[];T=[];V=[];A=[];U=[];return;}[E,T,V]=await Promise.all([api('expenses'),api('trips'),api('vehicles')]);if(role()!=='employee')A=await api('accounts');if(owner())U=await api('users')}
 function login(){const setup=S.setup;$('#root').innerHTML=`<div class="login"><div class="login-aside"><div class="brand"><img class="brandmark" src="/static/expense-pilot-logo.png" alt="">expense pilot</div><h1>a clearer view of<br>every dollar</h1><p>Expense tracking for sole traders and people claiming employment expenses.</p><div class="login-tag">YOUR EXPENSES. YOUR SERVER.</div></div><div class="login-main"><form class="login-form" id="login-form"><h2>${setup?'Make yourself at home.':'Good to see you.'}</h2><p>${setup?'Create your owner account to get started.':'Sign in to your expense workspace.'}</p>${setup?(S.setup_token_required?field('Setup token','token','password','','required'):'')+field('Your name','name','text','','required')+WorkspaceTime.fieldHTML(WorkspaceTime.suggested()):''}${field('Email address','email','email','','required autocomplete="username"')}${field('Password','password','password','','required autocomplete="'+(setup?'new-password':'current-password')+'" '+(setup?'minlength="12"':''))}${location.protocol!=='https:'?'<p class="notice">This connection is not encrypted. Use your HTTPS address or a trusted VPN before entering financial details.</p>':''}<button type="submit">${setup?'Create workspace':'Sign in'} →</button><p class="footnote">Expense Pilot v${esc(S.version)} · Self-hosted expense manager · <a href="/privacy" target="_blank">Privacy & data</a> · <a href="/about" target="_blank" rel="noopener">Source & licences</a></p></form></div></div>`;if(setup)WorkspaceTime.loadChoices();formHandler('#login-form',async d=>{await api(setup?'setup':'login',d);if(setup)toast('Owner account created. Sign in to continue.');await boot()})}
 function navItem(key,icon,label){return `<button data-page="${key}" class="${page===key||pageParents[page]===key||page==='team'&&key==='settings'?'active':''}"><span class="nav-icon">${icon}</span>${label}</button>`}
 function render(){
+ undockModal();
  if(role()==='tax_agent'){page=allowedPage(page);if(location.hash!==pageURL(page))history.replaceState(null,'',pageURL(page));TaxAgent.render();return;}
- page=allowedPage(page);if(location.hash!==pageURL(page))history.replaceState(null,'',pageURL(page));
- const names=pageTitles;document.title=names[page]+' · Expense Pilot';
- const group=(label,icon,items)=>items?`<details class="nav-group" ${items.includes('class="active"')?'open':''}><summary><span class="nav-icon">${icon}</span>${label}</summary><div>${items}</div></details>`:'';
- const isOwner=role()!=='employee',business=isOwner&&Features.enabled('business');
- const nav=navItem('dashboard','▦','Dashboard')+navItem('receipts','▣','Document inbox')+
- (business?navItem('invoices','↗','Invoices')+navItem('clients','◎','Clients'):'')+
- (isOwner&&Features.enabled('banks')?navItem('banks','▥','Bank accounts'):'')+
- navItem('expenses','▤','Expenses')+(isOwner?navItem('equipment','◇','Deductions'):'')+
- group('Tracking','↔',(isOwner&&Features.enabled('home_office')?navItem('home_office','⌂','Home office'):'')+(Features.enabled('trips')?navItem('trips','☾','Trips & meals'):'')+(Features.enabled('vehicles')?navItem('vehicles','↔','Vehicles'):''))+
- (isOwner?group('Income','＋',(Features.enabled('employment')?navItem('employment','＋','Employment income'):'')+(business?navItem('income','↙','Business income'):''))+(Features.enabled('tax')?navItem('tax','◴','Tax forecast'):'')+navItem('reports','▧','Reports'):'')+navItem('settings','⚙','Settings');
- $('#root').innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand"><img class="brandmark" src="/static/expense-pilot-logo.png" alt=""><div>expense pilot<small>a clearer view of every dollar</small></div></div><div class="workspace"><span class="avatar">${esc(S.user.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</span><div><strong>${esc(S.user.name)}</strong><small id="workspace-business">${Features.enabled('business')?esc(S.business_name||'Your workspace'):'Employment expenses'}</small></div></div><nav aria-label="Main navigation">${nav}</nav><div class="sidebar-bottom">${Theme.control()}<button id="logout" class="ghost wide">Sign out ↪</button><small>Expense Pilot · v${esc(S.version)} · <a href="/about" target="_blank" rel="noopener">Source & licences</a></small></div></aside><main class="main"><div class="topline"><span>${names[page]}</span><span class="mobile-theme">${Theme.control('mobile-theme-choice')}</span><div class="topline-actions"><span class="desktop-private">Totals in AUD</span><div id="notification-bell"></div></div></div><div id="content"></div></main></div>`;
+ page=allowedPage(page);
+ if(location.hash!==pageURL(page))history.replaceState(null,'',pageURL(page));
+ const title=pageTitles[page];
+ document.title=title+' · Expense Pilot';
+ $('#root').innerHTML=`<div class="shell pilot-shell">
+  <aside class="sidebar">
+   <div class="brand"><img class="brandmark" src="/static/expense-pilot-logo.png" alt=""><div>Expense Pilot<small>A clearer view of every dollar</small></div></div>
+   <nav class="workspace-navigation" aria-label="Main navigation">${WorkspaceUI.navigation()}
+    <button type="button" id="workspace-more" class="workspace-more" aria-haspopup="dialog" aria-expanded="false" aria-controls="workspace-more-menu">${WorkspaceUI.icon('dots')}<span>More</span></button>
+   </nav>
+   <div class="sidebar-bottom">
+    <div class="workspace"><span class="avatar">${esc(S.user.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</span><div><strong>${esc(S.user.name)}</strong><small id="workspace-business">${Features.enabled('business')?esc(S.business_name||'Your workspace'):'Employment expenses'}</small></div></div>
+    ${Theme.control()}<button id="logout" class="ghost wide">Sign out ↪</button>
+    <small>Expense Pilot · v${esc(S.version)} · <a href="/about" target="_blank" rel="noopener">Source & licences</a></small>
+   </div>
+  </aside>
+  <main class="main"><div class="topline"><span class="workspace-breadcrumb">Workspace ${WorkspaceUI.icon('chev')} <strong>${title}</strong></span>
+   <span class="mobile-brand"><img src="/static/expense-pilot-logo.png" alt="">Expense Pilot</span>
+   <span class="mobile-theme">${Theme.control('mobile-theme-choice')}</span><div class="topline-actions"><span class="desktop-private">AUD</span><div id="notification-bell"></div></div></div>
+   <div id="content"></div>
+  </main>
+  ${WorkspaceUI.moreMenu()}
+ </div>`;
  Notifications.mount();
- document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>navigate(b.dataset.page));bind('#logout',async()=>{await api('logout',{});history.replaceState(null,'',pageURL('dashboard'));await boot();});
+ const logout=async()=>{
+  if(!Receipts.canLeaveReview())return;
+  await api('logout',{});
+  history.replaceState(null,'',pageURL('dashboard'));
+  await boot();
+ };
+ WorkspaceUI.bindNavigation(logout);
+ bind('#logout',logout);
  return ({attention:Workflows.attention,reconciliation:()=>Workflows.page('reconciliation'),rules:()=>Workflows.page('rules'),payslip_checks:()=>Workflows.page('income'),receipt_items:()=>Workflows.page('items'),drive_review:()=>Workflows.page('journeys'),equipment:()=>Workflows.page('equipment'),adviser_questions:()=>Workflows.page('questions'),annual_handover:()=>Workflows.page('handover'),documents:Documents.page,home_office:HomeOffice.page,budgets:Planning.budgets,dashboard:Workspace.dashboard,expenses:expensePage,receipts:Receipts.page,employment:Finance.employment,tax:Finance.tax,trips:tripPage,vehicles:Tracking.vehicles,banks:bankPage,reports:Workspace.reports,team:teamPage,settings:settingsPage,invoices:()=>Billing.documents('invoice'),quotes:()=>Billing.documents('quote'),clients:Billing.clients,time:Billing.time,recurring:Billing.recurring,services:Billing.services,income:Billing.income}[page])();
 }
 let menuNumber=0;
@@ -150,11 +214,51 @@ let expenseSort={key:'date',direction:-1};
 function sortedExpenses(data){const key=expenseSort.key,dir=expenseSort.direction;return [...data].sort((a,b)=>{const value=e=>key==='category'?categoryLabel(e.category):key==='workspace'?[e.work_percent?'Employment':'',e.business_percent?'Business':'',e.work_percent+e.business_percent<100?'Personal':''].filter(Boolean).join(' + '):e[key];const x=value(a),y=value(b);return (typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),'en-AU',{numeric:true,sensitivity:'base'}))*dir||(Number(b.id)-Number(a.id));});}
 function expenseHeading(label,key,right=false){const active=expenseSort.key===key;return `<th ${right?'class="right"':''} aria-sort="${active?(expenseSort.direction===1?'ascending':'descending'):'none'}"><button type="button" class="sort-expenses" data-sort="${key}" aria-label="Sort by ${label}">${label} <span aria-hidden="true">${active?(expenseSort.direction===1?'↑':'↓'):'↕'}</span></button></th>`;}
 function filtered(){return E.filter(e=>!Overnights.isOvernight(e)&&filters.scopes.some(scope=>Splits.matches(e,scope))&&(filters.status==='all'||e.status===filters.status)&&(!filters.search||(e.merchant+' '+categoryLabel(e.category)+' '+e.notes).toLowerCase().includes(filters.search.toLowerCase()))&&(filters.fy==='all'||(e.date>=fyBounds(filters.fy)[0]&&e.date<=fyBounds(filters.fy)[1])))}
-function table(data,limit,sortable=false){const ordered=sortable?sortedExpenses(data):data,r=limit?ordered.slice(0,limit):ordered;return `<div class="table-wrap"><table><thead><tr>${sortable?[["Expense","merchant"],["Date","date"],["Workspace","workspace"],["Category","category"],["Status","status"],["Amount","amount_cents"]].map(([n,k])=>expenseHeading(n,k,k==="amount_cents")).join(''):'<th>Expense</th><th>Date</th><th>Workspace</th><th>Category</th><th>Status</th><th class="right">Amount</th>'}<th></th></tr></thead><tbody>${r.map(e=>`<tr><td><div class="merchant"><span class="merchant-icon">${esc(e.merchant.slice(0,1).toUpperCase())}</span><div><strong>${esc(e.merchant)}</strong><br><small>${esc(e.owner)} ${e.receipt_id?'· Receipt attached':''}</small></div></div></td><td>${esc(dateAU(e.date))}</td><td>${Splits.badges(e)}</td><td>${esc(categoryLabel(e.category))}</td><td><span class="pill ${e.status}">${e.status==='review'?'To review':'Reviewed'}</span></td><td class="right"><strong>${money(e.amount_cents)}</strong></td><td><button class="ghost edit-expense" data-id="${e.id}" aria-label="${editor()?'Edit':'View'} ${esc(e.merchant)}">${editor()?'Edit':'View'} ↗</button>${actionMenu('Expense actions for '+e.merchant,`<button class="edit-expense" data-id="${e.id}">${editor()?'Edit expense':'View details'}</button>${e.receipt_id?`<button class="row-view-receipt" data-rid="${e.receipt_id}">View receipt</button>`:''}`)}</td></tr>`).join('')}</tbody></table>${!r.length?`<div class="empty"><div class="bubble">▤</div><h2>No expenses here yet</h2><p>${editor()?'Add a receipt or enter your first expense.':'All workspace records will appear here.'}</p></div>`:''}</div>`}
+function table(data,limit,sortable=false){const ordered=sortable?sortedExpenses(data):data,r=limit?ordered.slice(0,limit):ordered;return `<div class="table-wrap"><table><thead><tr>${sortable?[["Expense","merchant"],["Date","date"],["Allocation","workspace"],["Category","category"],["Status","status"],["Amount","amount_cents"]].map(([n,k])=>expenseHeading(n,k,k==="amount_cents")).join(''):'<th>Expense</th><th>Date</th><th>Workspace</th><th>Category</th><th>Status</th><th class="right">Amount</th>'}<th></th></tr></thead><tbody>${r.map(e=>`<tr><td><div class="merchant"><span class="merchant-icon">${esc(e.merchant.slice(0,1).toUpperCase())}</span><div><strong>${esc(e.merchant)}</strong><br><small>${esc(e.owner)} ${e.receipt_id?'· Receipt attached':''}</small></div></div></td><td>${esc(dateAU(e.date))}</td><td>${Splits.badges(e)}</td><td>${esc(categoryLabel(e.category))}</td><td><span class="pill ${e.status}">${e.status==='review'?'To review':'Reviewed'}</span></td><td class="right"><strong>${money(e.amount_cents)}</strong></td><td><button class="ghost edit-expense" data-id="${e.id}" aria-label="${editor()?'Edit':'View'} ${esc(e.merchant)}">${editor()?'Edit':'View'} ↗</button>${actionMenu('Expense actions for '+e.merchant,`<button class="edit-expense" data-id="${e.id}">${editor()?'Edit expense':'View details'}</button>${e.receipt_id?`<button class="row-view-receipt" data-rid="${e.receipt_id}">View receipt</button>`:''}`)}</td></tr>`).join('')}</tbody></table>${!r.length?`<div class="empty"><div class="bubble">▤</div><h2>No expenses here yet</h2><p>${editor()?'Add a receipt or enter your first expense.':'All workspace records will appear here.'}</p></div>`:''}</div>`}
 function tableEvents(){document.querySelectorAll('.sort-expenses').forEach(b=>b.onclick=()=>{expenseSort=expenseSort.key===b.dataset.sort?{key:b.dataset.sort,direction:-expenseSort.direction}:{key:b.dataset.sort,direction:1};$('#expense-table').innerHTML=table(filtered(),null,true);tableEvents();$('#expense-table [data-sort="'+expenseSort.key+'"]')?.focus();});document.querySelectorAll('.row-view-receipt').forEach(b=>b.onclick=()=>Receipts.preview(b.dataset.rid));document.querySelectorAll('.edit-expense').forEach(b=>b.onclick=()=>expenseModal(E.find(e=>e.id===Number(b.dataset.id))))}
 function expenseChart(){const now=today(), start=new Date(now.slice(0,7)+'-01T00:00:00Z'), months=[];for(let i=5;i>=0;i--){const d=new Date(start);d.setUTCMonth(start.getUTCMonth()-i);const key=d.toISOString().slice(0,7);months.push({label:d.toLocaleDateString('en-AU',{month:'short',timeZone:'UTC'}),amount:E.filter(e=>!Overnights.isOvernight(e)&&e.date.startsWith(key)).reduce((s,e)=>s+allocated(e),0)});}const max=Math.max(...months.map(x=>Math.abs(x.amount)),1);return `<div class="monthly-chart">${months.map(m=>`<div class="month-col"><div class="month-amount">${money(m.amount)}</div><div class="chart-bar" data-height="${Math.max(2,Math.round(Math.abs(m.amount)/max*100))}"></div><small>${m.label}</small></div>`).join('')}</div><div class="chart-caption"><i></i> Employment + business · allocated amounts</div>`;}
 function employeeDashboard(){const work=E.filter(e=>!Overnights.isOvernight(e)).reduce((s,e)=>s+allocated(e,'work'),0),business=E.filter(e=>!Overnights.isOvernight(e)).reduce((s,e)=>s+allocated(e,'business'),0),review=E.filter(e=>e.status==='review'&&!e.meal&&e.category!=='Meals').length,meals=E.filter(e=>e.meal).reduce((s,e)=>s+e.amount_cents,0);$('#content').innerHTML=heading(`Your expenses, in order.`,`${S.user.name.split(' ')[0]}, here’s the picture across your workspace.`,editor()?'<button class="secondary" id="quick-capture">▣ Capture documents</button><button id="add">+ Add expense</button>':'<span class="pill">Read-only access</span>')+`<div class="cards"><div class="card feature"><div class="label">Employment expenses</div><div class="metric">${money(work)}</div><small>Allocated amount · all dates</small></div><div class="card"><div class="label">Business expenses</div><div class="metric">${money(business)}</div><small>Allocated amount · all dates</small></div><div class="card"><div class="label">Overnight meals</div><div class="metric">${money(meals)}</div><small>Actual spend linked to trips</small></div><div class="card"><div class="label">Needs a little attention</div><div class="metric">${review}<span class="muted"> ↗</span></div><small>Expenses waiting for review</small></div></div><div class="section-grid"><section class="card"><div class="section-title"><h2>Expense activity</h2><span class="pill">Last 6 months</span></div>${expenseChart()}<p class="footnote">Use percentage applied. Personal and reimbursed expenses excluded.<br>Allocation is a recordkeeping figure, not a tax deduction decision.</p></section><section class="card"><div class="section-title"><h2>Stay on top of the details</h2><span>✧</span></div><div class="review-box"><div class="bubble">▤</div><div><strong>${review?`${review} expenses to check`:'You’re all caught up'}</strong><br><small>Review the details. Keep the evidence.</small></div></div><button class="secondary wide" id="review">Open expense inbox →</button></section></div><section class="panel"><div class="panel-header"><h2>Recent expenses</h2><button class="ghost" id="all">View all →</button></div>${table(E.filter(e=>!e.meal&&e.category!=='Meals'),6)}</section><p class="footnote">${role()==='tax_agent'?'All workspace financial records are visible to your tax-agent account.':'Amounts are in Australian dollars. All financial years are included in this overview.'}</p>`;document.querySelectorAll('[data-height]').forEach(b=>b.style.height=b.dataset.height+'px');document.querySelectorAll('[data-width]').forEach(b=>b.style.width=b.dataset.width+'%');bind('#add',()=>expenseModal());bind('#quick-capture',Receipts.capture);bind('#all',()=>{navigate('expenses')});bind('#review',()=>{filters.status='review';navigate('expenses')});tableEvents()}
-function expensePage(){$('#content').innerHTML=heading('Expenses',Features.enabled('business')?'Employment and business expenses. Meals and trip records are in Overnight spending.':'Your employment expenses and retained records.',editor()?'<button class="secondary" id="quick-capture">▣ Capture documents</button><button id="add">+ Add expense</button>':'')+`${Workflows.links('expenses')}<div class="toolbar"><input id="search" placeholder="Search merchant, category or notes…" aria-label="Search expenses" value="${esc(filters.search)}"><details class="workspace-filter"><summary id="workspace-filter-label">${filters.scopes.length===3?'All workspaces':filters.scopes.length?filters.scopes.map(scopeName).join(' + '):'No workspaces'}</summary><fieldset aria-label="Workspaces"><legend>Show expenses allocated to</legend>${[['work','Employment'],['business','Business'],['personal','Personal']].map(([v,n])=>`<label class="check"><input type="checkbox" name="expense-scope" value="${v}" ${filters.scopes.includes(v)?'checked':''}>${n}</label>`).join('')}<button type="button" class="ghost" id="all-workspaces">Select all</button></fieldset></details><select id="status" aria-label="Review status"><option value="all">All statuses</option><option value="review">To review</option><option value="ready">Reviewed</option></select><select id="fy" aria-label="Financial year">${fyOptions().map(([v,n])=>`<option value="${v}" ${String(v)===filters.fy?'selected':''}>${n}</option>`).join('')}</select></div><div class="panel" id="expense-table">${table(filtered(),null,true)}</div><p class="footnote" id="count">${filtered().length} expenses</p><p class="footnote">Choose several workspaces to include expenses with any selected allocation. Mixed-use expenses appear once.</p>`;$('#status').value=filters.status;document.querySelectorAll('[name=expense-scope]').forEach(el=>el.onchange=()=>{filters.scopes=[...document.querySelectorAll('[name=expense-scope]:checked')].map(x=>x.value);$('#workspace-filter-label').textContent=filters.scopes.length===3?'All workspaces':filters.scopes.map(scopeName).join(' + ')||'No workspaces';$('#expense-table').innerHTML=table(filtered(),null,true);$('#count').textContent=`${filtered().length} expenses`;tableEvents();});bind('#all-workspaces',()=>{filters.scopes=['work','business','personal'];expensePage();});['status','fy'].forEach(k=>$('#'+k).onchange=e=>{filters[k]=e.target.value;expensePage()});$('#search').oninput=e=>{filters.search=e.target.value;$('#expense-table').innerHTML=table(filtered(),null,true);$('#count').textContent=`${filtered().length} expenses`;tableEvents()};bind('#add',()=>expenseModal());bind('#quick-capture',Receipts.capture);bind('#manage-expense-categories',()=>Tracking.categories());tableEvents()}
+function expensePage(){
+ const bounds=filters.fy==='all'?['','']:fyBounds(filters.fy);
+ const exportURL='/api/export?'+new URLSearchParams({start:bounds[0],end:bounds[1],ledger:'ordinary'});
+ const actions=editor()?`<button type="button" class="secondary" id="quick-capture">${WorkspaceUI.icon('scan')} Capture documents</button><a class="button-link secondary" href="${esc(exportURL)}" title="Export all allocations for the selected financial year">${WorkspaceUI.icon('download')} Export CSV</a><button id="add">${WorkspaceUI.icon('plus')} Add expense</button>`:'';
+ $('#content').innerHTML=heading('Expenses','Review and organise your ordinary expenses.',actions)+`
+  ${Workflows.links('expenses')}
+  <section class="panel expenses-ledger">
+   <div class="toolbar expense-filters">
+    <label class="expense-search">${WorkspaceUI.icon('search')}<input id="search" placeholder="Search merchant, category or notes…" aria-label="Search expenses" value="${esc(filters.search)}"></label>
+    <details class="workspace-filter"><summary id="workspace-filter-label"></summary><fieldset aria-label="Workspaces"><legend>Show expenses allocated to</legend>
+     ${[['work','Employment'],['business','Business'],['personal','Personal']].map(([value,label])=>`<label class="check"><input type="checkbox" name="expense-scope" value="${value}" ${filters.scopes.includes(value)?'checked':''}>${label}</label>`).join('')}
+     <button type="button" class="ghost" id="all-workspaces">Select all</button></fieldset></details>
+    <select id="status" aria-label="Review status"><option value="all">All statuses</option><option value="review">To review</option><option value="ready">Reviewed</option></select>
+    <select id="fy" aria-label="Financial year">${fyOptions().map(([value,label])=>`<option value="${value}" ${String(value)===filters.fy?'selected':''}>${label}</option>`).join('')}</select>
+   </div>
+   <div id="expense-table"></div>
+   <div class="expense-ledger-footer"><span id="count" aria-live="polite"></span><span>Total shown <strong id="expense-filter-total"></strong></span></div>
+  </section>
+  <p class="footnote">Mixed-use expenses appear once. Find meals and trip records in Overnight spending.</p>`;
+ function redraw(){
+  const records=filtered();
+  $('#workspace-filter-label').textContent=filters.scopes.length===3?'All workspaces':filters.scopes.map(scopeName).join(' + ')||'No workspaces';
+  $('#expense-table').innerHTML=table(records,null,true);
+  $('#count').textContent=`${records.length} expenses`;
+  $('#expense-filter-total').textContent=money(records.reduce((sum,record)=>sum+record.amount_cents,0));
+  tableEvents();
+ }
+ $('#status').value=filters.status;
+ document.querySelectorAll('[name=expense-scope]').forEach(input=>input.onchange=()=>{
+  filters.scopes=[...document.querySelectorAll('[name=expense-scope]:checked')].map(el=>el.value);
+  redraw();
+ });
+ bind('#all-workspaces',()=>{filters.scopes=['work','business','personal'];expensePage();});
+ $('#status').onchange=e=>{filters.status=e.target.value;redraw();};
+ $('#fy').onchange=e=>{filters.fy=e.target.value;expensePage();$('#fy').focus();};
+ $('#search').oninput=e=>{filters.search=e.target.value;redraw();};
+ bind('#add',()=>expenseModal());
+ bind('#quick-capture',Receipts.capture);
+ bind('#manage-expense-categories',()=>Tracking.categories());
+ redraw();
+}
 function expenseModal(e,mealTrip=null,captured=null){if(!editor()){modal('Expense details',`<div class="grid2">${['merchant','date','scope','category','owner','meal','location','status','notes'].map(k=>`<div class="field"><label>${k}</label><p>${esc(k==='date'?dateAU(e[k]):e[k]||'—')}</p></div>`).join('')}<div><strong>${money(e.amount_cents)}</strong><p>${Splits.percentages(e).work}% employment · ${Splits.percentages(e).business}% business · ${100-e.percent}% personal · ${e.reimbursed?'Reimbursed':'Not reimbursed'}</p></div></div>${e.receipt_id?`<button id="view-receipt" data-rid="${e.receipt_id}">View receipt</button>`:''}`);bind('#view-receipt',()=>Receipts.preview(e.receipt_id));return}
 const x=e||{date:mealTrip?mealTrip.start:today(),scope:mealTrip?mealTrip.scope:Features.defaultScope(),percent:100,amount_cents:0,status:'review',category:mealTrip?'Meals':'Other',trip_id:mealTrip?.id,meal:mealTrip?'Dinner':''};if(captured)Object.assign(x,captured);const isMeal=!!(mealTrip||x.meal||x.category==='Meals');let receiptId=x.receipt_id||null;
 modal(isMeal?(e?'Edit meal':'Add overnight meal'):(e?'Edit expense':'Add an expense'),`<form id="expense-form"><div class="drop"><strong>Start with a receipt</strong><p>Attach a photo or PDF, then use AI to fill the details for your review.</p><input id="receipt-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" aria-label="Receipt file"><div class="receipt-actions"><button type="button" class="secondary" id="extract" ${!receiptId||!S.ai_configured?'disabled':''}>✧ Read with AI</button><span id="receipt-status" class="muted">${receiptId?'Receipt attached':S.ai_configured?'AI enabled in configuration':'AI not configured · manual entry available'}</span></div>${receiptId?`<button type="button" class="ghost" id="view-receipt">View receipt</button>`:''}</div><div class="grid2">${field('Merchant / payee','merchant','text',x.merchant||'','required maxlength="200"')}${field('Date','date','date',x.date,'required')}${field('Amount paid (AUD)','amount','number',(e||captured)&&x.amount_cents!=null?(x.amount_cents/100).toFixed(2):'','required step="0.01"')}${select('Category','category',S.categories.filter(c=>isMeal?c==='Meals':c!=='Meals').map(c=>[c,categoryLabel(c)]),x.category)}${select('Vehicle (optional)','vehicle_id',[['','Not a vehicle expense'],...V.filter(v=>v.user_id===(e?e.user_id:V.find(v=>v.id===x.vehicle_id)?.user_id||S.user.id)).map(v=>[v.id,v.name])],x.vehicle_id)}${Splits.fields(x,'',role()==='employee'||U.find(u=>u.id===x.user_id)?.role==='employee')}${isMeal?`${select('Overnight trip','trip_id',[['','No trip'],...T.filter(t=>t.user_id===(e?e.user_id:mealTrip?mealTrip.user_id:owner()||role()==='employee'?S.user.id:t.user_id)).map(t=>[t.id,`${t.location} · ${esc(dateAU(t.start))} · ${scopeName(t.scope)}`])],x.trip_id)}${select('Meal type','meal',[['','Not an overnight meal'],...['Breakfast','Lunch','Dinner','Incidentals'].map(v=>[v,v])],x.meal)}`:''}${bookkeeper()?select('Paid from','account_id',[['','Cash / other'],...A.map(a=>[a.id,a.name])],x.account_id):''}${select('Review status','expense_status',[['review','To review'],['ready','Reviewed']],x.status)}</div>${bookkeeper()&&!isMeal?'<button type="button" class="ghost" id="create-inline-category">+ Create expense category</button>':''}<div class="field"><label for="notes">Notes / business purpose</label><textarea id="notes" name="notes">${esc(x.notes||'')}</textarea></div><label class="check"><input type="checkbox" name="reimbursed" ${x.reimbursed?'checked':''}>Reimbursed — exclude from allocated amount</label><p class="footnote">Refund? Enter a negative amount. AI suggestions need checking; foreign-currency receipts must be converted to AUD before saving.</p><div class="modal-footer">${e?'<button type="button" class="danger" id="delete">Delete</button>':''}<button type="submit">Save expense</button></div></form>`);
@@ -197,18 +301,38 @@ document.querySelectorAll('.resend-invite').forEach(b=>b.onclick=async()=>{if(!c
 }
 function accountSettingsPage(){
  const groups=[
-  ['workspace','Workspace','Choose the features you use and how the workspace looks.'],
-  ['receipts','Receipts & AI','Set up receipt entry, categories and overnight sorting.'],
-  ...(owner()?[['business','Business & invoices','Your business details, invoice defaults and design.'],['email','Email','Delivery, signatures, client wording and reminders.'],['notifications','Notifications','Choose which updates you receive.'],['connections','Bank feeds','Connect external accounts and review imported transactions.']]:[]),
-  ['security','Access & security','Protect your login'+(owner()?' and manage tax agent access.':'.')],
-  ['data','Data & privacy','Export records, make an optional backup or manage your account.']
+  ['Account',[
+   ['security','Access & security','Protect your login'+(owner()?' and manage tax agent access.':'.'),'shield'],
+  ]],
+  ['Workspace',[
+   ['workspace','Workspace features','Choose the tools available in your workspace.','filter'],
+   ...(owner()?[['notifications','Overview & alerts','Choose which updates you receive.','bell']]:[]),
+  ]],
+  ['This browser',[
+   ['appearance','Appearance','Choose light, dark or your device preference.','screen'],
+  ]],
+  ['Server administration',[
+   ['receipts','Receipts & AI','Set up receipt entry, categories and overnight sorting.','sparkle'],
+   ...(owner()?[
+    ['business','Business & invoices','Manage business details, invoice defaults and design.','file'],
+    ['email','Email delivery','Manage delivery, signatures, client wording and reminders.','mail'],
+    ['connections','Bank feeds','Connect external accounts and review imported transactions.','bank'],
+   ]:[]),
+   ['data','Backups & data','Export records, manage backups and control workspace data.','server'],
+  ]],
  ];
- $('#content').innerHTML=heading('Settings','Find settings by topic. Changes apply when you save each form.')+
-  '<div class="settings-layout"><nav class="settings-nav" aria-label="Settings sections">'+groups.map(([id,title])=>`<button class="secondary" type="button" data-settings-jump="${id}">${title}</button>`).join('')+'</nav><div class="settings-content">'+
-  groups.map(([id,title,description])=>`<section class="settings-group" id="settings-${id}" aria-labelledby="settings-title-${id}"><header><h2 id="settings-title-${id}" tabindex="-1">${title}</h2><p class="muted">${description}</p></header><div class="settings-grid" id="settings-${id}-cards"></div></section>`).join('')+
-  `</div></div><footer class="settings-footer"><span>Expense Pilot ${esc(S.version)} · ${esc(S.user.email)}</span><button class="secondary" id="signout">Sign out</button></footer>`;
+ const topics=groups.flatMap(([,items])=>items);
+ $('#content').innerHTML=heading('Settings','Manage your account, workspace and server.')+
+  `<div class="settings-layout"><nav class="settings-nav panel" aria-label="Settings sections">${groups.map(([label,items])=>`
+   <div class="settings-nav-group"><p class="nav-group-label">${label}</p>
+    ${items.map(([id,title,,glyph])=>`<button type="button" class="secondary" data-settings-jump="${id}">${WorkspaceUI.icon(glyph)} ${title}</button>`).join('')}
+    ${owner()&&label==='Server administration'?'<button type="button" class="secondary" id="settings-tax-agent">Tax agent access</button>':''}
+   </div>`).join('')}</nav><div class="settings-content">
+   ${topics.map(([id,title,description])=>`<section class="settings-group" id="settings-${id}" aria-labelledby="settings-title-${id}"><header><h2 id="settings-title-${id}" tabindex="-1">${title}</h2><p class="muted">${description}</p></header><div class="settings-grid" id="settings-${id}-cards"></div></section>`).join('')}
+  </div></div><footer class="settings-footer"><span>Expense Pilot ${esc(S.version)} · ${esc(S.user.email)}</span><button class="secondary" id="signout">Sign out</button></footer>`;
  RefinedSettings.bind();
- $('#settings-workspace-cards').innerHTML=`<section class="card appearance-settings"><h3>Appearance</h3><p class="muted">Light, dark or your device preference. Saved in this browser.</p>${Theme.control('settings-theme-choice')}</section>`;
+ bind('#settings-tax-agent',()=>navigate('team'));
+ $('#settings-appearance-cards').innerHTML=`<section class="card appearance-settings"><h3>Display</h3><p class="muted">Saved in this browser.</p>${Theme.control('settings-theme-choice')}</section>`;
  $('#settings-security-cards').innerHTML=`<section class="card"><h3>Change password</h3><p class="muted">Update the password for your own login.</p><form id="password-form">${field('Current password','current','password','','required autocomplete="current-password"')}${field('New password','password','password','','required minlength="12" autocomplete="new-password"')}${S.user.totp_enabled?field('Authenticator or recovery code','code','text','','required autocomplete="one-time-code" maxlength="40"'):''}<button type="submit">Update password</button></form></section><section class="card" id="security-settings"><h3>Two-factor authentication</h3><p>Loading security settings…</p></section>${owner()?'<section class="card" id="invitation-settings"><h3>Account invitations</h3><p>Loading invitation settings…</p></section><section class="card"><h3>Tax agent access & activity</h3><p class="muted">Invite your tax agent, manage permissions and review account activity.</p><div class="settings-options"><button class="secondary" id="manage-tax-agents">Manage tax agent access →</button><button class="secondary" id="audit">View activity log</button></div></section>':''}`;
  formHandler('#password-form',async d=>{await api('password',d);toast('Password changed. Sign in again.');await boot()});bind('#signout',async()=>{await api('logout',{});await boot()});bind('#audit',async()=>{try{const r=await api('audit');modal('Recent activity',`<div class="table-wrap"><table><thead><tr><th>UTC time</th><th>Person</th><th>Action</th></tr></thead><tbody>${r.map(a=>`<tr><td>${esc(dateAU(a.at))}</td><td>${esc(a.name||'System')}</td><td>${esc(a.action)}</td></tr>`).join('')}</tbody></table></div>`)}catch(e){toast(e.message)}})}
 function editTrip(t){modal('Edit overnight trip',`<form id="edit-trip-form"><div class="grid2">${field('Location','location','text',t.location,'required')}${select('Workspace','scope',Features.scopes(t.scope,false),t.scope)}${field('Departure','start','date',t.start,'required')}${field('Return','end','date',t.end,'required')}${allowanceField(t.allowance_cents)}<div class="span2">${field('Purpose','purpose','text',t.purpose,'required')}</div></div><div class="modal-footer"><button type="button" class="danger" id="delete-trip">Delete trip</button><button type="submit">Save changes</button></div></form>`);formHandler('#edit-trip-form',async d=>{await api('trips/'+t.id,{...d,allowance:d.allowance||0},'PUT');$('#modal').close();await refresh();render();toast('Trip updated')});bind('#delete-trip',async()=>{if(!confirm('Delete this trip? Linked expenses must be removed first.'))return;try{await api('trips/'+t.id,{},'DELETE');$('#modal').close();await refresh();render()}catch(e){toast(e.message)}})}

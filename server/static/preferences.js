@@ -8,8 +8,21 @@ const Features=(()=>{
   return opts.filter(([v])=>v===current||(role()==='employee'?v==='business':v==='personal'||v==='work'&&enabled('employment')||v==='business'&&enabled('business')||v==='split'&&enabled('employment')&&enabled('business')));
  }
  function settings(){
+  const detail={
+   home_office:['home','Log work-from-home hours and supporting bills.'],
+   employment:['money','Track employment expenses and payslips.'],
+   business:['file','Manage business expenses, invoices and quotes.'],
+   trips:['moon','Group overnight trips and related spending.'],
+   vehicles:['car','Manage drives, vehicles and mileage reports.'],
+   banks:['bank','Connect feeds and reconcile transactions.'],
+   tax:['reports','Show your tax forecast.'],
+  };
   const keys=Object.keys(labels).filter(k=>role()!=='employee'||['trips','vehicles'].includes(k));
-  $('#settings-workspace-cards').insertAdjacentHTML('beforeend',`<section class="card feature-settings"><h3>Features</h3><p class="muted">Choose what appears in your workspace. Saved to your login and available on every device.</p><form id="feature-form"><div class="feature-switches">${keys.map(k=>`<label class="check"><input type="checkbox" name="${k}" ${enabled(k)?'checked':''}>${labels[k]}</label>`).join('')}</div>${role()!=='employee'?'<button type="button" class="secondary" id="employment-only">Employment expenses only</button>':''}<button type="submit">Save features</button><p class="footnote">Hidden features keep their records. Existing allocations remain in reports and tax calculations. Access permissions stay the same.</p></form></section>`);
+  $('#settings-workspace-cards').insertAdjacentHTML('beforeend',`<section class="card feature-settings"><h3>Features</h3><p class="muted">Choose what appears in your workspace. Saved to your login and available on every device.</p><form id="feature-form"><div class="feature-switches">${keys.map(k=>{
+   const [glyph,description]=detail[k];
+   return `<label class="feature-row"><span class="feature-icon">${WorkspaceUI.icon(glyph)}</span><span><strong>${labels[k]}</strong><small>${description}</small></span>
+    <input type="checkbox" role="switch" name="${k}" aria-label="${labels[k]}" ${enabled(k)?'checked':''}><span class="feature-track" aria-hidden="true"></span></label>`;
+  }).join('')}</div>${role()!=='employee'?'<button type="button" class="secondary" id="employment-only">Employment expenses only</button>':''}<button type="submit">Save features</button><p class="footnote">Hidden features keep their records. Existing allocations remain in reports and tax calculations. Access permissions stay the same.</p></form></section>`);
   bind('#employment-only',()=>{for(const k of keys)$('#feature-form').elements[k].checked=k==='employment'||k==='trips';});
   formHandler('#feature-form',async(_d,f)=>{S.features=await api('features',Object.fromEntries(keys.map(k=>[k,f.elements[k].checked])),'PUT');render();toast('Feature preferences saved.');});
  }

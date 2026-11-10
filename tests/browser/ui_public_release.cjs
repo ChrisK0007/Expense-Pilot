@@ -15,7 +15,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await navigate(page,'dashboard');await page.locator('.recent-invoices tr').filter({hasText:paid}).getByText('Paid',{exact:true}).waitFor();
   await navigate(page,'settings');
   await page.locator('#mail-settings').waitFor({state:'attached'});
-  assert.deepEqual(await page.locator('.settings-group > header h2').allTextContents(),['Workspace','Receipts & AI','Business & invoices','Email','Notifications','Bank feeds','Access & security','Data & privacy']);
+  assert.deepEqual(await page.locator('.settings-group > header h2').allTextContents(),['Access & security','Workspace features','Overview & alerts','Appearance','Receipts & AI','Business & invoices','Email delivery','Bank feeds','Backups & data']);
   assert.equal(await page.locator('#settings-receipts #configure-ai').count(),1);
   assert.equal(await page.locator('#settings-email #mail-settings').count(),1);
   assert.equal(await page.locator('#settings-security #manage-tax-agents').count(),1);
@@ -23,7 +23,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await page.locator('[data-settings-jump=data]').click();await page.locator('#settings-data').getByText('Automatic backups on',{exact:true}).waitFor();
   assert.equal(await page.locator('#settings-data #auto-backup-now').count(),1);
   assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
-  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Data & privacy',exact:true}).click();
+  await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Backups & data',exact:true}).click();
   assert.equal(await page.locator('.settings-group:visible').getAttribute('id'),'settings-data');
   await page.locator('[data-settings-jump=workspace]').click();await page.locator('#configure-timezone').click();
   await page.locator('#timezone').fill('America/Los_Angeles');await page.getByRole('button',{name:'Save timezone',exact:true}).click();await page.getByText('Workspace timezone saved.',{exact:false}).waitFor();
