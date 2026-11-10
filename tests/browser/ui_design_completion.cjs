@@ -41,6 +41,9 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   for(const route of ['banks','equipment','drive_review','vehicles','home_office','trips','invoices','quotes','clients','recurring','services','time','income','employment','reports','documents','adviser_questions','tax']){
    await page.setViewportSize({width:1440,height:1050});await navigate(page,route);
    await page.waitForFunction(()=>{const t=document.querySelector('#content')?.textContent||'';return t&&!/Loading[.\u2026]/.test(t);});
+   if(route==='banks'){
+    await page.locator('#feed-filter').waitFor();await page.locator('[data-bank-view=accounts]').click();await page.locator('#bank-account-overview').waitFor({state:'visible'});assert.equal(await page.locator('#bank-feeds').isVisible(),false);await shot('bank-accounts-tab');await page.locator('[data-bank-view=transactions]').click();await page.locator('#feed-filter').waitFor({state:'visible'});
+   }
    await fits(route+' desktop');await shot(route+'-desktop');
    await page.setViewportSize({width:390,height:844});await fits(route+' mobile');await shot(route+'-mobile');
   }
