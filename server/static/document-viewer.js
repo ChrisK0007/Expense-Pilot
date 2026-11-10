@@ -1,15 +1,15 @@
 'use strict';
 const DocumentViewer=(()=>{
  let revision=0;
- async function open(id){
+ async function open(id,{host=null}={}){
   document.querySelector('#document-viewer')?.remove();
   const token=++revision,dialog=document.createElement('dialog');dialog.id='document-viewer';dialog.className='document-viewer';
   dialog.innerHTML=`<div class="preview-heading"><h2 id="document-view-title">Document preview</h2><button type="button" class="ghost" aria-label="Close document preview">Close</button></div><p id="document-view-filename" class="muted"></p><div class="preview-controls"><a class="button-link secondary" href="/api/documents/${encodeURIComponent(id)}/download">Download original</a><span id="document-page-controls"></span></div><p id="document-view-notice" class="footnote" role="status"></p><div id="document-view-stage" class="document-view-stage"><p>Loading preview…</p></div>`;
-  dialog.setAttribute('aria-labelledby','document-view-title');document.body.append(dialog);
-  dialog.querySelector('button').onclick=()=>dialog.close();dialog.onclose=()=>{if(token===revision)++revision;dialog.remove();};dialog.showModal();
+  dialog.setAttribute('aria-labelledby','document-view-title');(host||document.body).append(dialog);
+  dialog.querySelector('button').onclick=()=>dialog.close();dialog.onclose=()=>{if(token===revision)++revision;dialog.remove();};if(host)dialog.show();else dialog.showModal();
   const stage=dialog.querySelector('#document-view-stage'),notice=dialog.querySelector('#document-view-notice');
   try{
-   const data=await api(`documents/${encodeURIComponent(id)}/view`);if(token!==revision)return;
+   const data=await api(`documents/${encodeURIComponent(id)}/view`);if(token!==revision||!dialog.isConnected)return;
    dialog.querySelector('h2').textContent=data.title;dialog.querySelector('#document-view-filename').textContent=data.filename;
    notice.textContent=[data.notice,data.truncated?'This preview is shortened. Download the original to see all content.':''].filter(Boolean).join(' ');
    if(data.kind==='pdf'||data.kind==='image'){

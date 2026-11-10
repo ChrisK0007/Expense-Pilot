@@ -99,5 +99,28 @@ const WorkspaceUI=(()=>{
    button.onclick=()=>navigate(button.dataset.page||button.dataset.morePage);
   });
  }
- return {icon,navigation,moreMenu,bindNavigation};
+ function metrics(items){
+  return `<div class="page-metrics">${items.map(([label,value,note,glyph='reports'])=>`<section class="page-metric"><h2><span class="metric-icon">${icon(glyph)}</span>${esc(label)}</h2><strong>${esc(value)}</strong>${note?`<small>${esc(note)}</small>`:''}</section>`).join('')}</div>`;
+ }
+ function searchBar(id,label,count=''){
+  return `<div class="record-toolbar"><div class="record-search"><label for="${id}">${esc(label)}</label><input type="search" id="${id}" placeholder="${esc(label)}"></div>${count?`<span class="record-count">${esc(count)}</span>`:''}</div>`;
+ }
+ function filterTable(id,selector){
+  const input=document.getElementById(id);if(!input)return;
+  input.oninput=()=>{const query=input.value.trim().toLocaleLowerCase();document.querySelectorAll(selector).forEach(row=>{row.hidden=!!query&&!row.textContent.toLocaleLowerCase().includes(query);});};
+ }
+ let recordObserver=null;
+ function mountRecords(){
+  recordObserver?.disconnect();
+  const root=$('#content');if(!root)return;
+  const decorate=()=>root.querySelectorAll('table').forEach(table=>{
+   if(table.closest('.document-viewer,.invoice-live-preview')||!table.tHead)return;
+   const labels=[...table.tHead.rows[0].cells].map(cell=>cell.dataset.label||cell.textContent.replace(/[↑↓↕]/g,'').trim());
+   table.dataset.recordCards='';table.setAttribute('role','table');table.tHead.setAttribute('role','rowgroup');
+   [...table.tHead.rows].forEach(row=>{row.setAttribute('role','row');[...row.cells].forEach(cell=>cell.setAttribute('role','columnheader'));});
+   [...table.tBodies].forEach(body=>{body.setAttribute('role','rowgroup');[...body.rows].forEach(row=>{row.setAttribute('role','row');[...row.cells].forEach((cell,i)=>{cell.dataset.label=labels[i]||'';cell.setAttribute('role','cell');});});});
+  });
+  recordObserver=new MutationObserver(decorate);recordObserver.observe(root,{childList:true,subtree:true});decorate();
+ }
+ return {icon,navigation,moreMenu,bindNavigation,metrics,searchBar,filterTable,mountRecords};
 })();
