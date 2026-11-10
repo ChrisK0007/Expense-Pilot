@@ -2,7 +2,13 @@
 
 Prerelease changes, newest first. Entries describe the version at the time; use the [stable changelog](CHANGELOG.md) and [release channels](releases.md) for current stable information.
 
-The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md). The published beta image remains beta.19 until the next application prerelease.
+The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
+
+## 1.0.6-beta.21 — Mileage estimates and WFH sync (2026-11-10)
+
+- Native mileage PDFs can use the selected financial year's cents-per-kilometre rate or a logbook percentage based on saved settings or recorded trips and odometer readings. The annual kilometre cap is shared across work and business use of the same vehicle. Agreed reimbursement is reported separately.
+- Work-from-home schedules and skipped dates sync across the owner's devices. One selected device receives reminders.
+- Migration m029 adds storage for WFH schedules. The Docker image is available as `:beta` and `:1.0.6-beta.21`. See the [publish run](https://github.com/ChrisK0007/Expense-Pilot/actions/runs/42771991329) for the checks and image digest.
 
 ## 1.0.6-beta.19 — Simpler deductions and refined workspace (2026-11-03)
 
