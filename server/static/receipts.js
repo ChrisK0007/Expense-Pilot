@@ -147,7 +147,8 @@ async function reprocess(r,fromReview=false){
  catch(e){toast('Reprocessing failed. '+e.message);}
  finally{scanning.delete(r.id);controls.forEach(([el,disabled])=>el.disabled=disabled);if(form?.isConnected)$('#rescan-receipt').textContent='✧ Reprocess with AI';}
  try{await load();draw();if(success&&page==='receipts'&&revision===reviewRevision&&(fromReview?form?.isConnected&&$('#modal').open:!$('#modal').open)){
-  const document=items.find(x=>x.id===r.id);if(document)review(document);
+  const document=items.find(x=>x.id===r.id);
+  if(document){queue=ready(document)?'ready':'draft';review(document);}
  }}catch(e){toast(e.message);}
 }
 function capture(kind='expense'){
@@ -207,6 +208,12 @@ function reviewOptions(r){
    drawQueue();
   }
  };
+ const run=async action=>{
+  const form=$('#modal').querySelector('form');
+  if(!isCurrent()||!form||form.dataset.submitting)return;
+  form.dataset.submitting='true';
+  try{await action();}finally{delete form.dataset.submitting;}
+ };
  const afterSave=async(next=false,message='')=>{
   $('#modal').close();
   try{
@@ -221,7 +228,7 @@ function reviewOptions(r){
    if(message)toast(message);
   }catch(e){toast('Saved. Could not refresh Inbox. '+e.message);}
  };
- return {mount,afterSave,isCurrent,showNext:!!host&&Boolean(nextId)&&nextId!==r.id};
+ return {mount,run,afterSave,isCurrent,showNext:!!host&&Boolean(nextId)&&nextId!==r.id};
 }
 function review(r){
  if(!editor()||r.expense_id||r.income_id)return preview(r.id);
@@ -245,7 +252,7 @@ function review(r){
   draw();
  };
  bankValues=BankMatching.bindReceipt(r.id,gather,d);
- $('#document_kind').onchange=async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');await reopen(r.id);}catch(e){toast(e.message);}};
+ $('#document_kind').onchange=()=>options.run(async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');await reopen(r.id);}catch(e){toast(e.message);}});
  Splits.bindFields('receipt_','receipt_amount');
  if(home){$('#receipt-new-category').hidden=true;for(const id of ['category','vehicle_id','merchant_location'])$('#receipt_'+id).closest('.field').hidden=true;$('#receipt-review [data-split-prefix=receipt_]').hidden=true;$('#receipt-to-trip').hidden=true;$('#receipt-meal-fields').hidden=true;}
  if(!Features.enabled('vehicles')&&!d.vehicle_id)$('#receipt_vehicle_id').closest('.field').hidden=true;
@@ -276,10 +283,10 @@ function review(r){
   }
   reviewTrip(group);
  };
- const openTripClick=async event=>{
+ const openTripClick=event=>options.run(async()=>{
   const button=event.currentTarget;button.disabled=true;
   try{await openTrip();}catch(error){toast(error.message);}finally{button.disabled=false;}
- };
+ });
  $('#receipt_category').onchange=()=>{$('#receipt-meal-fields').hidden=value('category')!=='Meals';tripStatus();};
  $('#receipt_trip_id').onchange=tripStatus;
  tripStatus();
@@ -291,13 +298,13 @@ function review(r){
  bind('#receipt-to-trip',openTripClick);bind('#review-receipt-trip',openTripClick);
  bind('#use-suggestion',()=>{reviewForm.dataset.dirty='true';$('#receipt_category').value=suggestion.category;$('#receipt-meal-fields').hidden=suggestion.category!=='Meals';tripStatus();});
  bind('#rescan-receipt',()=>reprocess(r,true));
- bind('#save-receipt-draft',async()=>{const b=$('#save-receipt-draft');b.disabled=true;try{const data=gather();if(data.currency&&data.currency!==d.currency)await confirmCurrency(data.currency);await api('receipts/'+r.id+'/draft',data,'PUT');$('#modal').close();await load();draw();toast('Receipt draft saved.');}catch(e){toast(e.message);}finally{b.disabled=false;}});
- bind('#remove-receipt',async()=>{if(!confirm('Delete this unfiled receipt permanently?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await load();draw();}catch(e){toast(e.message);}});
- const attachMatch=async eid=>{
+ bind('#save-receipt-draft',()=>options.run(async()=>{const b=$('#save-receipt-draft');b.disabled=true;try{const data=gather();if(data.currency&&data.currency!==d.currency)await confirmCurrency(data.currency);await api('receipts/'+r.id+'/draft',data,'PUT');$('#modal').close();await load();draw();toast('Receipt draft saved.');}catch(e){toast(e.message);}finally{b.disabled=false;}}));
+ bind('#remove-receipt',()=>options.run(async()=>{if(!confirm('Delete this unfiled receipt permanently?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await load();draw();}catch(e){toast(e.message);}}));
+ const attachMatch=eid=>options.run(async()=>{
   if(!confirm('Attach this receipt to the selected existing expense?'))return;
   await api('receipts/'+r.id+'/expense',{existing_expense_id:eid});
   $('#expense-match-viewer')?.close();$('#modal').close();await refresh();await load();draw();toast('Receipt attached. No duplicate expense created.');
- };
+ });
  document.querySelectorAll('.match-expense').forEach(b=>b.onclick=()=>attachMatch(Number(b.dataset.eid)).catch(error=>toast(error.message)));
  document.querySelectorAll('.match-view-expense').forEach(link=>link.onclick=event=>{event.preventDefault();viewMatch(Number(link.dataset.eid),attachMatch).catch(error=>toast(error.message));});
  const treatment=!home?TaxTreatment.mount($('#receipt-review'),gather):null;

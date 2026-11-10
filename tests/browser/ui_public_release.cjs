@@ -15,7 +15,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8788',output=process.env.UI_OUT
   await navigate(page,'dashboard');await page.locator('.recent-invoices tr').filter({hasText:paid}).getByText('Paid',{exact:true}).waitFor();
   await navigate(page,'settings');
   await page.locator('#mail-settings').waitFor({state:'attached'});
-  assert.deepEqual(await page.locator('.settings-group > header h2').allTextContents(),['Workspace','Receipts & AI','Business & invoices','Email','Notifications','Bank feeds','Access & security','Data & privacy']);
+  assert.deepEqual(await page.locator('.settings-group > header h2').allTextContents(),['Access & security','Workspace features','Overview & alerts','Appearance','Receipts & AI','Business & invoices','Email delivery','Bank feeds','Backups & data']);
   assert.equal(await page.locator('#settings-receipts #configure-ai').count(),1);
   assert.equal(await page.locator('#settings-email #mail-settings').count(),1);
   assert.equal(await page.locator('#settings-security #manage-tax-agents').count(),1);

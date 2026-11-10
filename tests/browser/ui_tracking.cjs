@@ -11,7 +11,7 @@ async function main(){
  try{
   await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();
   await navigate(page,'settings');
-  assert.equal(await page.locator('.brand small').innerText(),'a clearer view of every dollar');
+  assert.equal(await page.locator('.brand small').innerText(),'A clearer view of every dollar');
   await page.locator('[data-settings-jump=receipts]').click();await page.getByRole('button',{name:'Expense categories',exact:false}).click();await page.getByLabel('New category name').fill('Aircraft parking');await page.getByRole('button',{name:'Create category',exact:true}).click();
   await page.locator('#modal').getByText('Aircraft parking',{exact:true}).waitFor();await page.locator('#close-modal').click();
   await page.locator('[data-settings-jump=receipts]').click();await page.getByRole('button',{name:'Home base & receipt sorting',exact:false}).click();await page.getByLabel('Home base (city or suburb)').fill('Sunshine Coast');await page.getByRole('button',{name:'Sunshine Coast, QLD (area centre)',exact:true}).click();await page.getByText(/suburbs recognised as local/).waitFor();await page.getByLabel('Default receipt workspace').selectOption('business');await page.getByRole('button',{name:'Save receipt preferences'}).click();await page.getByText('Receipt preferences saved.',{exact:true}).waitFor();

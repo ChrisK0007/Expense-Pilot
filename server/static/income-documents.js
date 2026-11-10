@@ -16,10 +16,10 @@ const IncomeDocuments=(()=>{
   for(const key of ['employer','date','gross','withheld'])form.elements[key].addEventListener('change',existing);
   existing();
   bind('#income-original',()=>Receipts.preview(r.id));
-  bind('#income-delete-draft',async()=>{if(!confirm('Permanently delete this unfiled document?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await Receipts.reload();}catch(e){toast(e.message);}});
-  $('#document_kind').onchange=async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');await Receipts.reopen(r.id);}catch(e){toast(e.message);}};
-  bind('#income-save-draft',async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');$('#modal').close();await Receipts.reload();toast('Income draft saved.');}catch(e){toast(e.message);}});
-  bind('#income-read',async ev=>{const button=ev.currentTarget;button.disabled=true;try{await readDocument(r.id);await Receipts.reopen(r.id);}catch(e){toast(e.message);if(button.isConnected)button.disabled=false;}});
+  bind('#income-delete-draft',()=>options.run(async()=>{if(!confirm('Permanently delete this unfiled document?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await Receipts.reload();}catch(e){toast(e.message);}}));
+  $('#document_kind').onchange=()=>options.run(async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');await Receipts.reopen(r.id);}catch(e){toast(e.message);}});
+  bind('#income-save-draft',()=>options.run(async()=>{try{await api('receipts/'+r.id+'/draft',gather(),'PUT');$('#modal').close();await Receipts.reload();toast('Income draft saved.');}catch(e){toast(e.message);}}));
+  bind('#income-read',async ev=>{const button=ev.currentTarget;button.disabled=true;try{await readDocument(r.id);if(options.isCurrent())await Receipts.reopen(r.id);}catch(e){toast(e.message);if(button.isConnected)button.disabled=false;}});
   formHandler('#income-document-form',async(_values,_form,submitter)=>{
    const v=gather();await api('receipts/'+r.id+'/income',{...v,record_kind:v.document_kind,currency:'AUD',reviewed:$('#income-reviewed').checked,existing_income_id:Number($('#existing_income_id')?.value)||null});
    await options.afterSave(submitter?.id==='save-income-next','Employment income saved. Original available in Employment income.');
