@@ -126,6 +126,17 @@ def comparison(vid,year):
     log_total=rounded(Decimal(expense_base)*(settings['work_percent']+settings['business_percent'])/100)
     log_work=rounded(Decimal(expense_base)*settings['work_percent']/100)
     period_days=(date.fromisoformat(settings['logbook_end'])-date.fromisoformat(settings['logbook_start'])).days+1 if settings['logbook_start'] and settings['logbook_end'] else 0
+    from mileage_calculation import financial_year_logbook, logbook_use
+    import workspace_time
+    readings = rows('SELECT recorded_at,reading_m FROM vehicle_odometer WHERE vehicle_id=? ORDER BY recorded_at,id', (vid,))
+    suggested_logbook = None
+    if period_days >= 84:
+        log_start, log_end = settings['logbook_start'], settings['logbook_end']
+        period_journeys = rows('SELECT * FROM vehicle_journeys WHERE vehicle_id=? AND date BETWEEN ? AND ?', (vid, log_start, log_end))
+        suggested_logbook = logbook_use(readings, period_journeys, log_start, log_end, workspace_time.zone(), require_end=True)
+    if suggested_logbook is None:
+        last = min(end, workspace_time.today().isoformat())
+        suggested_logbook = financial_year_logbook(readings, js, start, last, workspace_time.zone(), closed=last == end)
     warnings=[]
     if any(c['invalid_credit'] for c in costs): warnings.append('A saved GST credit exceeds the current expense amount. That cost is excluded until you correct its GST credit in cost settings.')
     if not settings['version']: warnings.append('Enter your representative logbook percentages to estimate the logbook method.')
@@ -138,7 +149,7 @@ def comparison(vid,year):
                 running_costs_cents=base,depreciation_cents=settings['depreciation_cents'],cost_base_cents=expense_base,
                 cents_per_km=dict(total_cents=cpk,work_cents=cpk_work,business_cents=cpk-cpk_work),
                 logbook=dict(total_cents=log_total,work_cents=log_work,business_cents=log_total-log_work),
-                difference_cents=log_total-cpk,logbook_days=period_days,warnings=warnings,sources=SOURCES,
+                difference_cents=log_total-cpk,logbook_days=period_days,suggested_logbook=suggested_logbook,warnings=warnings,sources=SOURCES,
                 note='Comparison only: these estimates are not added to your tax forecast. Existing expense allocations remain as entered. Cents/km already covers fuel, servicing, registration, insurance and depreciation; do not claim those costs again. Logbook percentages must reflect eligible use, supported by your logbook and odometer records. Amounts are deductions, not tax refunds.')
 
 

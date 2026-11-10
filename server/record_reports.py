@@ -248,7 +248,7 @@ def mileage_totals(journeys, rate):
     return distance, amounts, line_amounts
 
 
-def mileage_pdf(vehicle, person, workplace, journeys, start, end, scope, rate=None):
+def mileage_pdf(vehicle, person, workplace, journeys, start, end, scope, rate=None, method="", calculation=None):
     report = Report('Mileage report', day(start) + ' - ' + day(end))
     report.cover(person)
     report.add(vehicle['name'] + (' (' + vehicle['registration'] + ')' if vehicle['registration'] else ''))
@@ -264,8 +264,25 @@ def mileage_pdf(vehicle, person, workplace, journeys, start, end, scope, rate=No
     report.add('Employment/business distance uses the saved use percentage for each journey. The remainder is personal. This summary covers only the vehicle, dates and workspace selected.')
     if rate is not None:
         report.add('The optional reimbursement rate was entered by the person generating this report. Amounts are rounded per journey and totalled. This is not an ATO rate selection or a tax deduction calculation; no annual kilometre cap has been applied.')
-    else:
+    elif not method:
         report.add('No reimbursement rate was entered. This report records distances only.')
+    if method == 'cents':
+        report.add('Cents per kilometre deduction estimate', 'heading')
+        report.add(f"ATO rate: {calculation['rate_cents']} cents/km for {calculation['year']}–{calculation['year']+1}. "
+                   f"Eligible kilometres in this report after the {calculation['cap_km']:,} km annual cap: "
+                   f"{calculation['cents_metres']/1000:,.3f}. Estimated deduction: {aud(calculation['cents_amount'])}.")
+    elif method == 'logbook':
+        report.add('Logbook deduction estimate', 'heading')
+        use = calculation['logbook']
+        if use:
+            source = 'saved logbook settings' if use['source'] == 'saved' else 'recorded journeys and actual odometer readings'
+            report.add(f"Employment use: {use['work_percent']}%. Business use: {use['business_percent']}%. "
+                       f"Basis: {source}, {day(use['start'])} to {day(use['end'])}.")
+            report.add(f"Financial-year recorded cost base: {aud(calculation['cost_base_cents'])}. "
+                       f"Estimated deduction for the selected use: {aud(use['amount_cents'])}. "
+                       "Review whether the period is representative. The estimate covers the financial year.")
+        else:
+            report.add('A percentage is unavailable. Save a representative logbook or add the actual opening and closing odometer readings for a recorded period.')
     report.add('Odometer readings appear only where they were saved on a journey. Missing readings are shown as "Not recorded"; GPS distances are not presented as dashboard readings. Trips still only on a phone are not included.')
     report.add('Generated from saved journey records. Review classifications, purposes and any gaps before using the report for reimbursement or tax records.')
     report.story.append(PageBreak())
