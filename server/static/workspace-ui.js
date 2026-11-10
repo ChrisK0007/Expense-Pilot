@@ -105,10 +105,10 @@ const WorkspaceUI=(()=>{
  function searchBar(id,label,count=''){
   return `<div class="record-toolbar"><div class="record-search"><label for="${id}">${esc(label)}</label><input type="search" id="${id}" placeholder="${esc(label)}"></div>${count?`<span class="record-count" aria-live="polite">${esc(count)}</span>`:''}</div>`;
  }
- function filterTable(id,selector){
+ function filterTable(id,selector,onFiltered=null){
   const input=document.getElementById(id);if(!input)return;
   const count=input.closest('.record-toolbar').querySelector('.record-count'),original=count?.textContent;
-  input.oninput=()=>{const query=input.value.trim().toLocaleLowerCase(),rows=[...document.querySelectorAll(selector)];rows.forEach(row=>{row.hidden=!!query&&!row.textContent.toLocaleLowerCase().includes(query);});if(count)count.textContent=query?rows.filter(row=>!row.hidden).length+' of '+rows.length+' records':original;};
+  input.oninput=()=>{const query=input.value.trim().toLocaleLowerCase(),rows=[...document.querySelectorAll(selector)];rows.forEach(row=>{row.hidden=!!query&&!row.textContent.toLocaleLowerCase().includes(query);});if(count)count.textContent=query?rows.filter(row=>!row.hidden).length+' of '+rows.length+' records':original;if(onFiltered)onFiltered(rows);};
  }
  let recordObserver=null;
  function mountRecords(){
