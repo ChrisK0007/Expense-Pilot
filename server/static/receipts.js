@@ -209,16 +209,16 @@ function reviewOptions(r){
  };
  const afterSave=async(next=false,message='')=>{
   $('#modal').close();
-  if(message)toast(message);
   try{
    await refresh();await load();
-   if(!isCurrent())return;
+   if(!isCurrent()){if(message)toast(message);return;}
    if(next)queue='ready';
    else if(!readyQueue().length)queue='draft';
    draw();
    const candidates=next?readyQueue().filter(item=>item.id!==r.id&&matchesSearch(item)):[];
    const following=candidates.find(item=>item.id===nextId)||candidates[0];
    if(following)review(following);
+   if(message)toast(message);
   }catch(e){toast('Saved. Could not refresh Inbox. '+e.message);}
  };
  return {mount,afterSave,isCurrent,showNext:!!host&&Boolean(nextId)&&nextId!==r.id};
