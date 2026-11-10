@@ -224,6 +224,70 @@ def entry_values(payload):
 def register(app, auth):
     from app import audit, db, fail, money, one, rows, day, textval
 
+    def read_schedule(uid):
+        saved = one('SELECT version,data FROM wfh_schedules WHERE user_id=?', (uid,))
+        if saved:
+            return dict(json.loads(saved['data']), version=saved['version'])
+        return dict(days=[], timezone=workspace_time.name(), declined=[], reminder_device=None, version=0)
+
+    @app.route('/api/home-office/schedule', methods=['GET', 'PUT'])
+    @auth('owner')
+    def weekly_schedule():
+        uid = g.user['id']
+        if request.method == 'GET':
+            return jsonify(read_schedule(uid))
+        payload = data()
+        days = payload.get('days')
+        device = payload.get('device')
+        try:
+            if str(uuid.UUID(device)) != device.lower(): raise ValueError()
+        except (TypeError, ValueError, AttributeError):
+            fail('Use a valid reminder device.')
+        if not isinstance(days, list) or len(days) != 7 or type(payload.get('reminders')) is not bool:
+            fail('Enter seven valid schedule days.')
+        zone = workspace_time.validate(payload.get('timezone'))
+        valid = []
+        for value in days:
+            if not isinstance(value, dict): fail('Enter a valid schedule day.')
+            identifier = integer(value.get('id'), 1, 7)
+            first, last = integer(value.get('start'), 0, 1439), integer(value.get('end'), 1, 1440)
+            breaks = integer(value.get('breaks'), 0, 1439)
+            scope = value.get('scope')
+            if last <= first or breaks >= last-first or scope not in ('work','business') or type(value.get('enabled')) is not bool:
+                fail('Check the time, breaks and work type for each scheduled day.')
+            valid.append(dict(id=identifier, enabled=value['enabled'], start=first, end=last, breaks=breaks,
+                              scope=scope, notes=textval(value.get('notes'), 500)))
+        if len({v['id'] for v in valid}) != 7: fail('Enter each weekday once.')
+        db().execute('BEGIN IMMEDIATE')
+        old = read_schedule(uid)
+        check_version(old, payload)
+        reminder = old['reminder_device']
+        if payload['reminders']: reminder = device
+        elif reminder == device: reminder = None
+        new = dict(days=valid, timezone=zone, declined=old['declined'], reminder_device=reminder)
+        db().execute('INSERT INTO wfh_schedules(user_id,data) VALUES (?,?) '
+                     'ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,version=version+1', (uid,json.dumps(new)))
+        audit('weekly home office schedule updated', uid)
+        db().commit()
+        return jsonify(read_schedule(uid))
+
+    @app.post('/api/home-office/schedule/skip')
+    @auth('owner')
+    def skip_scheduled_day():
+        when = day(data().get('day'))
+        if when > workspace_time.today().isoformat():
+            fail('Only mark today or an earlier day as skipped.')
+        uid = g.user['id']
+        db().execute('BEGIN IMMEDIATE')
+        old = read_schedule(uid)
+        old['declined'] = sorted(set(old['declined']) | {when})[-400:]
+        # A skipped date does not conflict with a concurrent schedule edit.
+        old.pop('version')
+        db().execute('INSERT INTO wfh_schedules(user_id,data) VALUES (?,?) '
+                     'ON CONFLICT(user_id) DO UPDATE SET data=excluded.data', (uid,json.dumps(old)))
+        db().commit()
+        return jsonify(read_schedule(uid))
+
     @app.get('/api/home-office/<int:year>')
     @auth('owner','tax_agent')
     def get_summary(year):

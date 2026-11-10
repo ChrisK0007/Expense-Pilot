@@ -361,17 +361,38 @@ def journeys_api():
     for item in data: item['has_route']=item.pop('route_json') is not None
     return jsonify(data)
 
+@bp.get('/vehicles/<int:vid>/mileage-defaults')
+@access
+def mileage_defaults(vid):
+    from mileage_calculation import estimate
+    vehicle(vid)
+    start, end, scope = mileage_period()
+    return jsonify(estimate(vid, start, end, scope))
+
+
+def mileage_period():
+    if not request.args.get('from') or not request.args.get('to'): fail('Choose a report start and end date.')
+    start, end = day(request.args['from']), day(request.args['to'])
+    if start > end: fail('The report end must be on or after its start.')
+    scope = request.args.get('scope', 'all')
+    if scope not in ('all', 'work', 'business', 'personal'): fail('Choose a valid report workspace.')
+    return start, end, scope
+
+
 @bp.get('/vehicles/<int:vid>/report.pdf')
 @access
 def mileage_report(vid):
     from record_reports import mileage_pdf
     from billing import business
     v=vehicle(vid)
-    if not request.args.get('from') or not request.args.get('to'): fail('Choose a report start and end date.')
-    start,end=day(request.args['from']),day(request.args['to'])
-    if start>end: fail('The report end must be on or after its start.')
-    scope=request.args.get('scope','all')
-    if scope not in ('all','work','business','personal'): fail('Choose a valid report workspace.')
+    start, end, scope = mileage_period()
+    method = request.args.get('method', '')
+    if method not in ('', 'cents', 'logbook'): fail('Choose a mileage calculation.')
+    details = None
+    if method:
+        from mileage_calculation import estimate
+        details = estimate(vid, start, end, scope)
+        if not details['available']: fail(details['reason'])
     rate=None
     value=request.args.get('rate','').strip()
     if value:
@@ -382,7 +403,7 @@ def mileage_report(vid):
     clause='' if scope=='all' else ' AND scope=?'
     journeys=rows('SELECT * FROM vehicle_journeys WHERE vehicle_id=? AND date BETWEEN ? AND ?'+clause+' ORDER BY date,COALESCE(started_at,0),id',(vid,start,end)+(() if scope=='all' else (scope,)))
     person=one('SELECT name FROM users WHERE id=?',(v['user_id'],))['name']
-    pdf=mileage_pdf(v,person,business().get('name',''),journeys,start,end,scope,rate)
+    pdf=mileage_pdf(v,person,business().get('name',''),journeys,start,end,scope,rate,method,details)
     return send_file(io.BytesIO(pdf),mimetype='application/pdf',as_attachment=True,download_name=f'expense-pilot-mileage-{vid}-{start}-{end}.pdf')
 
 @bp.route('/vehicle-journeys/<int:jid>',methods=['GET','PUT','DELETE'])
