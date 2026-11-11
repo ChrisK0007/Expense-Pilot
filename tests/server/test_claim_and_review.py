@@ -100,7 +100,8 @@ class ClaimAndReviewTest(unittest.TestCase):
                                                 scope='work',purpose='Flight duties',allowance=160)).json['id']
         expense=self.expense(self.owner,category='Meals',scope='work',trip_id=trip,meal='Dinner',amount=42,status='ready').json['id']
         days=[dict(date='2026-10-08',Breakfast=True,Lunch=True,Dinner=True,Incidentals=True)]
-        result=self.call(self.owner,f'trips/{trip}/overnight',dict(version=0,salary=170000,destination_class='overseas',
+        version=self.owner.get(f'/api/trips/{trip}/overnight').json['version']
+        result=self.call(self.owner,f'trips/{trip}/overnight',dict(version=version,salary=170000,destination_class='overseas',
                          destination='Vanuatu',allowance_received=True,allowance_declared=True,days=days,confirm_claim=True),'PUT')
         self.assertEqual(result.status_code,200,result.json)
         self.assertEqual(result.json['reasonable_cents'],26000)
