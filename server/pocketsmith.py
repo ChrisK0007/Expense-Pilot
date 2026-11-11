@@ -171,6 +171,7 @@ def sync(manual=False):
             old = one('SELECT * FROM bank_transactions WHERE remote_user_id=? AND remote_id=?', (c['remote_user_id'], row['remote_id']))
             if old:
                 linked = old['expense_id'] or one('SELECT id FROM bank_reconciliations WHERE bank_id=?',(old['id'],))
+                linked = linked or one('SELECT id FROM bank_transfer_pairs WHERE debit_id=? OR credit_id=?',(old['id'],old['id']))
                 changed = old['fingerprint'] != row['fingerprint'] or old['missing']
                 db().execute('UPDATE bank_transactions SET ' + ','.join(k+'=?' for k in row) + ',last_seen=?,missing=0,changed=?,state=?,version=version+? WHERE id=?',
                              tuple(row.values()) + (stamp, int(bool(old['changed'] or (changed and linked))),
@@ -179,7 +180,7 @@ def sync(manual=False):
                 db().execute('INSERT INTO bank_transactions ('+','.join(row)+',remote_user_id,last_seen) VALUES ('+','.join('?' for _ in range(len(row)+2))+')', tuple(row.values())+(c['remote_user_id'], stamp))
                 added += 1
         for a in accounts:
-            db().execute("UPDATE bank_transactions SET missing=1,changed=CASE WHEN expense_id IS NOT NULL OR EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.bank_id=bank_transactions.id) THEN 1 ELSE changed END,version=version+1 WHERE feed_account_id=? AND date BETWEEN ? AND ? AND last_seen<>? AND missing=0", (a['id'], c['start_date'], end, stamp))
+            db().execute("UPDATE bank_transactions SET missing=1,changed=CASE WHEN expense_id IS NOT NULL OR EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.bank_id=bank_transactions.id) OR EXISTS(SELECT 1 FROM bank_transfer_pairs p WHERE p.debit_id=bank_transactions.id OR p.credit_id=bank_transactions.id) THEN 1 ELSE changed END,version=version+1 WHERE feed_account_id=? AND date BETWEEN ? AND ? AND last_seen<>? AND missing=0", (a['id'], c['start_date'], end, stamp))
         db().execute("UPDATE pocketsmith_connection SET last_sync=?,next_sync=?,retry_after=0,last_error='',lock_token='',lock_until=0 WHERE id=1", (stamp, time.time()+3600))
         import bank_matching
         matched=bank_matching.link_after_sync()
@@ -209,6 +210,8 @@ def transaction(tid, version=None):
 
 
 def eligible(t):
+    if one('SELECT 1 FROM bank_transfer_pairs WHERE debit_id=? OR credit_id=?',(t['id'],t['id'])):
+        fail('Unpair this transfer before using it as a purchase.',409)
     if one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(t['id'],)): fail('This transaction has a reconciliation. Undo it from Bank accounts → Matching options first.',409)
     if t['expense_id'] or t['missing'] or t['source_status']!='posted' or t['is_transfer'] or not t['amount_cents']:
         fail('Only an unlinked, posted purchase or refund can be added or matched.', 409)
@@ -356,6 +359,8 @@ def register(app, **helpers):
             fail('Reopen the transaction before continuing.', 409)
         t = transaction(tid, d['version'])
         action = d.get('action')
+        if one('SELECT 1 FROM bank_transfer_pairs WHERE debit_id=? OR credit_id=?',(tid,tid)):
+            fail('Review or undo this pair in Bank accounts → Transfers.',409)
         if action!='acknowledge' and one('SELECT 1 FROM bank_reconciliations WHERE bank_id=?',(tid,)): fail('Undo this match from Bank reconciliation first.',409)
         if action=='link':
             eligible(t)

@@ -141,13 +141,16 @@ def tax_forecast(year):
         gst=rounded(Decimal(payment['gst_cents'])*after/payment['total_cents'])-rounded(Decimal(payment['gst_cents'])*before/payment['total_cents'])
         if start<=payment['date']<=end: business_income+=payment['amount_cents']-gst
     expenses=rows("SELECT e.* FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.date BETWEEN ? AND ? AND e.status='ready' AND e.scope!='personal' AND e.reimbursed=0 AND (e.scope='business' OR u.role='owner')",(start,end))
-    from overnights import is_overnight
+    from overnights import is_overnight, reviewed_totals
     overnight_expenses=[e for e in expenses if is_overnight(e)]
     from expense_workflows import components
     capitalised={r['expense_id'] for r in rows('SELECT expense_id FROM equipment_assets WHERE expense_id IS NOT NULL')}
     expenses=[part for e in expenses if not is_overnight(e) and e['id'] not in capitalised for part in components(e)]
     from home_office import forecast_adjustments
     home_office,work_deductions,business_deductions=forecast_adjustments(year,expenses)
+    overnight_claim=reviewed_totals(year,rows("SELECT * FROM trips WHERE end>=? AND start<=? AND comparison_json!='{}'",(start,end)))
+    work_deductions+=overnight_claim['work']
+    business_deductions+=overnight_claim['business']
     salary['gross']+=home_office['allowance_income_cents']
     unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review' AND trip_id IS NULL AND meal='' AND category!='Meals'",(start,end))['n']
     import workspace_time

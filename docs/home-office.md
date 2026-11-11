@@ -1,10 +1,10 @@
-# Fixed-rate home office in the beta
+# Home office in the beta
 
-Open **Tracking → Home office** and choose the financial year. Home office supports the fixed-rate method only.
+Open **Tracking → Home office** and choose the financial year. Use **Claim** to compare fixed rate and actual cost for the same financial year.
 
 1. **Log hours:** choose Employment or Business, record start/finish times and subtract breaks. Notes are optional. Times use your workspace timezone. Split work crossing midnight into two dates; `24:00` closes the first day. Overlapping sessions across either workspace are rejected.
-2. **Bills & receipts:** use **Add bill evidence** to attach a bill or receipt and enter its supplier, date, amount and cost type. No work-use percentages are needed. Confirm you personally incurred the cost and it was not reimbursed. You can also upload it to **Document inbox**, choose **File as → Home-office bill evidence**, select its cost type and save; any clear bank match is linked at the same time. If the bill is already in Expenses, use **Link a bill** instead of adding it again. Confirm automatically identified Phone & internet bills before using them as evidence.
-3. **Set up claim:** enable the fixed-rate claim, review the eligibility/hours/bills confirmations and select the running-cost types you personally incurred. Keep at least one bill or receipt for each selected type. Save now and finish missing checks later. **Pending** means no home-office deduction is included yet; **Included in tax forecast** means the record checks are complete.
+2. **Bills & receipts:** use **Add bill evidence** to attach a bill or receipt and enter its supplier, date, amount and cost type. Fixed-rate evidence can be saved without work-use percentages. Confirm you personally incurred the cost and it was not reimbursed. You can also upload it to **Document inbox**, choose **File as → Home-office bill evidence**, select its cost type and save; any clear bank match is linked at the same time. If the bill is already in Expenses, use **Link a bill** instead of adding it again. Confirm automatically identified Phone & internet bills before using them as evidence.
+3. **Set up claim:** select Fixed rate or Actual cost and review the eligibility, hours and bill confirmations. For Fixed rate, select the running-cost types you personally incurred. Fixed rate needs evidence of each selected cost type. Actual cost needs a supporting bill and a saved calculation for each included cost. Save now and finish missing checks later. **Pending** means no home-office deduction is included yet; **Included in tax forecast** means the record checks are complete.
 4. **Allowances** is optional. Leave “Already included in gross pay” checked when your Employment income includes the allowance. Otherwise it is added once. An annual salary override replaces the complete recorded salary total.
 5. **Download logbook PDF** creates a financial-year report with a summary, monthly employment/business totals, hours diary, breaks, work notes, logged/updated timestamps and bill checklist. **Export CSV** retains the detailed calculations, allowances and full relevant edit history. Full backups also retain receipt originals.
 
@@ -14,17 +14,25 @@ The ATO fixed rate is 67c for FY 2022–23 and 2023–24, and 70c from 1 July 20
 
 The rate covers energy, phone usage, internet, stationery and computer consumables, including work phone use away from home. Your recorded hours determine the deduction, not a percentage of these bills. Classify covered bills already recorded in Expenses so they are excluded from separate forecast deductions.
 
-**Add bill evidence** saves the full bill as a personal/unallocated expense (0% employment and 0% business), with a note that it supports fixed-rate hours. It still counts as evidence. Linking an existing expense does not change its amount or percentages. Ordinary spending reports retain those original allocations; the tax forecast applies the fixed-rate adjustment once.
+**Add bill evidence** saves the full bill as a personal/unallocated expense (0% employment and 0% business), with a note that it supports fixed-rate hours. It still counts as evidence. Linking an existing expense does not change its amount or percentages. Ordinary spending reports retain those original allocations; the tax forecast applies the selected claim method once.
 
-Separate deductions outside the hourly rate, such as eligible equipment depreciation, still need their own evidence and use calculation. Their assessment fields appear only when a non-covered cost type is selected. Equipment/occupancy require an explicitly assessed annual amount and confirmation; purchase cost is not automatically the deduction. The beta does not calculate depreciation schedules, GST credits or BAS.
+Separate deductions outside the hourly rate, such as eligible equipment depreciation, still need their own evidence and use calculation. Their assessment fields appear only when a non-covered cost type is selected. Equipment/occupancy require an explicitly assessed annual amount and confirmation; purchase cost is not automatically the deduction. Equipment deductions are reviewed in Deductions. Business costs should reflect eligible GST credits where applicable.
 
 Log sessions as they occur. Creation/update timestamps remain in the diary and PDF; entering old hours later does not establish contemporaneous evidence. Figures are deduction estimates, not refunds or a lodged return.
 
+## Actual-cost calculations
+
+In **Bills & receipts**, edit a linked bill and open **Actual-cost calculation**. Attach the bill and record the work-use basis in Notes. Keep the bill in Reviewed status before including it in the estimate.
+
+- **Electricity from logged hours** uses the bill coverage dates, equipment watts and the bill’s cents-per-kWh usage rate. Only logged work minutes within that period count. Include equipment that ran for those hours. Use a documented work-use share for equipment used for only part of a session.
+- **Internet or phone usage** divides employment and business usage by total usage in the same units, including private and other household use. Keep the usage record and apply a sample only to a period it represents.
+- **Work-use percentage** applies the entered employment and business shares to the linked bill. Keep the evidence for the percentages you enter.
+
+Review both estimates in **Claim** and save one method for the year. Pending record checks keep the elected claim out of the tax forecast. Original expense amounts and allocations remain available in spending reports. See the [ATO actual-cost guidance](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim/work-related-deductions/working-from-home-expenses/actual-cost-method).
+
 ## Existing records and updates
 
-The fixed-rate-only calculation change keeps all hours, bills, allowances and history. The Documents repository was introduced in m021. The current beta adds m022 for employment document links and bank matching; the 21 earlier migrations are unchanged. A year previously set to actual costs is held pending until you review and save the fixed-rate claim checks. Its stored old settings remain unchanged until then and are retained in edit history when replaced.
-
-Turning off the fixed-rate claim restores ordinary expense treatment; review the forecast after doing so. New evidence-only bills remain unallocated. Back up before updating, keep the same data mount, and refresh the browser afterwards.
+Migration m030 retains hours, bills, allowances and history. A legacy actual-cost election needs a fresh review in Claim. Turning off the home-office claim restores ordinary expense treatment. New evidence-only bills remain unallocated. Back up before updating, keep the same data mount and refresh the browser afterwards.
 
 ## Mileage reports
 

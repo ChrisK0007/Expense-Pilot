@@ -71,15 +71,23 @@ class HomeOfficeTests(unittest.TestCase):
         self.assertEqual(original['amount_cents'],10000)
         self.assertEqual((original['work_percent'],original['business_percent']),(60,40))
 
-    def test_actual_cost_requests_are_rejected_and_disabled_claim_preserves_ordinary_expenses(self):
-        self.bill();self.diary()
-        response=self.call(self.owner,'home-office/2026/settings',dict(version=0,method='actual'),'PUT')
-        self.assertEqual(response.status_code,400)
+    def test_actual_cost_counts_reviewed_bills_once_and_none_restores_ordinary_expenses(self):
+        eid=self.bill();self.diary()
+        calculation=dict(mode='usage',work=20,business=10,total=100)
+        result=self.call(self.owner,f'home-office/costs/{eid}',dict(version=1,kind='phone_internet',
+                          basis='Representative usage record',actual=calculation),'PUT')
+        self.assertEqual(result.status_code,200,result.json)
+        actual=self.method('actual')
+        self.assertTrue(actual['active'],actual['actual_issues'])
+        self.assertEqual(actual['actual'],dict(work=2000,business=1000))
+        tax=self.owner.get('/api/tax/2026').json
+        self.assertEqual(tax['recorded']['work_deductions_cents'],2000)
+        self.assertEqual(tax['recorded']['business_deductions_cents'],1000)
+        self.assertEqual(tax['home_office']['hourly'],dict(work=0,business=0))
         self.method('none')
         tax=self.owner.get('/api/tax/2026').json
         self.assertEqual(tax['recorded']['work_deductions_cents'],6000)
         self.assertEqual(tax['recorded']['business_deductions_cents'],4000)
-        self.assertEqual(tax['home_office']['hourly'],dict(work=0,business=0))
 
     def test_legacy_actual_cost_election_stays_pending_without_mutating_saved_records(self):
         self.bill();self.diary()
@@ -90,7 +98,7 @@ class HomeOfficeTests(unittest.TestCase):
             db().execute('INSERT INTO home_office_settings(user_id,year,data) VALUES (?,2026,?)',(uid,json.dumps(legacy)));db().commit()
         annual=self.annual()
         self.assertTrue(annual['settings']['needs_fixed_review']);self.assertFalse(annual['active'])
-        self.assertNotIn('actual',annual);self.assertNotIn('standard_comparison',annual)
+        self.assertEqual(annual['actual'],dict(work=0,business=0));self.assertNotIn('standard_comparison',annual)
         tax=self.owner.get('/api/tax/2026').json
         self.assertEqual(tax['recorded']['work_deductions_cents'],0)
         with app.app_context():

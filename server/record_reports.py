@@ -165,7 +165,7 @@ def home_office_pdf(annual, person):
     status = {'not_selected': 'Not enabled', 'active': 'Included in tax forecast', 'needs_review': 'Pending record checks'}[annual['status']]
     report.add('Claim status: ' + status)
     report.add('Rate: ' + (f'{rate}c per recorded hour.' if rate is not None else 'Not confirmed for this year; no rate assumed.'))
-    included = sum(annual['fixed'].values()) if annual['active'] else 0
+    included = sum(annual['actual' if annual['settings']['method']=='actual' else 'fixed'].values()) if annual['active'] else 0
     report.add('Home-office deduction included in recorded forecast: ' + aud(included) + '.')
     if sum(annual['extras'].values()):
         report.add('Separately assessed deductions outside the hourly rate: ' + aud(sum(annual['extras'].values())) + '. Included only when claim checks are complete.')
@@ -225,9 +225,11 @@ def home_office_pdf(annual, person):
         ], [65, 49, 60])
     else:
         report.add('No bills linked.')
-    if annual['fixed_issues'] or annual['warnings']:
+    report.add('Actual-cost estimate: ' + aud(sum(annual['actual'].values())) + '. See bills and saved work-use calculations.')
+    claim_issues = annual['actual_issues'] if annual['settings']['method']=='actual' else annual['fixed_issues']
+    if claim_issues or annual['warnings']:
         report.add('Outstanding checks', 'heading')
-        for issue in annual['fixed_issues'] + annual['warnings']:
+        for issue in claim_issues + annual['warnings']:
             report.add('- ' + issue)
     return report.build()
 

@@ -245,6 +245,8 @@ def update_expense(eid):
     e=expense(eid,True)
     if request.method=='DELETE':
         from receipt_routes import delete_receipt_record, remove_receipt_files
+        if one('SELECT 1 FROM billable_expenses WHERE expense_id=? AND document_id IS NOT NULL',(eid,)):
+            fail('Remove the billable link from the invoice before deleting this expense.',409)
         if one('SELECT 1 FROM equipment_assets WHERE expense_id=?',(eid,)) or one('SELECT 1 FROM bank_reconciliations WHERE expense_id=? OR refund_id=?',(eid,eid)): fail('Remove the equipment or reconciliation link before deleting this expense.',409)
         db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
         if e['receipt_id']: delete_receipt_record(e['receipt_id'])
@@ -368,3 +370,9 @@ annual_handover.register(app, auth)
 
 import adviser
 adviser.register(app, auth)
+
+import bank_transfers, billable_expenses, handover_review, recurring_expenses
+bank_transfers.register(app, auth)
+billable_expenses.register(app, auth)
+handover_review.register(app, auth)
+recurring_expenses.register(app, auth)

@@ -78,7 +78,7 @@ const Workspace=(()=>{
    const outstanding=sum(issued,'balance_cents'),overdue=sum(issued.filter(d=>d.status==='overdue'),'balance_cents');
    const metrics=summaryCards(prefs,[
     ['income','money','Business income received',sum(fyPayments,'net_cents'),`Excluding GST · ${yearLabel}`],
-    ['expenses','card','Allocated ordinary expenses',sum(fyExpenses,allocated),`Unreimbursed · ${yearLabel}`],
+    ['expenses','card','Reviewed business expense allocations',sum(fyExpenses.filter(x=>x.status==='ready'),x=>allocated(x,'business')),`Unreimbursed · ${yearLabel}`],
     ['incoming','file','Outstanding invoices',outstanding,`${money(overdue)} overdue · all dates`],
    ]);
    const ordinary=E.filter(e=>!Overnights.isOvernight(e));

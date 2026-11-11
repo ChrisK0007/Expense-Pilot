@@ -9,15 +9,18 @@ const Workflows=(()=>{
  function actions(root,handlers){root.querySelectorAll('[data-workflow]').forEach(b=>b.onclick=async()=>{const fn=handlers[b.dataset.workflow];if(!fn)return;b.disabled=true;try{await fn(b.dataset.id,b);}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});}
  const routes={reconciliation:'reconciliation',rules:'rules',income:'payslip_checks',items:'receipt_items',journeys:'drive_review',equipment:'equipment',questions:'adviser_questions',handover:'annual_handover'};
  const parents={reconciliation:'banks',rules:'expenses',income:'employment',items:'expenses',journeys:'vehicles',equipment:'expenses',questions:'reports',handover:'reports'};
+ const tabLink=(target,label)=>`<a href="#/${target}" ${page===target?'aria-current="page" class="active"':''}>${label}</a>`;
+ function bankLinks(){return `<nav class="page-tabs" aria-label="Bank views">${tabLink('banks','Transactions')}${tabLink('reconciliation','Reconciliation')}${tabLink('bank_accounts','Accounts & feeds')}${tabLink('bank_transfers','Transfers')}</nav>`;}
  function links(parent){const keys=Object.keys(parents).filter(k=>parents[k]===parent);if(parent==='expenses')return `<nav class="section-tools expense-tools" aria-label="Expense tools">
-  <a href="#/expenses" aria-current="page">All expenses</a><a href="#/budgets">Category budgets</a>
-  ${keys.map(k=>`<a href="#/${routes[k]}">${k==='rules'?'Merchant rules':labels[k]}</a>`).join('')}
+  ${tabLink("expenses","All expenses")}${tabLink("budgets","Category budgets")}${tabLink("recurring_expenses","Recurring expenses")}
+  ${keys.map(k=>tabLink(routes[k],k==='rules'?'Merchant rules':labels[k])).join('')}
   <button type="button" id="manage-expense-categories">Category names</button></nav>`;return `<details class="section-tools"><summary>${parent==='employment'?'Optional payslip checks':parent==='vehicles'?'Drive tools':parent==='reports'?'Adviser tools':'Expense tools'}</summary><div class="actions">${keys.map(k=>`<a class="button-link secondary" href="#/${routes[k]}">${labels[k]}</a>`).join('')}${parent==='reports'?'<a class="button-link secondary" href="#/documents">Documents</a>':''}</div></details>`;}
  async function show(next){tab=next;navigate(routes[next]);}
  async function pageView(next){
   if(!next&&page!==routes[tab])return;
   if(next)tab=next;
-  $('#content').innerHTML=heading(labels[tab],'',`<a class="button-link secondary" href="#/${parents[tab]}">Back to ${pageTitles[parents[tab]]}</a>`)+`${['income','equipment','handover'].includes(tab)?`<div class="toolbar">${yearField()}</div>`:''}<section class="panel workflow-panel" id="workflow-body"><p>Loading…</p></section>`;
+  $('#content').innerHTML=heading(labels[tab],'',`<a class="button-link secondary" href="#/${parents[tab]}">Back to ${pageTitles[parents[tab]]}</a>`)+`${parents[tab]==='expenses'?links('expenses'):tab==='reconciliation'?bankLinks():''}${['income','equipment','handover'].includes(tab)?`<div class="toolbar">${yearField()}</div>`:''}<section class="panel workflow-panel" id="workflow-body"><p>Loading…</p></section>`;
+  bind('#manage-expense-categories',()=>Tracking.categories());
   if($('#workflow-year'))$('#workflow-year').onchange=e=>{year=Number(e.target.value);pageView();};
   const target=$('#workflow-body');
   try{await ({reconciliation,rules,income,items,journeys,equipment,questions,handover}[tab])(target);}catch(e){if(target.isConnected)target.innerHTML=`<p class="error">${esc(e.message)}</p>`;}
@@ -119,7 +122,7 @@ const Workflows=(()=>{
   }
 actions(root,{new:()=>{modal('Ask about a record',`<form id="question-new">${select('Record type','record_type',[['expense','Expense'],['income','Employment payment'],['receipt','Receipt'],['document','Supporting document'],['journey','Drive'],['asset','Equipment'],['invoice','Invoice']])}${select('Record','record_id',[])}${field('Question','question','text','','required maxlength="3000"')}<button type="submit">Save question</button></form>`);const load=async()=>{try{const records=await api('workflows/question-records?kind='+$('#record_type').value);$('#record_id').innerHTML=records.map(r=>`<option value="${esc(r.id)}">${esc(r.label)}</option>`).join('');}catch(e){toast(e.message);}};$('#record_type').onchange=load;load();formHandler('#question-new',async v=>{await api('workflows/questions',v);$('#modal').close();pageView();});},answer});
  }
- async function handover(root){root.innerHTML=`<h2>Annual handover</h2><p>Download one ZIP for FY ${year}–${year+1}: a branded PDF summary, expense and income registers, bank links, WFH diary, mileage, equipment, questions and original evidence.</p><p>Open review items are included so your adviser can see what still needs checking. Supporting documents without an assigned year and unfiled inbox originals are included for review.</p><a class="button-link" href="/api/workflows/handover/${year}">Download annual handover</a><p class="footnote">The export contains financial and personal information. Share it through your adviser’s preferred secure channel.</p>`;}
+ async function handover(root){await ExpenseReview.handover(root,year);}
  async function evidence(rid){
   const d=await api('workflows/evidence/'+encodeURIComponent(rid));
   const dialog=document.createElement('dialog');dialog.className='document-viewer';dialog.innerHTML=`<div class="preview-heading"><h2>Check extracted evidence</h2><button type="button" class="ghost" id="close-evidence">Close</button></div><p>${esc(d.notice)}</p>${d.flags.map(f=>`<p class="notice">${esc(f)}</p>`).join('')}<div class="grid2"><div>${table(['Field','Extracted value','Source'],d.fields.map((f,i)=>[esc(f.key.replaceAll('_',' ')),esc(f.value??'Missing'),f.matches.length?button('Highlight '+f.matches.length+' match(es)','highlight',i):'No text match']))}</div><div id="evidence-stage"></div></div><a class="button-link secondary" href="/api/receipts/${encodeURIComponent(rid)}">Download original</a>`;document.body.append(dialog);dialog.querySelector('#close-evidence').onclick=()=>dialog.close();dialog.onclose=()=>dialog.remove();dialog.showModal();
@@ -132,5 +135,5 @@ actions(root,{new:()=>{modal('Ask about a record',`<form id="question-new">${sel
   $('#signin-emails').onchange=async e=>{try{await api('security/signins',{enabled:e.target.checked},'PUT');toast('Sign-in alert preference saved.');}catch(err){e.target.checked=!e.target.checked;toast(err.message);}};actions(root,{signout:async id=>{if(!confirm('Sign out this session?'))return;await api('security/sessions',{id},'DELETE');await boot();}});
  }
  document.addEventListener('click',e=>{const b=e.target.closest('[data-evidence]');if(b)evidence(b.dataset.evidence).catch(e=>toast(e.message));});
- return {page:pageView,attention,openAttention,show,itemise,evidence,security,links};
+ return {bankLinks,page:pageView,attention,openAttention,show,itemise,evidence,security,links};
 })();

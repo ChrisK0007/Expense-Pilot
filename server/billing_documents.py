@@ -1,5 +1,6 @@
 """Billing documents endpoints and services."""
 from billing import bp, owner, reader
+from billable_expenses import save_links, validate_links
 
 @bp.route('/documents', methods=['GET', 'POST'])
 @reader
@@ -27,7 +28,9 @@ def documents():
         values = validate_document(payload)
         from billing_workspace import consume_draft
         consume_draft(payload, 'new-' + values['kind'])
+        linked=validate_links(values)
         did = insert_document(values, custom_number=payload.get('number'))
+        save_links(did,linked)
         if key:
             db().execute('INSERT INTO billing_document_requests(user_id,request_key,fingerprint,document_id) VALUES (?,?,?,?)', (g.user['id'],key,fingerprint,did))
         db().commit()
@@ -86,6 +89,9 @@ def document_detail(did):
             fail('Document type cannot be changed.')
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:
             fail('This invoice contains linked time entries for its current client.')
+        linked=validate_links(values,did)
+        if doc['state']=='issued' and not {line['source_expense_id'] for line in doc['lines'] if line.get('source_expense_id')} <= set(linked):
+            fail('Void an issued invoice before removing a billed expense.',409)
         check_payments(doc,values)
         from billing_workspace import consume_draft
         consume_draft(payload, 'document-' + str(did))
@@ -97,6 +103,7 @@ def document_detail(did):
                    'payment_details', 'lines', 'subtotal_cents', 'gst_cents', 'total_cents', 'reminders_enabled', 'reminder_options', 'due_date_manual']
         data = [json.dumps(values[k]) if k in ('client', 'business', 'lines', 'reminder_options') else values[k] for k in columns]
         db().execute('UPDATE billing_documents SET ' + ','.join(k + '=?' for k in columns) + ',version=version+1 WHERE id=?', data + [did])
+        save_links(did,linked)
         if doc['state']=='issued':
             db().execute('UPDATE billing_documents SET needs_reissue=1 WHERE id=?',(did,))
         audit('invoice amended' if doc['state']=='issued' else 'draft updated', did)
@@ -194,6 +201,7 @@ def document_action(did):
         if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')", (did,)):
             fail('Resolve the pending or uncertain email delivery before voiding this document.', 409)
         db().execute("UPDATE billing_documents SET state='void',version=version+1 WHERE id=?", (did,))
+        save_links(did,[])
         db().execute('UPDATE billing_time SET document_id=NULL WHERE document_id=?', (did,))
     else:
         fail('Unknown document action.')
