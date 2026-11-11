@@ -11,6 +11,7 @@ The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.m
 - Review bank transactions alongside the feed, view supporting documents alongside their register and answer adviser questions beside the linked record.
 - Bring invoice and quote editing into a consistent two-column workspace with the actual PDF preview. Keep existing payment, reminder, draft recovery, evidence and record controls.
 - Adapt record tables to labelled cards on mobile while retaining their underlying table semantics, controls and data. Both appearance themes use the shared palette.
+- Refresh the receipt queue before reporting a reprocessing result, so a failed AI read can be retried immediately.
 
 ## 1.0.7-beta.2 — Web workspace redesign (2026-11-10)
 

@@ -63,10 +63,13 @@ async function main() {
       const response=await route.fetch(),records=await response.json();
       await route.fulfill({response,json:records.map(r=>r.id===reprocessedId&&scanAttempts>1?{...r,scan_status:'scanned',extraction:{merchant:'Reprocessed test merchant',date:'2026-10-08',amount:25.5,currency:'AUD',category:'Equipment'}}:r)});
     });
+    let retryReceiptId='';
     const reprocessFirst=async()=>{
-     await page.locator('.inbox-row .reprocess-receipt:not([disabled])').first().waitFor({state:'attached'});
-     await page.locator('.inbox-row').first().getByRole('button',{name:/Document actions/}).click();
-     await page.locator('.action-popup:popover-open .reprocess-receipt').click();
+     if(!retryReceiptId)retryReceiptId=await page.locator('.inbox-row .review-receipt').first().getAttribute('data-rid');
+     const row=page.locator('.inbox-row').filter({has:page.locator('.review-receipt[data-rid="'+retryReceiptId+'"]')});
+     await row.locator('.reprocess-receipt:not([disabled])').waitFor({state:'attached'});
+     await row.getByRole('button',{name:/Document actions/}).click();
+     await page.locator('.action-popup:popover-open .reprocess-receipt[data-rid="'+retryReceiptId+'"]').click();
     };
     await reprocessFirst();
     await page.getByText('Reprocessing failed. Test AI temporarily unavailable',{exact:true}).waitFor();
