@@ -1,5 +1,8 @@
 'use strict';
 const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function themeControl(id){
+ return typeof Theme==='undefined'?'':Theme.control(id);
+}
 const money=c=>new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format((c||0)/100),today=()=>WorkspaceTime.day();
 let S={},E=[],T=[],A=[],U=[],V=[],page='dashboard',filters={scopes:['work','business','personal'],status:'all',search:'',fy:'all'};
 const role=()=>S.user?.role,owner=()=>role()==='owner',bookkeeper=()=>owner()||(role()==='tax_agent'&&S.user.permission==='read_write'),editor=()=>bookkeeper();
@@ -175,13 +178,13 @@ function render(){
    </nav>
    <div class="sidebar-bottom">
     <div class="workspace"><span class="avatar">${esc(S.user.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</span><div><strong>${esc(S.user.name)}</strong><small id="workspace-business">${Features.enabled('business')?esc(S.business_name||'Your workspace'):'Employment expenses'}</small></div></div>
-    ${Theme.control()}<button id="logout" class="ghost wide">Sign out ↪</button>
+    ${themeControl()}<button id="logout" class="ghost wide">Sign out ↪</button>
     <small>Expense Pilot · v${esc(S.version)} · <a href="/about" target="_blank" rel="noopener">Source & licences</a></small>
    </div>
   </aside>
   <main class="main"><div class="topline"><span class="workspace-breadcrumb">Workspace ${WorkspaceUI.icon('chev')} <strong>${title}</strong></span>
    <span class="mobile-brand"><img src="/static/expense-pilot-logo.png" alt="">Expense Pilot</span>
-   <span class="mobile-theme">${Theme.control('mobile-theme-choice')}</span><div class="topline-actions"><span class="desktop-private">AUD</span><div id="notification-bell"></div></div></div>
+   <span class="mobile-theme">${themeControl('mobile-theme-choice')}</span><div class="topline-actions"><span class="desktop-private">AUD</span><div id="notification-bell"></div></div></div>
    <div id="content" data-workspace-page="${page}"></div>
   </main>
   ${WorkspaceUI.moreMenu()}
@@ -333,7 +336,8 @@ function accountSettingsPage(){
   </div></div><footer class="settings-footer"><span>Expense Pilot ${esc(S.version)} · ${esc(S.user.email)}</span><button class="secondary" id="signout">Sign out</button></footer>`;
  RefinedSettings.bind();
  bind('#settings-tax-agent',()=>navigate('team'));
- $('#settings-appearance-cards').innerHTML=`<section class="card appearance-settings"><h3>Display</h3><p class="muted">Saved in this browser.</p>${Theme.control('settings-theme-choice')}</section>`;
+ const displayControl=themeControl('settings-theme-choice');
+ $('#settings-appearance-cards').innerHTML=`<section class="card appearance-settings"><h3>Display</h3>${displayControl?`<p class="muted">Saved in this browser.</p>${displayControl}`:'<p class="muted">Display controls are temporarily unavailable. Reload to try again.</p>'}</section>`;
  $('#settings-security-cards').innerHTML=`<section class="card"><h3>Change password</h3><p class="muted">Update the password for your own login.</p><form id="password-form">${field('Current password','current','password','','required autocomplete="current-password"')}${field('New password','password','password','','required minlength="12" autocomplete="new-password"')}${S.user.totp_enabled?field('Authenticator or recovery code','code','text','','required autocomplete="one-time-code" maxlength="40"'):''}<button type="submit">Update password</button></form></section><section class="card" id="security-settings"><h3>Two-factor authentication</h3><p>Loading security settings…</p></section>${owner()?'<section class="card" id="invitation-settings"><h3>Account invitations</h3><p>Loading invitation settings…</p></section><section class="card"><h3>Tax agent access & activity</h3><p class="muted">Invite your tax agent, manage permissions and review account activity.</p><div class="settings-options"><button class="secondary" id="manage-tax-agents">Manage tax agent access →</button><button class="secondary" id="audit">View activity log</button></div></section>':''}`;
  formHandler('#password-form',async d=>{await api('password',d);toast('Password changed. Sign in again.');await boot()});bind('#signout',async()=>{await api('logout',{});await boot()});bind('#audit',async()=>{try{const r=await api('audit');modal('Recent activity',`<div class="table-wrap"><table><thead><tr><th>UTC time</th><th>Person</th><th>Action</th></tr></thead><tbody>${r.map(a=>`<tr><td>${esc(dateAU(a.at))}</td><td>${esc(a.name||'System')}</td><td>${esc(a.action)}</td></tr>`).join('')}</tbody></table></div>`)}catch(e){toast(e.message)}})}
 function editTrip(t){modal('Edit overnight trip',`<form id="edit-trip-form"><div class="grid2">${field('Location','location','text',t.location,'required')}${select('Workspace','scope',Features.scopes(t.scope,false),t.scope)}${field('Departure','start','date',t.start,'required')}${field('Return','end','date',t.end,'required')}${allowanceField(t.allowance_cents)}<div class="span2">${field('Purpose','purpose','text',t.purpose,'required')}</div></div><div class="modal-footer"><button type="button" class="danger" id="delete-trip">Delete trip</button><button type="submit">Save changes</button></div></form>`);formHandler('#edit-trip-form',async d=>{await api('trips/'+t.id,{...d,allowance:d.allowance||0},'PUT');$('#modal').close();await refresh();render();toast('Trip updated')});bind('#delete-trip',async()=>{if(!confirm('Delete this trip? Linked expenses must be removed first.'))return;try{await api('trips/'+t.id,{},'DELETE');$('#modal').close();await refresh();render()}catch(e){toast(e.message)}})}
