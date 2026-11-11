@@ -39,7 +39,7 @@ class ClaimAndReviewTest(unittest.TestCase):
 
     def test_posted_charge_reuses_existing_expense(self):
         aid,bid=self.bank('Checking',-1230,'GitHub')
-        e=self.expense(self.owner,merchant='GitHub',amount='12.30',account_id=aid)
+        e=self.expense(self.owner,merchant='GitHub',category='Subscriptions',amount='12.30',account_id=aid)
         self.assertEqual(e.status_code,200,e.json)
         rule=self.call(self.owner,'recurring-expenses',dict(merchant='GitHub',start='2026-10-08',interval='monthly',
             category='Subscriptions',amount='10',account_id=aid,work_percent=20,business_percent=60))
@@ -69,7 +69,7 @@ class ClaimAndReviewTest(unittest.TestCase):
 
     def test_billable_expense_is_reserved_to_one_invoice_and_released_on_delete(self):
         client=self.call(self.owner,'billing/clients',dict(name='Example client')).json['id']
-        eid=self.expense(self.owner,scope='business',amount='50',status='ready').json['id']
+        eid=self.expense(self.owner,scope='business',category='Other',amount='50',status='ready').json['id']
         self.assertEqual(self.call(self.owner,f'expenses/{eid}/billable',dict(client_id=client),'PUT').status_code,200)
         payload=dict(kind='invoice',client_id=client,issue_date='2026-10-08',due_date='2026-10-22',tax_mode='none',
                      lines=[dict(description='Travel',quantity='1',unit_price='50.00',source_expense_id=eid)])
@@ -84,11 +84,11 @@ class ClaimAndReviewTest(unittest.TestCase):
     def test_handover_retains_prior_figures_and_rejects_a_stale_preview(self):
         path='workflows/handover/2026/review'
         previous=self.owner.get('/api/'+path).json
-        self.expense(self.owner,scope='work',amount='12',status='ready')
+        self.expense(self.owner,scope='work',category='Other',amount='12',status='ready')
         self.assertEqual(self.call(self.owner,path,dict(note='First review',token=previous['token'])).status_code,409)
         first=self.owner.get('/api/'+path).json
         self.assertEqual(self.call(self.owner,path,dict(note='First review',token=first['token'])).status_code,200)
-        self.expense(self.owner,scope='work',amount='15',status='ready')
+        self.expense(self.owner,scope='work',category='Other',amount='15',status='ready')
         next_state=self.owner.get('/api/'+path).json
         self.assertIn(dict(key='work_deductions_cents',before=1200,after=2700),next_state['changes'])
         self.assertEqual(self.call(self.owner,path,dict(note='Late receipt',token=next_state['token'])).json['revision'],2)
