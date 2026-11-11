@@ -164,6 +164,8 @@ jobs:
           docker inspect --format 'OOMKilled={{.State.OOMKilled}} Running={{.State.Running}}' expense-pilot-ui
       - name: Upload browser evidence
         if: always()
+        continue-on-error: true
+        timeout-minutes: 5
         uses: actions/upload-artifact@v4
         with:
           name: browser-evidence
