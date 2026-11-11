@@ -8,7 +8,11 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   await post('login',{email:'owner@example.test',password:'Browser-test-password-123'});
   const e=await post('expenses',{date:'2026-10-08',merchant:'Workflow Stationery',amount:100,scope:'business',work_percent:0,business_percent:100,category:'Other',status:'ready'});
   await page.goto(url+'/#/banks');await page.locator('#content h1').filter({hasText:'Bank accounts'}).waitFor();
-  assert.equal(await page.locator('nav [data-page=review_tools]').count(),0);await page.locator('.section-tools summary').click();await page.getByRole('link',{name:'Reconcile payments',exact:true}).click();await page.locator('#content h1').filter({hasText:'Bank reconciliation'}).waitFor();
+  assert.equal(await page.locator('nav [data-page=review_tools]').count(),0);
+  const bankViews=page.getByRole('navigation',{name:'Bank views'});
+  await bankViews.getByRole('link',{name:'Reconciliation',exact:true}).click();
+  await page.locator('#content h1').filter({hasText:'Bank reconciliation'}).waitFor();
+  await bankViews.getByRole('link',{name:'Transactions',exact:true}).waitFor();
   await page.goto(url+'/#/expenses');await page.getByRole('link',{name:'Merchant rules',exact:true}).click();await page.getByRole('button',{name:'Create rule',exact:true}).click();
   await page.getByLabel('Merchant (exact name)').fill('Workflow Stationery');await page.locator('#rule-form #category').selectOption('Training');await page.locator('#rule-form #work_percent').fill('80');await page.locator('#rule-form #business_percent').fill('10');await page.getByRole('button',{name:'Save rule',exact:true}).click();
   await page.getByRole('button',{name:'Preview affected expenses',exact:true}).click();await page.getByRole('heading',{name:'Preview rule application',exact:true}).waitFor();
@@ -20,7 +24,21 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   await post(`workflows/items/${e.id}`,{token:p.token,items:[{description:'Business stationery',amount:60,category:'Other',work_percent:0,business_percent:100},{description:'Private item',amount:40,category:'Other',work_percent:0,business_percent:0}]},'PUT');
   await page.goto(url+'/#/receipt_items');await page.locator('#workflow-body tr').filter({hasText:'Workflow Stationery'}).getByRole('button',{name:'Edit items',exact:true}).click();
   await page.locator('#items-form .workflow-item').nth(1).waitFor();assert.equal(await page.locator('#items-form .workflow-item').count(),2);await page.getByRole('button',{name:'Save item breakdown',exact:true}).click();await page.locator('#modal').waitFor({state:'hidden'});
-  for(const [parent,route,title] of [['employment','payslip_checks','Payslip checks'],['vehicles','drive_review','Drive review'],['expenses','equipment','Deductions'],['reports','annual_handover','Annual handover'],['reports','adviser_questions','Adviser questions']]){await page.goto(url+'/#/'+parent);if(parent!=='expenses')await page.locator('.section-tools summary').click();await page.getByRole('link',{name:title,exact:true}).click();await page.locator('#workflow-body').waitFor();await page.waitForFunction(()=>!document.querySelector('#workflow-body').textContent.includes('Loading…'));assert.equal(await page.locator('#workflow-body>.error').count(),0,title);assert.ok(page.url().endsWith('/'+route));}
+  for(const [parent,route,title] of [['employment','payslip_checks','Payslip checks'],['vehicles','drive_review','Drive review'],['expenses','equipment','Deductions'],['reports','annual_handover','Annual handover'],['reports','adviser_questions','Adviser questions']]){
+   await page.goto(url+'/#/'+parent);
+   if(parent==='vehicles'){
+    await page.getByRole('heading',{name:'Vehicles',exact:true}).waitFor();
+    assert.equal(await page.getByText('Drive tools',{exact:true}).count(),0);
+    await page.locator('nav [data-page=drive_review]:visible').click();
+   }else{
+    if(parent!=='expenses')await page.locator('.section-tools summary').click();
+    await page.getByRole('link',{name:title,exact:true}).click();
+   }
+   await page.locator('#workflow-body').waitFor();
+   await page.waitForFunction(()=>!document.querySelector('#workflow-body').textContent.includes('Loading…'));
+   assert.equal(await page.locator('#workflow-body>.error').count(),0,title);
+   assert.ok(page.url().endsWith('/'+route));
+  }
   await page.screenshot({path:output+'/workflow-adviser-desktop.png',fullPage:true});
   await page.getByRole('button',{name:'Ask a question',exact:true}).click();
   await page.locator('#question-new #record_id').selectOption(String(e.id));await page.getByLabel('Question',{exact:true}).fill('Check this use percentage.');await page.getByRole('button',{name:'Save question',exact:true}).click();await page.getByText('Check this use percentage.',{exact:true}).waitFor();
