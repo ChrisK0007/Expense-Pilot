@@ -220,7 +220,7 @@ New database tables are created automatically on startup. Existing users, expens
 
 Open **Spending & allowances** on an overnight trip. Choose an Australian locality or overseas country and enter the applicable annual salary for the ATO lookup. Overseas meal rates are shown as daily amounts. Partial overseas meal days require review. The ATO amount is a record-keeping reference when a qualifying employer allowance covers the expense. Confirm the supported actual costs to include them in the forecast. Changes to reviewed trip spending require another confirmation.
 
-In **Reports → Annual handover**, save the figures reviewed with your tax agent. Later changes to recorded amounts appear against the last saved revision. Download the handover ZIP for the current registers and saved revision history.
+In **Reports → Annual handover**, save the figures reviewed with your tax agent. Later changes to recorded amounts and tracked records appear against the last saved revision. Download the handover ZIP for the current registers and saved revision history.
 
 ### Feature comparison and current boundaries
 

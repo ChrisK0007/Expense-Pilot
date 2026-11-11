@@ -217,7 +217,7 @@ def home_office_pdf(annual, person):
         from home_office import COVERED, KINDS
         report.table(['Date / supplier', 'Type', 'Record status'], [
             [day(e['date']) + '\n' + e['merchant'], KINDS[e['home_office_kind']],
-             ('Evidence only' if e['home_office_kind'] in COVERED else 'Separate deduction') + '\n' +
+             ('Actual cost: '+aud(sum(e['running_actual'].values())) if e.get('actual_calculation') else 'Bill evidence' if e['home_office_kind'] in COVERED else 'Separate deduction') + '\n' +
              ('Bill attached' if e['receipt_id'] else 'Bill missing') +
              ('; type confirmed' if e['classification_confirmed'] else '; confirm type') +
              ('; reimbursed - excluded' if e['reimbursed'] else '') + ('; expense needs review' if e['status'] != 'ready' else '')]
@@ -225,6 +225,7 @@ def home_office_pdf(annual, person):
         ], [65, 49, 60])
     else:
         report.add('No bills linked.')
+    report.add('Claim method: ' + {'fixed':'Fixed rate','actual':'Actual cost','none':'Not selected'}[annual['settings']['method']])
     report.add('Actual-cost estimate: ' + aud(sum(annual['actual'].values())) + '. See bills and saved work-use calculations.')
     claim_issues = annual['actual_issues'] if annual['settings']['method']=='actual' else annual['fixed_issues']
     if claim_issues or annual['warnings']:

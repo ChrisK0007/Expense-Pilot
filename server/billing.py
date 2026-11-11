@@ -196,7 +196,7 @@ def document(did):
     return hydrate(row)
 
 
-def validate_document(payload, terms=None):
+def validate_document(payload, terms=None, billable=False):
     kind = payload.get('kind', 'invoice')
     if kind not in ('invoice', 'quote'):
         raise ValueError('Choose an invoice or quote.')
@@ -206,6 +206,9 @@ def validate_document(payload, terms=None):
     seller = business()
     mode = payload.get('tax_mode', 'none')
     amounts = calculate_lines(payload.get('lines'), mode, seller['gst_registered'])
+    if not billable:
+        for line in amounts['lines']:
+            line.pop('source_expense_id',None)
     issued = day(payload.get('issue_date', local_today()))
     due_manual=payload.get('due_date_manual', True)
     if type(due_manual) not in (bool,int) or due_manual not in (0,1):

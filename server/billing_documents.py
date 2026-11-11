@@ -25,7 +25,7 @@ def documents():
                 if not db().execute('SELECT id FROM billing_documents WHERE id=?', (prior['document_id'],)).fetchone(): fail('That invoice was deleted. Start a new invoice.',409)
                 db().commit()
                 return jsonify(id=prior['document_id'])
-        values = validate_document(payload)
+        values = validate_document(payload,billable=True)
         from billing_workspace import consume_draft
         consume_draft(payload, 'new-' + values['kind'])
         linked=validate_links(values)
@@ -84,7 +84,7 @@ def document_detail(did):
         payload.setdefault('reminders_enabled', bool(doc['reminders_enabled']))
         payload.setdefault('reminder_options', doc['reminder_options'])
         schedule=one('SELECT terms FROM billing_schedules WHERE id=?',(doc['schedule_id'],)) if doc['schedule_id'] and str(payload.get('client_id'))==str(doc['client_id']) else None
-        values = validate_document(payload, terms=schedule['terms'] if schedule else None)
+        values = validate_document(payload, terms=schedule['terms'] if schedule else None,billable=True)
         if values['kind'] != doc['kind']:
             fail('Document type cannot be changed.')
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:

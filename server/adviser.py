@@ -96,7 +96,7 @@ def snapshot(year,agent_id=None):
     data['overnight_trips']=[fields(t,'id scope location start end purpose allowance_cents') for t in rows('SELECT * FROM trips WHERE user_id=?',(uid,)) if t['id'] in trip_ids]
     import home_office
     if year in (2024,2025,2026,2027):
-        h=home_office.summary(year);data['home_office_summary']=fields(h,'status hourly active minutes rate_cents fixed extras fixed_issues warnings allowance_income_cents')
+        h=home_office.summary(year);data['home_office_summary']=fields(h,'status hourly active minutes rate_cents fixed actual extras fixed_issues actual_issues warnings allowance_income_cents')
         data['home_office_summary']['settings']=h.get('settings',{})
     else: data['home_office_summary']={}
     # Tax assumptions are relevant; savings/set-aside targets are personal budgeting.

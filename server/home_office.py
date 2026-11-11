@@ -474,10 +474,16 @@ def register(app, auth):
         for issue in (s['actual_issues'] if s['settings']['method']=='actual' else s['fixed_issues'])+s['warnings']: write('Review',issue)
         write('Diary ID','Date','Start','End','Timezone','Break minutes','Scope','Activity','Created UTC','Updated UTC')
         for e in s['entries']: write(e['id'],e['date'],e['start_time'],e['end_time'],e['timezone'],e['break_minutes'],e['scope'],e['activity'],e['created_at'],e['updated_at'])
-        write('Bill ID','Date','Merchant','Type','Original AUD','Assessed base AUD','Assessed employment amount AUD','Assessed business amount AUD','Receipt ID','Reimbursed','Review status','Notes / separate deduction basis','Recorded forecast employment AUD','Recorded forecast business AUD')
+        write('Bill ID','Date','Merchant','Type','Original AUD','Assessed base AUD','Assessed employment amount AUD','Assessed business amount AUD','Receipt ID','Reimbursed','Review status','Notes / separate deduction basis','Recorded forecast employment AUD','Recorded forecast business AUD','Actual-cost calculation')
         for e in s['costs']:
+            assessed=e.get('running_actual') or dict(work=e['actual_work_cents'],business=e['actual_business_cents'])
             effective=adjusted(e,s) if e['status']=='ready' else (0,0)
-            write(e['id'],e['date'],e['merchant'],e['home_office_kind'],e['amount_cents']/100,None if e['claim_base_cents'] is None else e['claim_base_cents']/100,e['actual_work_cents']/100,e['actual_business_cents']/100,e['receipt_id'],e['reimbursed'],e['status'],e['basis'],effective[0]/100,effective[1]/100)
+            if s['active'] and s['settings']['method']=='actual' and e['home_office_kind'] in COVERED:
+                effective=(assessed['work'],assessed['business'])
+            write(e['id'],e['date'],e['merchant'],e['home_office_kind'],e['amount_cents']/100,
+                  None if e['claim_base_cents'] is None else e['claim_base_cents']/100,
+                  assessed['work']/100,assessed['business']/100,e['receipt_id'],e['reimbursed'],e['status'],
+                  e['basis'],effective[0]/100,effective[1]/100,json.dumps(e['actual_calculation']))
         write('Allowance ID','Date','Employer','Amount AUD','Already in recorded gross pay','Notes')
         for a in s['allowances']: write(a['id'],a['date'],a['employer'],a['amount_cents']/100,bool(a['included_in_pay']),a['notes'])
         write('Source',SOURCE,'Checked',s['rules_checked'])

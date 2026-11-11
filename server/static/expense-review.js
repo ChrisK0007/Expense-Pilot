@@ -138,13 +138,15 @@ const ExpenseReview=(()=>{
   const labels={salary_cents:'Recorded employment income',withheld_cents:'Recorded PAYG withheld',
     business_income_cents:'Recorded business income',business_deductions_cents:'Business deductions in forecast',
     work_deductions_cents:'Employment deductions in forecast',overnight_work_cents:'Recorded employment overnights',
-    overnight_business_cents:'Recorded business overnights'};
+    overnight_business_cents:'Recorded business overnights',work_allocations_cents:'Reviewed employment allocations',business_allocations_cents:'Reviewed business allocations'};
+  const changed=d.changes.length||d.record_changes.length;
   root.innerHTML=`<h2>Annual handover</h2><p>Download your financial-year registers, outstanding review items and original evidence.</p>
    <div class="actions"><a class="button-link secondary" href="/api/${path}">Download annual handover</a></div>
-   <h3>Reviewed figures</h3><p>${d.revision?`Revision ${d.revision} · ${d.changes.length?'Recorded amounts have changed':'Recorded amounts match'}`:'Save the figures reviewed by your tax agent.'}</p>
+   <h3>Reviewed figures</h3><p>${d.revision?`Revision ${d.revision} · ${changed?'Records have changed':'Records match'}`:'Save the figures reviewed by your tax agent.'}</p>
    ${d.changes.length?table(['Amount','Last reviewed','Current'],d.changes.map(c=>[esc(labels[c.key]||c.key),money(c.before),money(c.after)])):
     table(['Recorded amount','Current'],Object.entries(d.current).map(([key,v])=>[esc(labels[key]||key),money(v)]))}
-   ${bookkeeper()&&(!d.revision||d.changes.length)?`<form id="handover-review-form">${field('Reviewed by or reason for revision','note','text','','required maxlength="500"')}<button type="submit">${d.revision?'Save revised figures':'Finalise reviewed figures'}</button></form>`:''}
+   ${d.record_changes.length?`<h3>Changed records</h3>${table(['Register','Record','Change'],d.record_changes.map(c=>[esc(c.register.replaceAll('_',' ')),esc(c.label||'#'+c.id),esc(c.change)]))}`:''}
+   ${bookkeeper()&&(!d.revision||changed)?`<form id="handover-review-form">${field('Reviewed by or reason for revision','note','text','','required maxlength="500"')}<button type="submit">${d.revision?'Save revised figures':'Finalise reviewed figures'}</button></form>`:''}
    ${d.history.length?`<h3>Revision history</h3>${table(['Revision','Saved','Review note'],d.history.map(r=>[r.revision,esc(r.created_at),esc(r.note)]))}`:''}`;
   if($('#handover-review-form'))formHandler('#handover-review-form',async p=>{
    await api(path+'/review',{note:p.note,token:d.token});
