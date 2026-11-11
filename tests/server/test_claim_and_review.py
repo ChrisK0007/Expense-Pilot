@@ -8,10 +8,22 @@ from app import app, db, one
 
 
 class ClaimAndReviewTest(unittest.TestCase):
-    setUp = test_app.AppTest.setUp
     call = test_app.AppTest.call
     login = test_app.AppTest.login
     expense = test_app.AppTest.expense
+
+    def setUp(self):
+        test_app.AppTest.setUp(self)
+        self.addCleanup(self.clear_review_links)
+
+    def clear_review_links(self):
+        # Several integration suites share the fixture database and reset its
+        # original parent tables. Remove the new child records first.
+        with app.app_context():
+            for table in ('recurring_expense_occurrences', 'recurring_expense_rules',
+                          'bank_transfer_pairs', 'billable_expenses', 'handover_revisions'):
+                db().execute('DELETE FROM ' + table)
+            db().commit()
 
     def bank(self, name, cents, payee):
         with app.app_context():

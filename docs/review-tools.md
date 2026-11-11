@@ -7,7 +7,7 @@ Beta 1.0.6-beta.13 places actionable items in the **notification bell** at the t
 | Bank accounts → Matching options | Suggested matches and payment reconciliation |
 | Expenses → Expense tools | Categorisation rules, receipt items, equipment |
 | Employment income → Optional payslip checks | Pay-period and YTD comparisons |
-| Vehicles → Drive tools | Bulk classification, split, merge and undo |
+| Tracking → Drives | Bulk classification, split, merge and undo |
 | Reports → Adviser tools | Adviser questions and annual handover |
 
 Needs attention contains failed document reads, expenses awaiting review, ambiguous bank matches, changed/missing linked bank records, work/business drives missing a purpose, annual evidence checks, open adviser questions and failed sign-in alerts. Normal inbox drafts, ordinary unmatched transactions, valid classified drives and optional payslip comparisons stay in their own sections.
@@ -45,6 +45,8 @@ Daily drive review supports bulk classification, merge, split and undo. Merges r
 Equipment records retain original cost, use, linked purchase, annual depreciation and disposal details. Choose manual annual amounts or a reviewed automatic setup. Automatic schedules support prime cost, diminishing value and eligible immediate deductions; confirm the method, effective life and eligibility. See [equipment calculations](equipment-calculations.md). The linked purchase remains in spending but is excluded from ordinary forecast deductions. Confirmed annual depreciation and clearly labelled eligible automatic estimates enter the forecast once, without annualising them; existing annual overrides take precedence. Carrying values reflect entered depreciation, including drafts. Disposal proceeds and balancing tax adjustments require adviser review and are not automatically posted as income.
 
 Adviser questions link to an expense, pay record, receipt, supporting document, drive, asset or invoice. Read-only tax agents may ask, answer and resolve questions, but cannot modify financial records.
+
+Save reviewed figures in **Reports → Annual handover**. Subsequent edits are shown against the most recent revision. Save a revised set when you have reviewed the changes.
 
 The owner’s full annual ZIP includes a branded PDF summary, CSV registers, outstanding items, adviser questions, linked receipt originals, supporting documents and SHA-256 manifest. Supporting documents with no year, unfiled inbox originals and older equipment evidence are included for review. The export snapshots and pins evidence before building the archive, and stops if an original is missing or fails its stored checksum. The original-file limit is 1 GB. It contains no session key or connection credentials.
 
