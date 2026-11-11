@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.7-beta.3**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.7-beta.4**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -206,9 +206,21 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.3**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.4**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
+
+### Review recurring charges, transfers and invoices
+
+- In **Expenses → Recurring expenses**, set a merchant, bank account, repeat interval, expected amount and expense allocations. Review due payments against posted charges. The posted amount is used and an existing matching purchase is linked when available. A payment awaiting a charge stays outside your expense totals.
+- In **Bank accounts → Transfers**, select the outgoing and incoming transactions for a transfer or card repayment. Both must be posted AUD entries on different accounts for the same amount. You can unpair them from the same screen.
+- From a reviewed business expense, choose **Bill to client**. In the client’s draft invoice, choose **Add billable expense**. The line stays linked to the expense and is reserved to one invoice.
+
+### Review overnight deductions and annual handover
+
+Open **Spending & allowances** on an overnight trip. Choose an Australian locality or overseas country and enter the applicable annual salary for the ATO lookup. Overseas meal rates are shown as daily amounts. Partial overseas meal days require review. The ATO amount is a record-keeping reference when a qualifying employer allowance covers the expense. Confirm the supported actual costs to include them in the forecast. Changes to reviewed trip spending require another confirmation.
+
+In **Reports → Annual handover**, save the figures reviewed with your tax agent. Later changes to recorded amounts and tracked records appear against the last saved revision. Download the handover ZIP for the current registers and saved revision history.
 
 ### Feature comparison and current boundaries
 

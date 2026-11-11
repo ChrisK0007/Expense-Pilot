@@ -141,13 +141,16 @@ def tax_forecast(year):
         gst=rounded(Decimal(payment['gst_cents'])*after/payment['total_cents'])-rounded(Decimal(payment['gst_cents'])*before/payment['total_cents'])
         if start<=payment['date']<=end: business_income+=payment['amount_cents']-gst
     expenses=rows("SELECT e.* FROM expenses e JOIN users u ON u.id=e.user_id WHERE e.date BETWEEN ? AND ? AND e.status='ready' AND e.scope!='personal' AND e.reimbursed=0 AND (e.scope='business' OR u.role='owner')",(start,end))
-    from overnights import is_overnight
+    from overnights import is_overnight, reviewed_totals
     overnight_expenses=[e for e in expenses if is_overnight(e)]
     from expense_workflows import components
     capitalised={r['expense_id'] for r in rows('SELECT expense_id FROM equipment_assets WHERE expense_id IS NOT NULL')}
     expenses=[part for e in expenses if not is_overnight(e) and e['id'] not in capitalised for part in components(e)]
     from home_office import forecast_adjustments
     home_office,work_deductions,business_deductions=forecast_adjustments(year,expenses)
+    overnight_claim=reviewed_totals(year,rows("SELECT * FROM trips WHERE end>=? AND start<=? AND comparison_json!='{}'",(start,end)))
+    work_deductions+=overnight_claim['work']
+    business_deductions+=overnight_claim['business']
     salary['gross']+=home_office['allowance_income_cents']
     unreviewed=one("SELECT COUNT(*) n FROM expenses WHERE date BETWEEN ? AND ? AND scope!='personal' AND status='review' AND trip_id IS NULL AND meal='' AND category!='Meals'",(start,end))['n']
     import workspace_time
@@ -167,4 +170,4 @@ def tax_forecast(year):
     profit=forecast['business_income_cents']-forecast['business_deductions_cents']+(settings.get('gst_credits') or 0)
     taxable=forecast['salary_cents']+max(0,profit)-forecast['work_deductions_cents']+(settings.get('other_income') or 0)-(settings.get('other_deductions') or 0)
     result=estimate(taxable,year,forecast['withheld_cents'],settings.get('instalments') or 0,settings.get('medicare_override'),settings.get('other_tax') or 0,settings.get('set_aside') or 0)
-    return jsonify(year=year,start=start,end=end,settings=settings,equipment=equipment_details,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions,overnight_work_cents=sum(allocations(e)[0] for e in overnight_expenses),overnight_business_cents=sum(allocations(e)[1] for e in overnight_expenses)),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,projection_factor=float(factor),as_of=current.isoformat(),home_office=dict(status=home_office['status'],method=home_office['settings']['method'],active=home_office['active'],hourly=home_office['hourly'] if home_office['active'] and home_office['settings']['method']=='fixed' else dict(work=0,business=0),allowance_income_cents=home_office['allowance_income_cents']))
+    return jsonify(year=year,start=start,end=end,settings=settings,equipment=equipment_details,recorded=dict(salary_cents=salary['gross'],withheld_cents=salary['withheld'],business_income_cents=business_income,business_deductions_cents=business_deductions,work_deductions_cents=work_deductions,overnight_work_cents=sum(allocations(e)[0] for e in overnight_expenses),overnight_business_cents=sum(allocations(e)[1] for e in overnight_expenses)),forecast=forecast,estimate=result,business_loss_cents=max(0,-profit),unreviewed=unreviewed,overnight_claim=overnight_claim,projection_factor=float(factor),as_of=current.isoformat(),home_office=dict(status=home_office['status'],method=home_office['settings']['method'],active=home_office['active'],hourly=home_office['hourly'] if home_office['active'] and home_office['settings']['method']=='fixed' else dict(work=0,business=0),allowance_income_cents=home_office['allowance_income_cents']))

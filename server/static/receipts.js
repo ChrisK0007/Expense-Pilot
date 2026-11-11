@@ -64,13 +64,16 @@ async function pageView(){
      ${WorkspaceUI.icon('inbox')}<h2>Choose a document to review</h2><p class="muted">The original and its details will appear here.</p></div></section>
    </div>
    <button class="ghost inbox-preferences" id="receipt-preferences-button">${WorkspaceUI.icon('settings')} Home base & receipt sorting</button>`;
- $('#inbox-search').oninput=event=>{query=event.target.value;drawQueue();};
+ const search=$('#inbox-search');
+ let loaded=false;
+ search.oninput=event=>{query=event.target.value;if(loaded)drawQueue();};
  bind('#reprocess-all',()=>{if(closeReview())reprocessAll();});
  bind('#capture-receipts',()=>{if(closeReview())capture();});
  bind('#receipt-preferences-button',()=>{if(closeReview())Tracking.preferences().catch(e=>toast(e.message));});
  try{
   await load();
-  if(!root.isConnected||page!=='receipts')return;
+  if(!search.isConnected||page!=='receipts')return;
+  loaded=true;
   if(!query)queue=readyQueue().length?'ready':'draft';
   draw();
  }catch(e){if(page==='receipts')toast(e.message);}

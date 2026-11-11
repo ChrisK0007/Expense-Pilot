@@ -60,6 +60,11 @@ def calculate_lines(items, tax_mode, gst_registered):
         result.append(dict(description=description, quantity=str(quantity), quantity_type=quantity_type(item.get('quantity_type')), unit_price=str(unit),
                            discount=str(discount), tax=tax, net_cents=net, gst_cents=gst,
                            total_cents=net + gst))
+        if item.get('source_expense_id') is not None:
+            source = item['source_expense_id']
+            if type(source) is not int or source <= 0:
+                raise ValueError('Invalid billable expense reference.')
+            result[-1]['source_expense_id'] = source
     subtotal = sum(x['net_cents'] for x in result)
     gst = sum(x['gst_cents'] for x in result)
     if subtotal + gst > 1000000000:

@@ -267,7 +267,7 @@ async function main() {
     await page.getByRole('button',{name:'Spending & allowances',exact:true}).click();
     await page.getByLabel('Annual salary excluding allowances (AUD)').fill('100000');
     await page.getByLabel('2026-10-08 Dinner',{exact:true}).check();
-    await page.getByRole('button',{name:'Save comparison',exact:true}).click();
+    await page.getByRole('button',{name:'Save trip review',exact:true}).click();
     await page.getByText('ATO amount for selected meals/days:',{exact:false}).waitFor();
     assert.match(await page.locator('#modal').innerText(),/69\.00/);
     await page.screenshot({path:output+'/overnight-comparison.png',fullPage:true});

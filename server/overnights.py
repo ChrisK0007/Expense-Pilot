@@ -1,27 +1,29 @@
-"""Separate overnight spending records and domestic reasonable-amount comparisons.
+"""Overnight spending, reasonable-amount comparisons and reviewed claims.
 
 ATO amounts are substantiation benchmarks, never automatically booked deductions.
 Rates: TD 2025/4 and TD 2026/4, domestic tables 1–3. High-cost centres use
-capital-city meal amounts. Accommodation and overseas rates are not inferred.
+capital-city meal amounts. Overseas meal benchmarks are published as daily amounts.
 """
 import json
 from datetime import date, timedelta
 from flask import Blueprint, g, jsonify, request
 from expense_core import allocations
+from workflow_core import digest
+from overnight_rates import CAPITALS, HIGH_COST, COUNTRY_GROUPS, OVERSEAS, options
 
 bp = Blueprint('overnights', __name__, url_prefix='/api')
 MEALS = ('Breakfast', 'Lunch', 'Dinner', 'Incidentals')
 # Integer cents: rows = salary bands; columns = breakfast/lunch/dinner/incidentals.
 RATES = {
-    2025: dict(bands=(148250, 263850), capital=((3475,3910,6665,2455),(3780,5340,7495,3505),(4215,5960,8340,3505)),
-               country=((3115,3555,6125,2455),(3475,3555,6900,3505),(4215,5960,8340,3505)), determination='TD 2025/4'),
+    2025: dict(bands=(148250, 263850), capital=((3475,3910,6665,2450),(3785,5345,7500,3505),(4215,5960,8340,3505)),
+               country=((3115,3555,6130,2450),(3475,3555,6900,3505),(4215,5960,8340,3505)), determination='TD 2025/4'),
     2026: dict(bands=(153210, 272680), capital=((3600,4045,6900,2540),(3920,5535,7765,3630),(4365,6170,8635,3630)),
                country=((3225,3680,6345,2540),(3600,3680,7145,3630),(4365,6170,8635,3630)), determination='TD 2026/4'),
 }
 NOTICE = ('ATO reasonable amounts are record-keeping thresholds, not automatic deductions or a cap on a substantiated claim. '
           'Only eligible expenses actually incurred, paid by you and not reimbursed can be claimed. '
           'A genuine employer allowance and the applicable tax-return treatment are required for the allowance substantiation exception. '
-          'Keep evidence of the trip, allowance and how spending was calculated. This comparison is excluded from the automatic tax forecast.')
+          'Keep evidence of the trip, allowance and how spending was calculated. Only reviewed actual costs you explicitly confirm are included in the tax forecast.')
 
 
 def is_overnight(expense):
@@ -37,13 +39,20 @@ def days(start, end):
         current += timedelta(days=1)
 
 
+def year_for(when):
+    return int(when[:4]) - (int(when[5:7]) < 7)
+
+
 def validate_settings(payload, trip, money):
     if not isinstance(payload, dict): raise ValueError('Provide comparison details as an object.')
     salary = money(payload.get('salary', 0))
     if salary <= 0: raise ValueError('Enter your annual salary excluding allowances (full-time equivalent if part-time).')
     destination = payload.get('destination_class')
-    if destination not in ('capital', 'country', 'high_cost', 'custom'):
+    if destination not in ('capital', 'country', 'high_cost', 'custom', 'domestic', 'overseas'):
         raise ValueError('Choose a destination class, or enter custom verified amounts for overseas travel.')
+    location = str(payload.get('destination') or '').strip()
+    if destination in ('domestic','overseas') and location not in options({year_for(d) for d in days(trip['start'],trip['end'])})[destination]:
+        raise ValueError('Choose an Australian locality or an overseas country from the list.')
     selected = payload.get('days')
     allowed = set(days(trip['start'], trip['end']))
     if not isinstance(selected, list) or len(selected) > len(allowed): raise ValueError('Choose meals for valid travel days.')
@@ -65,8 +74,40 @@ def validate_settings(payload, trip, money):
     for name in ('allowance_received', 'allowance_declared'):
         if not isinstance(payload.get(name, False), bool): raise ValueError('Allowance selections must be on or off.')
         flags[name] = payload.get(name, False)
-    return dict(salary_cents=salary, destination_class=destination, days=result, custom_rates=custom,
+    return dict(salary_cents=salary, destination_class=destination, destination=location, days=result, custom_rates=custom,
                 source=str(payload.get('source', '')).strip()[:1000], **flags)
+
+
+def claim_records(trip, expenses):
+    if trip['scope'] not in ('work','business') or trip['start'] >= trip['end']:
+        return []
+    return [e for e in expenses if e['status']=='ready' and not e['reimbursed']
+            and e.get('user_id')==trip.get('user_id') and trip['start']<=e['date']<=trip['end']]
+
+
+def claim_stamp(trip, expenses):
+    trip_fields = {k:trip[k] for k in ('id','user_id','scope','location','start','end','purpose','allowance_cents')}
+    expense_fields = ('id','date','amount_cents','scope','percent','work_percent','business_percent','items_json','receipt_id','meal','notes')
+    records = [{k:e.get(k) for k in expense_fields} for e in sorted(claim_records(trip,expenses),key=lambda row:row['id'])]
+    return digest([trip_fields,records])
+
+
+def approved(trip, expenses, settings=None):
+    settings = settings if settings is not None else json.loads(trip.get('comparison_json') or '{}')
+    return bool(settings.get('claim_stamp') and settings['claim_stamp']==claim_stamp(trip,expenses))
+
+
+def reviewed_totals(year, trips):
+    from app import rows
+    eligible=dict(work=0,business=0)
+    for trip in trips:
+        expenses=rows('SELECT * FROM expenses WHERE trip_id=?',(trip['id'],))
+        if not approved(trip,expenses):
+            continue
+        scope=trip['scope']
+        part=0 if scope=='work' else 1
+        eligible[scope]+=sum(allocations(e)[part] for e in claim_records(trip,expenses) if year_for(e['date'])==year)
+    return eligible
 
 
 def comparison(trip, expenses):
@@ -74,22 +115,35 @@ def comparison(trip, expenses):
     selected = {row['date']: row for row in settings.get('days', [])}
     salary = settings.get('salary_cents', 0)
     destination = settings.get('destination_class', '')
-    result, missing, sources = [], [], set()
+    location = settings.get('destination','')
+    result, missing, sources, daily, partial_days = [], [], set(), [], []
     for when in days(trip['start'], trip['end']):
-        year = int(when[:4]) - (int(when[5:7]) < 7)
+        year = year_for(when)
         table = RATES.get(year)
         rates = None
+        selected_day = selected.get(when,{})
         if destination == 'custom':
             rates = [settings['custom_rates'].get(meal, 0) for meal in MEALS]
             sources.add(settings.get('source', 'Custom amounts'))
         elif table and salary and destination:
             band = 0 if salary <= table['bands'][0]*100 else 1 if salary <= table['bands'][1]*100 else 2
-            rates = table['country' if destination == 'country' else 'capital'][band]
+            if destination == 'overseas':
+                group=COUNTRY_GROUPS[year].get(location,3)
+                meal, incidental=OVERSEAS[band][group-1]
+                selections=sum(bool(selected_day.get(k)) for k in MEALS[:3])
+                if selections not in (0,3):
+                    partial_days.append(when)
+                daily.append(dict(date=when,group=group,meals_cents=meal*100,
+                                  selected_meals_cents=meal*100 if selections==3 else 0, incidentals_cents=incidental*100))
+                rates=[None,None,None,incidental*100]
+            else:
+                regional=destination=='country' or destination=='domestic' and location not in CAPITALS and location not in HIGH_COST[year]
+                rates = table['country' if regional else 'capital'][band]
             sources.add(table['determination'])
         elif destination:
             missing.append(f'{year}–{year+1}')
         for index, meal in enumerate(MEALS):
-            included = selected.get(when, {}).get(meal, False)
+            included = selected_day.get(meal,False)
             matching = [e for e in expenses if e['date'] == when and e['meal'] == meal]
             actual = sum(e['amount_cents'] for e in matching)
             allocated = sum(allocations(e)[0 if trip['scope'] == 'work' else 1] for e in matching if e['status'] == 'ready')
@@ -98,16 +152,23 @@ def comparison(trip, expenses):
     actual = sum(e['amount_cents'] for e in expenses)
     reimbursed = sum(e['amount_cents'] for e in expenses if e['reimbursed'])
     comparable = sum(r['recorded_unreimbursed_cents'] for r in result if r['selected'])
-    reasonable = None if missing or not settings else sum(r['reasonable_cents'] or 0 for r in result)
+    reasonable = None if missing or partial_days or not settings else sum(r['reasonable_cents'] or 0 for r in result)+sum(d['selected_meals_cents'] for d in daily)
+    recorded=sum(allocations(e)[0 if trip['scope']=='work' else 1] for e in claim_records(trip,expenses))
+    current=approved(trip,expenses,settings)
+    years={year_for(d) for d in days(trip['start'],trip['end'])}
     return dict(trip_id=trip['id'], version=trip['comparison_version'], settings=settings, rows=result,
                 actual_cents=actual, reimbursed_cents=reimbursed, allowance_cents=trip['allowance_cents'],
                 allowance_less_spending_cents=trip['allowance_cents']-actual+reimbursed,
                 recorded_unreimbursed_cents=sum(allocations(e)[0 if trip['scope']=='work' else 1] for e in expenses if e['status']=='ready'),
                 comparable_cents=comparable, reasonable_cents=reasonable,
                 over_benchmark_cents=None if reasonable is None else comparable-reasonable,
+                destinations=options(years), overseas_days=daily, partial_days=partial_days, claim_cents=recorded, claim_current=current,
+                claim_stale=bool(settings.get('claim_stamp')) and not current,
                 unclassified_cents=sum(e['amount_cents'] for e in expenses if not e['meal']),
                 missing_years=sorted(set(missing)), sources=sorted(sources), notice=NOTICE,
-                allowance_exception_may_apply=trip['scope']=='work' and settings.get('allowance_received', False) and settings.get('allowance_declared', False))
+                allowance_exception_may_apply=trip['scope']=='work' and trip['start']<trip['end'] and trip['allowance_cents']>0
+                and reasonable is not None and reasonable>0 and 0<comparable<=reasonable
+                and settings.get('allowance_received', False) and settings.get('allowance_declared', False))
 
 
 def register(app, auth):
@@ -120,11 +181,21 @@ def register(app, auth):
         if request.method == 'PUT':
             if not can_write(): fail('Read-only access.',403)
             payload = request.get_json()
+            if not isinstance(payload,dict): fail('Enter valid trip review details.')
             db().execute('BEGIN IMMEDIATE')
             trip = one('SELECT * FROM trips WHERE id=?', (tid,))
             if payload.get('version') != trip['comparison_version']: fail('This comparison changed. Reload it before saving.',409)
             try: settings = validate_settings(payload, trip, money)
             except (ValueError, TypeError) as exc: fail(str(exc))
+            confirm=payload.get('confirm_claim',False)
+            if type(confirm) is not bool: fail('Use a valid claim confirmation.')
+            if confirm:
+                expenses=rows('SELECT * FROM expenses WHERE trip_id=?',(tid,))
+                records=claim_records(trip,expenses)
+                part=0 if trip['scope']=='work' else 1
+                if sum(allocations(e)[part] for e in records)<=0:
+                    fail('Review the eligible unreimbursed expenses before confirming this trip.')
+                settings['claim_stamp']=claim_stamp(trip,expenses)
             db().execute('UPDATE trips SET comparison_json=?,comparison_version=comparison_version+1 WHERE id=?', (json.dumps(settings),tid))
             audit('overnight comparison updated',tid); db().commit()
             trip = one('SELECT * FROM trips WHERE id=?', (tid,))

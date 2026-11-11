@@ -4,6 +4,15 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.4 — Actual-cost claims and expense review (2026-11-11)
+
+- Keep Expenses and Bank accounts navigation visible on their subpages. Remove Drive tools from Vehicles and show reviewed ordinary business allocations on Overview.
+- Compare actual costs and fixed rate in Home office. Link bills, assess employment and business usage, and use logged hours for electricity calculations.
+- Look up overnight reasonable amounts by trip date, locality or country and salary band. Review and confirm actual eligible trip costs before they enter the forecast.
+- Review recurring expense drafts against posted bank charges and pair transfers and credit-card repayments across accounts.
+- Link billable business expenses to invoice lines and save revisions of reviewed annual handover figures.
+- Migration m030 adds storage for the new workflows. Take a full backup before updating the beta container.
+
 ## 1.0.7-beta.3 — Complete server page design (2026-11-11)
 
 - Extend the shared page layout to banking, deductions, drives, vehicles, Home office, overnight spending, income, reports, documents, adviser questions and the tax forecast.

@@ -55,7 +55,7 @@ class NativeOvernightTest(unittest.TestCase):
         tid=self.trip(start='2026-06-30',end='2026-07-01')
         days=[dict(date=d,Dinner=True) for d in ['2026-06-30','2026-07-01']]
         c=self.settings(tid,days=days,salary=150000).json
-        self.assertEqual(c['reasonable_cents'],7495+6900,'The salary band must be chosen for each financial year')
+        self.assertEqual(c['reasonable_cents'],7500+6900,'The salary band must be chosen for each financial year')
         self.assertEqual(c['sources'],['TD 2025/4','TD 2026/4'])
         self.assertEqual(self.settings(tid,version=1,days=days).status_code,409)
         self.assertEqual(self.settings(tid,days=[dict(date='2026-10-08',Dinner=True)]).status_code,400)

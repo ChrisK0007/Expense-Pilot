@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from flask import g, jsonify, request, send_file
 from expense_core import allocations
 import workspace_time
+import home_office_actual
 
 SOURCE = 'https://www.ato.gov.au/law/view/document?DocID=COG/PCG20231/NAT/ATO/00001'
 KINDS = dict(electricity='Electricity', gas='Gas', phone='Phone usage', internet='Internet',
@@ -78,7 +79,7 @@ def settings(year):
     result = {**DEFAULTS, **saved, 'version': row['version'] if row else 0}
     # Preserve the stored election and its evidence. A retired method must not
     # silently become an eligible fixed-rate claim or ordinary bill deductions.
-    result['needs_fixed_review'] = result['method'] not in ('none', 'fixed')
+    result['needs_fixed_review'] = result['method'] not in ('none', 'fixed') and not (result['method']=='actual' and saved.get('actual_reviewed_schema')==1)
     if result['needs_fixed_review']:
         result.update(method='fixed', eligible=False, hours_complete=False, costs_complete=False)
     return result
@@ -95,10 +96,11 @@ def costs(year):
     from app import rows
     start, end = bounds(year)
     records = rows('''SELECT e.*, c.kind AS home_office_kind,c.claim_base_cents,c.basis,
-                      c.reviewed AS cost_reviewed,COALESCE(c.version,0) AS cost_version
+                      c.reviewed AS cost_reviewed,c.actual_json,COALESCE(c.version,0) AS cost_version
                       FROM expenses e LEFT JOIN home_office_costs c ON c.expense_id=e.id
                       WHERE e.user_id=? AND e.date BETWEEN ? AND ? ORDER BY e.date,e.id''', (owner_id(),start,end))
     for row in records:
+        row['actual_calculation'] = json.loads(row.pop('actual_json') or '{}')
         row['classification_confirmed'] = bool(row['home_office_kind'])
         row['home_office_kind'] = kind_for(row)
         row['cost_version'] = row['cost_version'] or 0
@@ -146,7 +148,7 @@ def summary(year):
             warnings.append(f"{e['merchant']}: enter the assessed annual amount and confirm review before including this {k} cost.")
     missing=sorted(set(s['incurred_types'])-evidence)
     fixed_issues=[]
-    if s['needs_fixed_review']: fixed_issues.append('Home office now uses fixed rate only. Review and save your claim settings; your existing records are retained.')
+    if s['needs_fixed_review']: fixed_issues.append('Review and save your previous home-office election before including it in the forecast.')
     if not s['eligible']: fixed_issues.append('Confirm you performed income-producing duties at home and personally incurred additional running costs.')
     if not s['hours_complete']: fixed_issues.append('Confirm all actual home-working hours to date are recorded as they occurred.')
     if not s['costs_complete']: fixed_issues.append('Confirm all covered running costs in Expenses are classified here, including phone use away from home.')
@@ -164,12 +166,20 @@ def summary(year):
                   and (e['actual_work_cents'] or e['actual_business_cents']) and (not e['receipt_id'] or not e['basis'])]
     fixed_issues+=extra_issues
     fixed_total={scope: (fixed[scope]+extras[scope] if fixed[scope] is not None else None) for scope in minutes}
+    actual_total, actual_issues, assessed = home_office_actual.assess(classified, entries, extras)
+    actual_issues += extra_issues
+    if not s['eligible']: actual_issues.append('Confirm that you personally incurred additional work-from-home costs.')
+    if not s['hours_complete'] or not entries: actual_issues.append('Confirm that your logged work-from-home hours are complete to date.')
+    if not s['costs_complete']: actual_issues.append('Confirm that your running costs have been classified and reviewed.')
+    if not assessed: actual_issues.append('Save a work-use calculation for at least one reviewed bill.')
     method=s['method']
-    active=method=='fixed' and not fixed_issues
+    active=(method=='fixed' and not fixed_issues) or (method=='actual' and not actual_issues)
+    running_actual={scope:actual_total[scope]-extras[scope] for scope in minutes}
     allowances=rows('SELECT * FROM home_office_allowances WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date,id', (owner_id(),start,end))
     return dict(year=year,start=start,end=end,settings=s,entries=entries,minutes=minutes,rate_cents=rate,
                 fixed=fixed_total,hourly=fixed,extras=extras,costs=classified,available_costs=all_costs,
-                fixed_issues=fixed_issues,warnings=warnings,active=active,
+                fixed_issues=fixed_issues,actual=actual_total,running_actual=running_actual,actual_issues=actual_issues,
+                actual_source=home_office_actual.ACTUAL_SOURCE,warnings=warnings,active=active,
                 status='not_selected' if method=='none' else 'active' if active else 'needs_review',
                 allowances=allowances,allowance_income_cents=sum(a['amount_cents'] for a in allowances if not a['included_in_pay']),
                 source=SOURCE,rules_checked='2026-10-27')
@@ -183,7 +193,7 @@ def adjusted(expense, annual):
     # Once elected, ineligible/incomplete WFH costs stay pending, never fall back to
     # ordinary allocations or a different method without an explicit choice.
     if not annual['active']: return 0,0
-    if annual['settings']['method']=='fixed' and kind in COVERED: return 0,0
+    if kind in COVERED: return 0,0
     return cost_allocations(expense)
 
 
@@ -192,6 +202,7 @@ def forecast_adjustments(year, expenses):
     for e in expenses:
         out.append(adjusted(e if e.get('description') else by_id.get(e['id'],e),annual))
     addition=annual['hourly'] if annual['active'] and annual['settings']['method']=='fixed' else dict(work=0,business=0)
+    if annual['active'] and annual['settings']['method']=='actual': addition=annual['running_actual']
     return annual,sum(a[0] for a in out)+(addition['work'] or 0),sum(a[1] for a in out)+(addition['business'] or 0)
 
 
@@ -297,12 +308,13 @@ def register(app, auth):
     @auth('owner','tax_agent')
     def save_settings(year):
         bounds(year);p=data();db().execute('BEGIN IMMEDIATE');old=settings(year);check_version(old,p)
-        if p.get('method') not in ('none','fixed'): fail('Home office supports the fixed-rate method only. Reload and review your claim settings.')
+        if p.get('method') not in ('none','fixed','actual'): fail('Choose a valid home-office claim method.')
         value={k:p.get(k,False) for k in ('eligible','hours_complete','costs_complete')}
         if any(type(v) is not bool for v in value.values()): fail('Use valid eligibility confirmations.')
         types=p.get('incurred_types',[])
         if not isinstance(types,list) or any(not isinstance(k,str) or k not in EVIDENCE_TYPES for k in types): fail('Choose valid running costs.')
         value.update(method=p['method'],incurred_types=sorted(set(types)))
+        if p['method']=='actual': value['actual_reviewed_schema']=1
         # Keep retired settings in history when an older beta election is replaced.
         saved=one('SELECT data FROM home_office_settings WHERE user_id=? AND year=?',(owner_id(),year))
         if saved: old={**json.loads(saved['data']), 'version':old['version']}
@@ -388,7 +400,7 @@ def register(app, auth):
         check_version(old,p);kind=p.get('kind');basis=textval(p.get('basis'),2000)
         if request.method=='DELETE':
             if not old.get('kind'): fail('This bill has no saved classification.',409)
-            db().execute("UPDATE home_office_costs SET kind='',claim_base_cents=NULL,basis='',reviewed=0,version=version+1 WHERE expense_id=?",(eid,))
+            db().execute("UPDATE home_office_costs SET kind='',claim_base_cents=NULL,basis='',reviewed=0,actual_json='{}',version=version+1 WHERE expense_id=?",(eid,))
             history('cost:'+str(eid),'bill classification removed',{**old,'date':e['date']},dict(date=e['date']))
             db().commit();return jsonify(ok=True)
         if kind not in KINDS: fail('Choose a home-office cost type.')
@@ -397,8 +409,16 @@ def register(app, auth):
         reviewed=p.get('reviewed',False)
         if type(reviewed) is not bool: fail('Use a valid review confirmation.')
         if kind in ('asset','occupancy') and reviewed and (base is None or not basis): fail('Enter the assessed annual amount and explain its calculation.')
-        v=dict(kind=kind,claim_base_cents=base,basis=basis,reviewed=reviewed)
-        db().execute('INSERT INTO home_office_costs(expense_id,kind,claim_base_cents,basis,reviewed) VALUES (?,?,?,?,?) ON CONFLICT(expense_id) DO UPDATE SET kind=excluded.kind,claim_base_cents=excluded.claim_base_cents,basis=excluded.basis,reviewed=excluded.reviewed,version=version+1',(eid,kind,base,basis,int(reviewed)))
+        try:
+            actual = home_office_actual.validate(p.get('actual', json.loads(old.get('actual_json') or '{}')),
+                                                 kind, financial_year(e['date'])) if kind in COVERED else {}
+        except (ValueError, TypeError) as exc:
+            fail(str(exc))
+        v=dict(kind=kind,claim_base_cents=base,basis=basis,reviewed=reviewed,actual_json=json.dumps(actual))
+        db().execute('INSERT INTO home_office_costs(expense_id,kind,claim_base_cents,basis,reviewed,actual_json) VALUES (?,?,?,?,?,?) '
+                     'ON CONFLICT(expense_id) DO UPDATE SET kind=excluded.kind,claim_base_cents=excluded.claim_base_cents,'
+                     'basis=excluded.basis,reviewed=excluded.reviewed,actual_json=excluded.actual_json,version=version+1',
+                     (eid,kind,base,basis,int(reviewed),v['actual_json']))
         history('cost:'+str(eid),'bill classified',{**old,'date':e['date']},{**v,'date':e['date']});db().commit();return jsonify(ok=True)
 
     @app.route('/api/home-office/allowances',methods=['POST'])
@@ -450,13 +470,20 @@ def register(app, auth):
         write('Hourly deduction included in recorded forecast AUD',
               s['hourly']['work']/100 if s['active'] and s['settings']['method']=='fixed' else 0,
               s['hourly']['business']/100 if s['active'] and s['settings']['method']=='fixed' else 0)
-        for issue in s['fixed_issues']+s['warnings']: write('Review',issue)
+        write('Actual cost estimate AUD',s['actual']['work']/100,s['actual']['business']/100)
+        for issue in (s['actual_issues'] if s['settings']['method']=='actual' else s['fixed_issues'])+s['warnings']: write('Review',issue)
         write('Diary ID','Date','Start','End','Timezone','Break minutes','Scope','Activity','Created UTC','Updated UTC')
         for e in s['entries']: write(e['id'],e['date'],e['start_time'],e['end_time'],e['timezone'],e['break_minutes'],e['scope'],e['activity'],e['created_at'],e['updated_at'])
-        write('Bill ID','Date','Merchant','Type','Original AUD','Assessed base AUD','Assessed employment amount AUD','Assessed business amount AUD','Receipt ID','Reimbursed','Review status','Notes / separate deduction basis','Recorded forecast employment AUD','Recorded forecast business AUD')
+        write('Bill ID','Date','Merchant','Type','Original AUD','Assessed base AUD','Assessed employment amount AUD','Assessed business amount AUD','Receipt ID','Reimbursed','Review status','Notes / separate deduction basis','Recorded forecast employment AUD','Recorded forecast business AUD','Actual-cost calculation')
         for e in s['costs']:
+            assessed=e.get('running_actual') or dict(work=e['actual_work_cents'],business=e['actual_business_cents'])
             effective=adjusted(e,s) if e['status']=='ready' else (0,0)
-            write(e['id'],e['date'],e['merchant'],e['home_office_kind'],e['amount_cents']/100,None if e['claim_base_cents'] is None else e['claim_base_cents']/100,e['actual_work_cents']/100,e['actual_business_cents']/100,e['receipt_id'],e['reimbursed'],e['status'],e['basis'],effective[0]/100,effective[1]/100)
+            if s['active'] and s['settings']['method']=='actual' and e['home_office_kind'] in COVERED:
+                effective=(assessed['work'],assessed['business'])
+            write(e['id'],e['date'],e['merchant'],e['home_office_kind'],e['amount_cents']/100,
+                  None if e['claim_base_cents'] is None else e['claim_base_cents']/100,
+                  assessed['work']/100,assessed['business']/100,e['receipt_id'],e['reimbursed'],e['status'],
+                  e['basis'],effective[0]/100,effective[1]/100,json.dumps(e['actual_calculation']))
         write('Allowance ID','Date','Employer','Amount AUD','Already in recorded gross pay','Notes')
         for a in s['allowances']: write(a['id'],a['date'],a['employer'],a['amount_cents']/100,bool(a['included_in_pay']),a['notes'])
         write('Source',SOURCE,'Checked',s['rules_checked'])

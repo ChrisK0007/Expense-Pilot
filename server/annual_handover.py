@@ -76,6 +76,12 @@ def build(year):
                           questions=rows('SELECT q.*,u.name AS author FROM record_questions q LEFT JOIN users u ON u.id=q.author_id WHERE q.user_id=? ORDER BY q.id',(uid,)),
                           annual_income_comparisons=rows('SELECT * FROM annual_income_checks WHERE user_id=? AND year=?',(uid,year)),
                           tax_settings=rows('SELECT * FROM tax_settings WHERE year=?',(year,)))
+                data['handover_revisions']=rows('SELECT year,revision,created_at,note,figures FROM handover_revisions WHERE year=? AND user_id=? ORDER BY revision',(year,uid))
+                data['bank_transfer_pairs']=rows('''SELECT p.* FROM bank_transfer_pairs p JOIN bank_transactions d ON d.id=p.debit_id
+                                                  JOIN bank_transactions c ON c.id=p.credit_id
+                                                  WHERE d.date BETWEEN ? AND ? OR c.date BETWEEN ? AND ?''',(start,end,start,end))
+                data['billable_expenses']=rows('''SELECT b.* FROM billable_expenses b JOIN expenses e ON e.id=b.expense_id
+                                                 WHERE e.date BETWEEN ? AND ?''',(start,end))
                 data['receipt_items']=[dict(expense_id=e['id'],item_number=index+1,**line) for e in data['expenses'] for index,line in enumerate(json.loads(e['items_json']))]
                 data['reconciliations']=rows('SELECT r.* FROM bank_reconciliations r JOIN bank_transactions b ON b.id=r.bank_id WHERE b.date BETWEEN ? AND ?',(start,end))
                 data['home_office_costs']=rows('SELECT h.* FROM home_office_costs h JOIN expenses e ON e.id=h.expense_id WHERE e.date BETWEEN ? AND ?',(start,end))

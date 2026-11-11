@@ -158,23 +158,29 @@ def home_office_pdf(annual, person):
     report.add(day(annual['start']) + ' - ' + day(annual['end']))
     rate = annual['rate_cents']
     entries = sorted(annual['entries'], key=lambda e: (e['date'], e['start_at'], e['id']))
-    report.add('Fixed-rate summary', 'heading')
-    report.table(['Workspace', 'Recorded hours', 'Hourly deduction estimate'], [
-        [SCOPE[s], hours(annual['minutes'][s]), aud(annual['hourly'][s])] for s in ('work', 'business')
-    ] + [['Total', hours(sum(annual['minutes'].values())), aud(sum(annual['hourly'].values())) if rate is not None else 'Rate unavailable']], [49, 50, 75])
+    actual = annual['settings']['method'] == 'actual'
+    report.add('Actual-cost summary' if actual else 'Fixed-rate summary', 'heading')
+    amounts = annual['actual'] if actual else annual['hourly']
+    report.table(['Workspace', 'Recorded hours', 'Actual-cost estimate' if actual else 'Hourly deduction estimate'], [
+        [SCOPE[s], hours(annual['minutes'][s]), aud(amounts[s])] for s in ('work', 'business')
+    ] + [['Total', hours(sum(annual['minutes'].values())), aud(sum(amounts.values())) if actual or rate is not None else 'Rate unavailable']], [49, 50, 75])
     status = {'not_selected': 'Not enabled', 'active': 'Included in tax forecast', 'needs_review': 'Pending record checks'}[annual['status']]
     report.add('Claim status: ' + status)
-    report.add('Rate: ' + (f'{rate}c per recorded hour.' if rate is not None else 'Not confirmed for this year; no rate assumed.'))
-    included = sum(annual['fixed'].values()) if annual['active'] else 0
+    if not actual:
+        report.add('Rate: ' + (f'{rate}c per recorded hour.' if rate is not None else 'Not confirmed for this year; no rate assumed.'))
+    included = sum(annual['actual' if actual else 'fixed'].values()) if annual['active'] else 0
     report.add('Home-office deduction included in recorded forecast: ' + aud(included) + '.')
     if sum(annual['extras'].values()):
         report.add('Separately assessed deductions outside the hourly rate: ' + aud(sum(annual['extras'].values())) + '. Included only when claim checks are complete.')
     report.add('These amounts are deductions from income, not tax refunds or reimbursements. Annual tax overrides may replace the recorded forecast.')
     report.add('Records supporting this logbook', 'heading')
-    report.add('Keep a bill or receipt for each covered running-cost type you personally incurred. Covered bills are evidence; their cost and work-use percentages do not determine the hourly deduction. They cannot also be claimed separately.')
+    if actual:
+        report.add('Keep the original bills and the saved work-use calculations supporting your recorded actual costs.')
+    else:
+        report.add('Keep a bill or receipt for each covered running-cost type you personally incurred. Covered bills are evidence; their cost and work-use percentages do not determine the hourly deduction. They cannot also be claimed separately.')
     report.add('The diary lists recorded sessions after breaks. Expense Pilot creation and update timestamps are retained; generating this report does not establish that older entries were recorded at the time. Keep supporting records for any late entries.')
     report.add('Logged/updated timestamps below use ' + workspace_time.name() + '. Session times use the timezone shown on each row.')
-    report.add('ATO fixed-rate guidance: ' + annual['source'], 'small')
+    report.add('ATO actual-cost guidance: ' + annual['actual_source'] if actual else 'ATO fixed-rate guidance: ' + annual['source'], 'small')
     report.add('Rule reference checked ' + day(annual['rules_checked']) + '. CSV export contains the full relevant edit history.', 'small')
     report.story.append(PageBreak())
     report.add('Year at a glance', 'heading')
@@ -217,7 +223,7 @@ def home_office_pdf(annual, person):
         from home_office import COVERED, KINDS
         report.table(['Date / supplier', 'Type', 'Record status'], [
             [day(e['date']) + '\n' + e['merchant'], KINDS[e['home_office_kind']],
-             ('Evidence only' if e['home_office_kind'] in COVERED else 'Separate deduction') + '\n' +
+             ('Actual cost: '+aud(sum(e['running_actual'].values())) if actual and e.get('running_actual') else 'Evidence only' if e['home_office_kind'] in COVERED else 'Separate deduction') + '\n' +
              ('Bill attached' if e['receipt_id'] else 'Bill missing') +
              ('; type confirmed' if e['classification_confirmed'] else '; confirm type') +
              ('; reimbursed - excluded' if e['reimbursed'] else '') + ('; expense needs review' if e['status'] != 'ready' else '')]
@@ -225,9 +231,10 @@ def home_office_pdf(annual, person):
         ], [65, 49, 60])
     else:
         report.add('No bills linked.')
-    if annual['fixed_issues'] or annual['warnings']:
+    claim_issues = annual['actual_issues'] if actual else annual['fixed_issues']
+    if claim_issues or annual['warnings']:
         report.add('Outstanding checks', 'heading')
-        for issue in annual['fixed_issues'] + annual['warnings']:
+        for issue in claim_issues + annual['warnings']:
             report.add('- ' + issue)
     return report.build()
 
