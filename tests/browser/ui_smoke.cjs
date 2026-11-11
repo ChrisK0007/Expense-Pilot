@@ -381,7 +381,7 @@ async function main() {
     assert.equal(await page.locator('#billing-table tbody tr').count(),1);
     await page.getByLabel('Document status').selectOption('all');
     await page.locator('[data-sort=total_cents]').click();
-    assert.equal(await page.locator('[data-sort=total_cents]').locator('..').getAttribute('aria-sort'),'ascending');
+    assert.equal(await page.locator('[data-sort=total_cents]').locator('xpath=ancestor::th').getAttribute('aria-sort'),'ascending');
     await page.getByLabel('Filter by client').selectOption({label:'Example Aviation'});
     assert.ok(await page.locator('#billing-table tbody tr').count()>0);
     await page.locator('#theme-choice').selectOption('dark');

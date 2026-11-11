@@ -40,12 +40,16 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   // All remaining destinations keep the shared shell and remain within a phone viewport.
   for(const route of ['banks','equipment','drive_review','vehicles','home_office','trips','invoices','quotes','clients','recurring','services','time','income','employment','reports','documents','adviser_questions','tax']){
    await page.setViewportSize({width:1440,height:1050});await navigate(page,route);
-   await page.waitForFunction(()=>{const t=document.querySelector('#content')?.textContent||'';return t&&!/Loading[.\u2026]/.test(t);});
+   const ready={banks:'#feed-filter',equipment:'.equipment-cards',drive_review:'#drive-date',vehicles:'#vehicle-results .cards',home_office:'#home-office-year',trips:'#trip-results .panel',invoices:'#billing-search',quotes:'#billing-search',clients:'#client-search',recurring:'#run-schedules:not([disabled])',services:'#service-search',time:'#time-search',income:'#income-result table',employment:'#employment-year',reports:'#expense-report-body .report-summary',documents:'#document-search',adviser_questions:'.adviser-list',tax:'#tax-year'};
+   await page.locator('#content[data-workspace-page="'+route+'"]').waitFor();await page.locator(ready[route]).first().waitFor({state:'visible'});
    if(route==='banks'){
     await page.locator('#feed-filter').waitFor();await page.locator('[data-bank-view=accounts]').click();await page.locator('#bank-account-overview').waitFor({state:'visible'});assert.equal(await page.locator('#bank-feeds').isVisible(),false);await shot('bank-accounts-tab');await page.locator('[data-bank-view=transactions]').click();await page.locator('#feed-filter').waitFor({state:'visible'});
+    const loaded=page.waitForResponse(response=>response.url().includes('/api/bank-transactions?state=all'));await page.locator('#feed-filter').selectOption('all');const feed=await(await loaded).json();
+    if(feed.items.length){await page.locator('[data-bank-review]').first().click();await page.locator('#bank-review-detail #modal[open]').waitFor();await fits('bank review desktop');await shot('bank-review-desktop');await page.locator('#close-modal').click();}
    }
    await fits(route+' desktop');await shot(route+'-desktop');
    await page.setViewportSize({width:390,height:844});await fits(route+' mobile');await shot(route+'-mobile');
+   if(route==='banks'&&await page.locator('[data-bank-review]').count()){await page.locator('[data-bank-review]').first().click();await page.locator('#bank-review-detail #modal[open]').waitFor();await fits('bank review mobile');await shot('bank-review-mobile');await page.locator('#close-modal').click();}
   }
   // Inline document viewing retains paging/zoom/download and returns to the list on close.
   await navigate(page,'documents');const view=page.getByRole('button',{name:'View',exact:true}).first();
@@ -59,7 +63,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
    const original=JSON.stringify(expenses.find(e=>e.id===expenses[0].id));
    const question=await post('workflows/questions',{record_type:'expense',record_id:expenses[0].id,question:'Design completion discussion'});
    await navigate(page,'adviser_questions');await page.locator('[data-question="'+question.id+'"]').getByRole('button',{name:'Respond',exact:true}).click();
-   await page.getByLabel('Answer',{exact:true}).fill('Recorded for review.');await page.getByLabel('Resolved',{exact:true}).check();await page.getByRole('button',{name:'Save response',exact:true}).click();await page.getByText('Response saved.',{exact:true}).waitFor();
+   await page.getByLabel('Answer',{exact:true}).fill('Recorded for review.');await page.getByLabel('Resolved',{exact:true}).check();await fits('adviser response mobile');await shot('adviser-response-mobile');await page.getByRole('button',{name:'Save response',exact:true}).click();await page.getByText('Response saved.',{exact:true}).waitFor();
    const after=await(await context.request.get(url+'/api/expenses')).json();assert.equal(JSON.stringify(after.find(e=>e.id===expenses[0].id)),original);
   }
   await page.setViewportSize({width:1440,height:1050});await navigate(page,'quotes');await page.evaluate(()=>Theme.set('dark'));await fits('dark quotes');await shot('quotes-dark');

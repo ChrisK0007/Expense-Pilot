@@ -139,8 +139,11 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
 .feed-panel>p,.feed-panel>.section-tools {margin:14px 17px}
 .feed-panel>.feed-actions {padding:0 17px;margin:14px 0}
 .feed-panel .feed-actions .field {flex:1;max-width:280px;margin:0}
-.feed-panel .feed-table td {font-size:13px}
-.feed-panel .feed-table td:first-child {white-space:nowrap}
+.feed-panel .feed-table td {font-size:13px;padding:12px 13px}
+.feed-panel .feed-table td:first-child {white-space:normal;overflow-wrap:anywhere}
+.feed-panel .feed-table td:first-child small {display:block;margin-top:5px}
+.feed-table .bank-row-amount {white-space:nowrap}
+.feed-table .bank-row-amount>.pill {display:table;margin-top:6px}
 .feed-table .selected td {background:var(--accent-soft)}
 .feed-table .selected td:first-child {box-shadow:inset 3px 0 var(--accent)}
 .bank-review-layout {display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr);gap:15px;align-items:start}
