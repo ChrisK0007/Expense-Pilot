@@ -33,7 +33,7 @@ Records live in the Docker data volume. Optional AI, bank feeds and email use th
 | Channel | Image | Documentation |
 | --- | --- | --- |
 | Stable — 1.0.6 | `ghcr.io/chrisk0007/expense-pilot:latest` or `:1.0.6` | [Stable installation guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) |
-| Beta — 1.0.7-beta.2 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.7-beta.2` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
+| Beta — 1.0.7-beta.3 | `ghcr.io/chrisk0007/expense-pilot:beta` or `:1.0.7-beta.3` | [Beta installation and setup](https://github.com/ChrisK0007/Expense-Pilot/blob/beta/docs/public-release.md) |
 
 **Use the template and instructions from the same branch as your image.** AI is configured in the app and the setup token is optional.
 

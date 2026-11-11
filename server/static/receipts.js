@@ -142,14 +142,14 @@ async function reprocess(r,fromReview=false){
  controls.forEach(([el])=>el.disabled=true);scanning.add(r.id);draw();
  if(form)$('#rescan-receipt').textContent='Reading receipt…';
  const revision=reviewRevision;
- let success=false;
- try{await readDocument(r.id);success=true;toast('Receipt reprocessed. Check the new suggestions before saving.');}
- catch(e){toast('Reprocessing failed. '+e.message);}
+ let success=false,failure=null;
+ try{await readDocument(r.id);success=true;}
+ catch(e){failure=e;}
  finally{scanning.delete(r.id);controls.forEach(([el,disabled])=>el.disabled=disabled);if(form?.isConnected)$('#rescan-receipt').textContent='✧ Reprocess with AI';}
- try{await load();draw();if(success&&page==='receipts'&&revision===reviewRevision&&(fromReview?form?.isConnected&&$('#modal').open:!$('#modal').open)){
+ try{await load();draw();toast(failure?'Reprocessing failed. '+failure.message:'Receipt reprocessed. Check the new suggestions before saving.');if(success&&page==='receipts'&&revision===reviewRevision&&(fromReview?form?.isConnected&&$('#modal').open:!$('#modal').open)){
   const document=items.find(x=>x.id===r.id);
   if(document){queue=ready(document)?'ready':'draft';review(document);}
- }}catch(e){toast(e.message);}
+ }}catch(e){draw();toast(failure?'Reprocessing failed. '+failure.message+' The queue could not refresh: '+e.message:e.message);}
 }
 function capture(kind='expense'){
  if(typeof kind!=='string')kind='expense';
