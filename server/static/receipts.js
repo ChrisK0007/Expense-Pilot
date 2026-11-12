@@ -1,7 +1,7 @@
 'use strict';
 const Receipts=(()=>{
 let items=[],groups=[],busy=false,batch={running:false,done:0,total:0,failed:[],cancel:false};
-let queue='ready',query='',reviewRevision=0;
+let query='',reviewRevision=0;
 const scanning=new Set(),accept='image/jpeg,image/png,image/webp,application/pdf';
 const pending=()=>items.filter(r=>!r.expense_id&&!r.income_id);
 const isIncome=kind=>['payslip','income_statement'].includes(kind);
@@ -16,17 +16,6 @@ async function load(){
 }
 function values(r){const d={currency:'AUD',percent:100,...r.extraction,...r.draft};if(r.saved_expense)return {...d,...r.saved_expense,amount:r.saved_expense.amount_cents/100,currency:'AUD',currency_status:'saved'};return d;}
 function fileLabel(r){return values(r).employer||values(r).merchant||r.filename;}
-function ready(r){
- if(scanning.has(r.id)||r.scan_status==='reading')return false;
- const d=values(r),date=/^\d{4}-\d{2}-\d{2}$/.test(d.date||'');
- if(isIncome(d.document_kind)){
-  return Boolean(String(d.employer||'').trim()&&date&&Number(d.gross)>0&&presentNumber(d.withheld)&&Number(d.withheld)>=0&&Number(d.withheld)<=Number(d.gross)&&d.amounts_basis!=='unknown');
- }
- return Boolean(String(d.merchant||'').trim()&&date&&presentNumber(d.amount)&&(d.currency==='AUD'||presentNumber(r.draft?.amount)));
-}
-function readyQueue(){
- return pending().filter(ready);
-}
 function matchesSearch(r){
  const term=query.trim().toLowerCase();
  return !term||`${fileLabel(r)} ${r.filename}`.toLowerCase().includes(term);
@@ -55,7 +44,6 @@ async function pageView(){
   `<div id="inbox-batch"></div><div id="inbox-proposals"></div>
    <div class="inbox-workspace">
     <section class="panel inbox-queue" aria-label="Inbox queue">
-     <div class="inbox-segments" role="group" aria-label="Inbox status"></div>
      <label class="inbox-search">${WorkspaceUI.icon('search')}<input id="inbox-search" type="search" aria-label="Search Inbox" placeholder="Search Inbox" value="${esc(query)}"></label>
      <div id="inbox-list" class="inbox-list"><p class="muted">Loading documents…</p></div>
      <p class="footnote inbox-note">Saved documents appear with their linked records.</p>
@@ -74,23 +62,13 @@ async function pageView(){
   await load();
   if(!search.isConnected||page!=='receipts')return;
   loaded=true;
-  if(!query)queue=readyQueue().length?'ready':'draft';
   draw();
  }catch(e){if(page==='receipts')toast(e.message);}
 }
 function drawQueue(){
  const list=$('#inbox-list');
  if(!list||page!=='receipts')return;
- const readyRows=readyQueue(),draftRows=pending().filter(r=>!ready(r));
- const tabs=$('.inbox-segments');
- tabs.innerHTML=[['ready','Ready for review',readyRows.length],['draft','Draft',draftRows.length]].map(([key,label,count])=>
-  `<button type="button" class="secondary" data-inbox-status="${key}" aria-pressed="${queue===key}">${label} <span>${count}</span></button>`).join('');
- tabs.querySelectorAll('button').forEach(button=>button.onclick=()=>{
-  queue=button.dataset.inboxStatus;
-  drawQueue();
-  tabs.querySelector(`[data-inbox-status="${queue}"]`).focus();
- });
- const shown=(queue==='ready'?readyRows:draftRows).filter(matchesSearch);
+ const shown=pending().filter(matchesSearch);
  const selected=$('#modal').matches('.receipt-docked[open]')?$('#modal').dataset.receiptId:'';
  list.innerHTML=shown.length?shown.map(r=>{
   const d=values(r),label=fileLabel(r),amount=isIncome(d.document_kind)?d.gross:d.amount;
@@ -106,7 +84,7 @@ function drawQueue(){
    ${actionMenu('Document actions for '+label,`<button class="receipt-menu-preview" data-rid="${esc(r.id)}">View original</button>
    ${editor()&&S.ai_configured?`<button class="reprocess-receipt" data-rid="${esc(r.id)}" ${scanning.has(r.id)||batch.running?'disabled':''}>Reprocess with AI</button>`:''}`)}
   </article>`;
- }).join(''):`<p class="inbox-empty muted">${query.trim()?'No matching documents.':queue==='ready'?'No documents ready for review.':'No drafts.'}</p>`;
+ }).join(''):`<p class="inbox-empty muted">${query.trim()?'No matching documents.':'No documents in Inbox.'}</p>`;
  list.querySelectorAll('.review-receipt').forEach(button=>button.onclick=()=>{
   const document=items.find(r=>r.id===button.dataset.rid);
   if(document&&closeReview())review(document);
@@ -151,7 +129,7 @@ async function reprocess(r,fromReview=false){
  finally{scanning.delete(r.id);controls.forEach(([el,disabled])=>el.disabled=disabled);if(form?.isConnected)$('#rescan-receipt').textContent='✧ Reprocess with AI';}
  try{await load();draw();toast(failure?'Reprocessing failed. '+failure.message:'Receipt reprocessed. Check the new suggestions before saving.');if(success&&page==='receipts'&&revision===reviewRevision&&(fromReview?form?.isConnected&&$('#modal').open:!$('#modal').open)){
   const document=items.find(x=>x.id===r.id);
-  if(document){queue=ready(document)?'ready':'draft';review(document);}
+  if(document)review(document);
  }}catch(e){draw();toast(failure?'Reprocessing failed. '+failure.message+' The queue could not refresh: '+e.message:e.message);}
 }
 function capture(kind='expense'){
@@ -192,16 +170,61 @@ async function reprocessAll(){
  }
  batch.running=false;try{await load();}catch(e){toast(e.message);}draw();toast(`Processed ${batch.done} draft receipt(s). ${batch.failed.length} failed. Manual draft edits were kept.`);
 }
+function inlinePreview(receipt,label){
+ const url='/api/receipts/'+encodeURIComponent(receipt.id)+'/preview';
+ return `<div class="receipt-inline-stage"><img src="${url}?page=1" alt="${esc(label)}"><div class="receipt-magnifier" aria-hidden="true" hidden></div></div>
+ <div class="receipt-inline-pages" hidden><button type="button" class="secondary" data-preview-prev aria-label="Previous inline page">←</button><span aria-live="polite"></span><button type="button" class="secondary" data-preview-next aria-label="Next inline page">→</button></div>`;
+}
+function bindInlinePreview(dialog,receipt){
+ const stage=dialog.querySelector('.receipt-inline-stage');
+ if(!stage)return;
+ const image=stage.querySelector('img'),lens=stage.querySelector('.receipt-magnifier');
+ const hide=()=>{lens.hidden=true;};
+ stage.addEventListener('pointerleave',hide);
+ stage.addEventListener('pointercancel',hide);
+ stage.addEventListener('pointermove',event=>{
+  if(event.pointerType!=='mouse'||!image.complete||!image.naturalWidth){hide();return;}
+  const box=image.getBoundingClientRect(),frame=stage.getBoundingClientRect();
+  const scale=Math.min(box.width/image.naturalWidth,box.height/image.naturalHeight);
+  const w=image.naturalWidth*scale,h=image.naturalHeight*scale;
+  const x=event.clientX-box.left-(box.width-w)/2,y=event.clientY-box.top-(box.height-h)/2;
+  if(x<0||x>w||y<0||y>h){hide();return;}
+  lens.hidden=false;
+  const width=lens.offsetWidth,height=lens.offsetHeight,zoom=2.5;
+  lens.style.left=Math.max(0,Math.min(frame.width-width,event.clientX-frame.left-width/2))+'px';
+  lens.style.top=Math.max(0,Math.min(frame.height-height,event.clientY-frame.top-height/2))+'px';
+  lens.style.backgroundImage=`url("${image.currentSrc}")`;
+  lens.style.backgroundSize=`${w*zoom}px ${h*zoom}px`;
+  lens.style.backgroundPosition=`${width/2-x*zoom}px ${height/2-y*zoom}px`;
+ });
+ if(receipt.mime!=='application/pdf')return;
+ const pages=dialog.querySelector('.receipt-inline-pages');
+ const previous=pages.querySelector('[data-preview-prev]'),next=pages.querySelector('[data-preview-next]');
+ api('receipts/'+receipt.id+'/info').then(info=>{
+  if(!pages.isConnected||info.pages<2)return;
+  let number=1;
+  const drawPage=()=>{
+   hide();
+   image.src='/api/receipts/'+encodeURIComponent(receipt.id)+'/preview?page='+number;
+   pages.querySelector('span').textContent=`Page ${number} of ${info.pages}`;
+   previous.disabled=number===1;next.disabled=number===info.pages;
+  };
+  previous.onclick=()=>{number--;drawPage();};
+  next.onclick=()=>{number++;drawPage();};
+  drawPage();pages.hidden=false;
+ }).catch(()=>{});
+}
 function reviewOptions(r){
  const host=$('#inbox-review'),revision=++reviewRevision;
- const ready=readyQueue().filter(matchesSearch);
- const position=ready.findIndex(item=>item.id===r.id);
- const nextId=(ready[position+1]||ready[0])?.id;
+ const visible=pending().filter(matchesSearch);
+ const position=visible.findIndex(item=>item.id===r.id);
+ const nextId=(visible[position+1]||visible[0])?.id;
  const isCurrent=()=>!host||host.isConnected&&revision===reviewRevision;
  const mount=(title,html)=>{
   const dialog=$('#modal');
   modal(title,html,{host,beforeClose:host?canLeaveReview:null});
   dialog.dataset.receiptId=r.id;
+  bindInlinePreview(dialog,r);
   if(host){
    const form=dialog.querySelector('form');
    const dirty=()=>{form.dataset.dirty='true';};
@@ -222,10 +245,8 @@ function reviewOptions(r){
   try{
    await refresh();await load();
    if(!isCurrent()){if(message)toast(message);return;}
-   if(next)queue='ready';
-   else if(!readyQueue().length)queue='draft';
    draw();
-   const candidates=next?readyQueue().filter(item=>item.id!==r.id&&matchesSearch(item)):[];
+   const candidates=next?pending().filter(item=>item.id!==r.id&&matchesSearch(item)):[];
    const following=candidates.find(item=>item.id===nextId)||candidates[0];
    if(following)review(following);
    if(message)toast(message);
@@ -240,9 +261,9 @@ function review(r){
  const d=values(r),foreign=!!d.currency&&d.currency!=='AUD',suggestion=r.suggestion;d.currency=d.currency||'AUD';d.scope=d.scope||(Features.enabled(r.preferences?.scope==='business'?'business':'employment')?r.preferences?.scope:Features.defaultScope())||Features.defaultScope();
  const home=d.document_kind==='home_office';if(home)Object.assign(d,{work_percent:0,business_percent:0,scope:'personal',category:'Other',vehicle_id:null,trip_id:null,meal:''});
  const tripOptions=T.filter(t=>t.user_id===r.user_id),amount=r.draft?.amount!=null?r.draft.amount:!foreign&&d.amount!=null?d.amount:'';
- options.mount('Review receipt',`<form id="receipt-review"><div class="receipt-review-layout"><div class="receipt-preview"><img src="/api/receipts/${r.id}/preview${r.mime==='application/pdf'?'?page=1':''}" alt="Original receipt"><button type="button" class="secondary" id="preview-original">View full receipt</button><button type="button" class="secondary" data-evidence="${esc(r.id)}">Check extracted evidence</button><p class="footnote">${esc(r.filename)} · ${esc(r.owner)}</p><button type="button" id="rescan-receipt" class="secondary wide" ${S.ai_configured?'':'disabled'}>✧ Reprocess with AI</button><p class="footnote">A fresh AI reading updates suggestions. Saved draft edits and confirmed currency are kept.</p>${r.scan_error?`<p class="error">${esc(r.scan_error)}</p>`:''}</div><div>${IncomeDocuments.typeField(d.document_kind)}${home?`<section class="notice"><strong>Home-office bill evidence</strong><p>This bill supports the fixed-rate claim. No separate bill deduction or percentages are applied.</p>${select('Home-office cost type','home_office_kind',[['electricity','Electricity'],['gas','Gas'],['phone','Phone usage'],['internet','Internet'],['phone_internet','Combined phone / internet'],['stationery','Stationery'],['consumables','Computer consumables']],d.home_office_kind||'electricity')}<label class="check"><input type="checkbox" id="receipt-personally-paid" ${d.personally_paid?'checked':''} required>I personally incurred this cost and it was not reimbursed.</label></section>`:''}<section class="currency-review currency-compact"><div class="currency-controls">${field('Receipt currency','receipt_currency','text',d.currency,'maxlength="3" pattern="[A-Za-z]{3}" required')}<span id="currency-status" class="muted">${foreign?'Foreign receipt':'AUD default'} · <span>edit if needed</span></span></div><p id="foreign-currency-note" class="footnote" ${foreign?'':'hidden'}>Enter the actual AUD amount paid below. Changing this code does not convert money.</p></section>${suggestion?`<div class="notice">Previous reviewed category: ${esc(categoryLabel(suggestion.category))}. <button type="button" class="ghost" id="use-suggestion">Use suggestion</button></div>`:''}
+ options.mount('Review receipt',`<form id="receipt-review"><div class="receipt-review-layout"><div class="receipt-preview">${inlinePreview(r,'Original receipt')}<button type="button" class="secondary" id="preview-original">View full receipt</button><button type="button" class="secondary" data-evidence="${esc(r.id)}">Check extracted evidence</button><p class="footnote">${esc(r.filename)} · ${esc(r.owner)}</p><button type="button" id="rescan-receipt" class="secondary wide" ${S.ai_configured?'':'disabled'}>✧ Reprocess with AI</button><p class="footnote">A fresh AI reading updates suggestions. Saved draft edits and confirmed currency are kept.</p>${r.scan_error?`<p class="error">${esc(r.scan_error)}</p>`:''}</div><div>${IncomeDocuments.typeField(d.document_kind)}${home?`<section class="notice"><strong>Home-office bill evidence</strong><p>This bill supports the fixed-rate claim. No separate bill deduction or percentages are applied.</p>${select('Home-office cost type','home_office_kind',[['electricity','Electricity'],['gas','Gas'],['phone','Phone usage'],['internet','Internet'],['phone_internet','Combined phone / internet'],['stationery','Stationery'],['consumables','Computer consumables']],d.home_office_kind||'electricity')}<label class="check"><input type="checkbox" id="receipt-personally-paid" ${d.personally_paid?'checked':''} required>I personally incurred this cost and it was not reimbursed.</label></section>`:''}<section class="currency-review currency-compact"><div class="currency-controls">${field('Receipt currency','receipt_currency','text',d.currency,'maxlength="3" pattern="[A-Za-z]{3}" required')}<span id="currency-status" class="muted">${foreign?'Foreign receipt':'AUD default'} · <span>edit if needed</span></span></div><p id="foreign-currency-note" class="footnote" ${foreign?'':'hidden'}>Enter the actual AUD amount paid below. Changing this code does not convert money.</p></section>${suggestion?`<div class="notice">Previous reviewed category: ${esc(categoryLabel(suggestion.category))}. <button type="button" class="ghost" id="use-suggestion">Use suggestion</button></div>`:''}
  ${r.matches?.length?`<section class="match-box"><h3>Possible existing expense</h3>${r.matches.map(e=>`<div class="receipt-match"><p><strong>${esc(e.merchant)}</strong> · ${esc(dateAU(e.date))} · ${money(e.amount_cents)}</p><a href="#expense-${e.id}" class="match-view-expense" data-eid="${e.id}">View expense</a> ${e.receipt_id?'<span class="muted">Receipt already attached</span>':`<button class="secondary match-expense" type="button" data-eid="${e.id}">Attach receipt</button>`}</div>`).join('')}</section>`:''}
- <div class="grid2">${field('Merchant / payee','receipt_merchant','text',d.merchant||'','required maxlength="200"')}${field('Receipt date','receipt_date','date',d.date||'','required')}${field('Amount paid (AUD)','receipt_amount','number',amount,'required step="0.01"')}${select('Category','receipt_category',S.categories.map(v=>[v,v==='Meals'?categoryLabel(v)+' · overnight trip':categoryLabel(v)]),d.category||'Uncategorised')}${Splits.fields(d,'receipt_',role()==='employee'||r.owner_role==='employee')}${field('Location','receipt_merchant_location','text',r.location??d.merchant_location??d.merchant_city??'','maxlength="200" placeholder="Suburb or city, state / region"')}${select('Vehicle (optional)','receipt_vehicle_id',[['','Not a vehicle expense'],...V.filter(v=>v.user_id===r.user_id).map(v=>[v.id,v.name])],d.vehicle_id)}</div>${bookkeeper()?'<button type="button" class="ghost" id="receipt-new-category">+ Create expense category</button>':''}<div id="receipt-meal-fields" ${d.category==='Meals'?'':'hidden'}><div class="notice"><p id="receipt-trip-status"></p><button type="button" class="secondary" id="review-receipt-trip">Review trip & meals</button></div><div class="grid2">${select('Existing overnight trip','receipt_trip_id',[['','Review or create a trip'],...tripOptions.map(t=>[t.id,t.location+' · '+dateAU(t.start)])],d.trip_id)}${select('Receipt meal type','receipt_meal',[['','Choose a meal type'],...['Breakfast','Lunch','Dinner','Incidentals'].map(v=>[v,v])],d.meal)}</div></div><section class="notice" id="receipt-bank-match"></section><div class="field"><label for="receipt_notes">What was it for?</label><textarea id="receipt_notes" name="receipt_notes">${esc(d.notes||'')}</textarea></div><p class="footnote">${home?'Save draft keeps this out of your records. Save home-office bill files the original and its cost type as fixed-rate evidence.':'Save draft keeps this out of expense totals. Save expense files the details shown here. Employment and business allocations total up to 100%; the remainder is personal.'}</p></div></div><div class="modal-footer"><button type="button" class="danger" id="remove-receipt">Delete receipt</button><button type="button" class="secondary" id="receipt-to-trip">Add to trip meal</button><button type="button" class="secondary" id="save-receipt-draft">Save draft</button><button type="submit">${home?'Save home-office bill':'Save expense'}</button>${options.showNext?'<button type="submit" id="save-receipt-next">Save &amp; next</button>':''}</div></form>`);
+ <div class="grid2">${field('Merchant / payee','receipt_merchant','text',d.merchant||'','required maxlength="200"')}${field('Receipt date','receipt_date','date',d.date||'','required')}${field('Amount paid (AUD)','receipt_amount','number',amount,'required step="0.01"')}${select('Category','receipt_category',S.categories.map(v=>[v,v==='Meals'?categoryLabel(v)+' · overnight trip':categoryLabel(v)]),d.category||'Uncategorised')}${Splits.fields(d,'receipt_',role()==='employee'||r.owner_role==='employee')}${field('Location','receipt_merchant_location','text',r.location??d.merchant_location??d.merchant_city??'','maxlength="200" placeholder="Suburb or city, state / region"')}${select('Vehicle (optional)','receipt_vehicle_id',[['','Not a vehicle expense'],...V.filter(v=>v.user_id===r.user_id).map(v=>[v.id,v.name])],d.vehicle_id)}</div>${bookkeeper()?'<button type="button" class="ghost" id="receipt-new-category">+ Create expense category</button>':''}<div id="receipt-meal-fields" ${d.category==='Meals'?'':'hidden'}><div class="notice"><p id="receipt-trip-status"></p><button type="button" class="secondary" id="review-receipt-trip">Review trip & meals</button></div><div class="grid2">${select('Existing overnight trip','receipt_trip_id',[['','Review or create a trip'],...tripOptions.map(t=>[t.id,t.location+' · '+dateAU(t.start)])],d.trip_id)}${select('Receipt meal type','receipt_meal',[['','Choose a meal type'],...['Breakfast','Lunch','Dinner','Incidentals'].map(v=>[v,v])],d.meal)}</div></div><section class="notice" id="receipt-bank-match"></section><div class="field"><label for="receipt_notes">What was it for?</label><textarea id="receipt_notes" name="receipt_notes">${esc(d.notes||'')}</textarea></div><p class="footnote">${home?'Save changes keeps this document in Inbox. Save home-office bill files the original and its cost type as fixed-rate evidence.':'Save changes keeps this receipt in Inbox. Save expense files the details shown here. Employment and business allocations total up to 100%; the remainder is personal.'}</p></div></div><div class="modal-footer"><button type="button" class="danger" id="remove-receipt">Delete receipt</button><button type="button" class="secondary" id="receipt-to-trip">Add to trip meal</button><button type="button" class="secondary" id="save-receipt-draft">Save changes</button><button type="submit">${home?'Save home-office bill':'Save expense'}</button>${options.showNext?'<button type="submit" id="save-receipt-next">Save &amp; next</button>':''}</div></form>`);
  const value=id=>$('#receipt_'+id).value;
  const allocationScope=()=>Splits.scope({work_percent:value('work_percent'),business_percent:value('business_percent')},role()==='employee'||r.owner_role==='employee');
  let bankValues=()=>({bank_choice:d.bank_choice||'auto'});
@@ -301,7 +322,7 @@ function review(r){
  bind('#receipt-to-trip',openTripClick);bind('#review-receipt-trip',openTripClick);
  bind('#use-suggestion',()=>{reviewForm.dataset.dirty='true';$('#receipt_category').value=suggestion.category;$('#receipt-meal-fields').hidden=suggestion.category!=='Meals';tripStatus();});
  bind('#rescan-receipt',()=>reprocess(r,true));
- bind('#save-receipt-draft',()=>options.run(async()=>{const b=$('#save-receipt-draft');b.disabled=true;try{const data=gather();if(data.currency&&data.currency!==d.currency)await confirmCurrency(data.currency);await api('receipts/'+r.id+'/draft',data,'PUT');$('#modal').close();await load();draw();toast('Receipt draft saved.');}catch(e){toast(e.message);}finally{b.disabled=false;}}));
+ bind('#save-receipt-draft',()=>options.run(async()=>{const b=$('#save-receipt-draft');b.disabled=true;try{const data=gather();if(data.currency&&data.currency!==d.currency)await confirmCurrency(data.currency);await api('receipts/'+r.id+'/draft',data,'PUT');$('#modal').close();await load();draw();toast('Inbox changes saved.');}catch(e){toast(e.message);}finally{b.disabled=false;}}));
  bind('#remove-receipt',()=>options.run(async()=>{if(!confirm('Delete this unfiled receipt permanently?'))return;try{await api('receipts/'+r.id,{},'DELETE');$('#modal').close();await load();draw();}catch(e){toast(e.message);}}));
  const attachMatch=eid=>options.run(async()=>{
   if(!confirm('Attach this receipt to the selected existing expense?'))return;
@@ -350,5 +371,5 @@ async function preview(rid){
 }
 async function reopen(rid){await load();draw();const r=items.find(x=>x.id===rid);if(r)review(r);else{$('#modal').close();toast('Document already filed or removed.');}}
 async function reload(){await load();draw();}
-return {page:pageView,capture,preview,reopen,reload,canLeaveReview};
+return {page:pageView,capture,preview,reopen,reload,canLeaveReview,inlinePreview};
 })();

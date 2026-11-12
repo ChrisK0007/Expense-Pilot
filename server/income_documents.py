@@ -46,12 +46,39 @@ def clean(result):
              amounts_basis=result.get('amounts_basis') if result.get('amounts_basis') in ('period','annual') else 'unknown')
     for key in ('gross','withheld','net','super','ytd_gross','ytd_withheld'):
         out[key]=cents_value(result.get(key))
+    if kind == 'payslip':
+        out['annual_base_salary'] = cents_value(result.get('annual_base_salary'))
     for key in ('date','period_start','period_end'):
         try: out[key]=date.fromisoformat(str(result.get(key))).isoformat()
         except ValueError: out[key]=None
     if out['amounts_basis'] != ('period' if kind=='payslip' else 'annual'):
         out['gross']=out['withheld']=None
     return out
+
+
+def printed_base_salary(text):
+    values = {cents_value(value.replace(',', '')) for value in re.findall(
+        r'^[ \t]*annual[ \t]+base[ \t]+salary[ \t]*:?[ \t]*(?:AUD[ \t]*|A\$[ \t]*|\$[ \t]*)?([\d,]+(?:\.\d{2})?)[ \t]*$',
+        text, re.IGNORECASE | re.MULTILINE
+    )}
+    if len(values) == 1:
+        return next(iter(values)) or None
+    return None
+
+
+def annual_base_cents(data, kind, existing=None):
+    from app import fail, money
+    if kind != 'payslip':
+        return None
+    if 'annual_base_salary' not in data:
+        return (existing or {}).get('annual_base_cents')
+    value = data['annual_base_salary']
+    if value in ('', None):
+        return None
+    cents = money(value)
+    if cents <= 0:
+        fail('Enter a positive annual base salary as printed on the payslip.')
+    return cents
 
 
 def local_payslip(text):
@@ -61,12 +88,13 @@ def local_payslip(text):
     from payroll_tables import read_components
     table = read_components(text)
     if table:
-        out = clean(table)
+        out = clean({**table, 'annual_base_salary': printed_base_salary(text)})
         out.update(extraction_method='local labels', local_complete=bool(
             out['gross'] is not None and out['withheld'] is not None))
         if table.get('extraction_note'): out['extraction_note'] = table['extraction_note']
         return out
-    out=dict(document_kind='payslip',amounts_basis='period',employer='',currency='AUD')
+    out=dict(document_kind='payslip',amounts_basis='period',employer='',currency='AUD',
+             annual_base_salary=printed_base_salary(text))
     def parse_day(s):
         for fmt in ('%Y-%m-%d','%d/%m/%Y','%d-%m-%Y','%d %b %Y','%d %B %Y'):
             try: return datetime.strptime(s.strip(),fmt).date().isoformat()
@@ -156,12 +184,13 @@ def register(app, auth):
         if d.get('gross') in ('',None) or d.get('withheld') in ('',None): fail('Confirm both gross pay and tax withheld; enter zero only if the statement shows zero.')
         values=employment_values(d);meta=metadata(d)
         if meta[0] not in INCOME: fail('Choose payslip or annual income statement.')
+        annual_base = annual_base_cents(d, meta[0])
         db().execute('BEGIN IMMEDIATE');r=receipt(rid)
         if r['user_id']!=record_user_id(): fail('Employment documents must belong to this workspace owner.',403)
         prior=one('SELECT * FROM employment_income WHERE receipt_id=?',(rid,))
         if prior:
             same=tuple(prior[k] for k in ('date','employer','gross_cents','withheld_cents','notes'))==values and tuple(prior[k] for k in ('record_kind','period_start','period_end'))==meta
-            if not same: fail('This document is already filed. Edit its saved income record.',409)
+            if not same or annual_base != prior['annual_base_cents']: fail('This document is already filed. Edit its saved income record.',409)
             db().commit();return jsonify(id=prior['id'],duplicate=True)
         if one('SELECT id FROM expenses WHERE receipt_id=?',(rid,)): fail('This document is already filed as an expense.',409)
         if one('SELECT 1 FROM equipment_assets WHERE evidence_receipt_id=?',(rid,)): fail('This document is already attached to an equipment deduction.',409)
@@ -171,9 +200,9 @@ def register(app, auth):
             if not old or old['receipt_id'] or tuple(old[k] for k in ('date','employer','gross_cents','withheld_cents'))!=values[:4]:
                 fail('Choose an income record with the same employer, payment date and figures, without a document.',409)
             check_overlap(values,meta,old['id'])
-            db().execute('UPDATE employment_income SET receipt_id=?,record_kind=?,period_start=?,period_end=?,version=version+1 WHERE id=?',(rid,)+meta+(old['id'],))
+            db().execute('UPDATE employment_income SET receipt_id=?,record_kind=?,period_start=?,period_end=?,annual_base_cents=?,version=version+1 WHERE id=?',(rid,)+meta+(annual_base,old['id']))
             eid=old['id']
         else:
             check_overlap(values,meta)
-            eid=db().execute('INSERT INTO employment_income(date,employer,gross_cents,withheld_cents,notes,receipt_id,record_kind,period_start,period_end) VALUES (?,?,?,?,?,?,?,?,?)',values+(rid,)+meta).lastrowid
+            eid=db().execute('INSERT INTO employment_income(date,employer,gross_cents,withheld_cents,notes,receipt_id,record_kind,period_start,period_end,annual_base_cents) VALUES (?,?,?,?,?,?,?,?,?,?)',values+(rid,)+meta+(annual_base,)).lastrowid
         audit('employment document filed',eid);db().commit();return jsonify(id=eid,duplicate=False)

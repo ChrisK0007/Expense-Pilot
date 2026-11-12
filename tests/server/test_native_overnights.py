@@ -73,6 +73,19 @@ class NativeOvernightTest(unittest.TestCase):
         self.assertEqual(c['reasonable_cents'],7500)
         self.assertEqual(self.settings(tid,**data,destination_class='custom',source='').status_code,400)
 
+    def test_employer_salary_band_reuse_preserves_reviewed_trip(self):
+        first = self.trip()
+        values = dict(salary='', employer='Flight Operations', remember_salary=True)
+        saved = self.settings(first, salary_bands={'2026': 1}, **values)
+        self.assertEqual(saved.status_code, 200, saved.json)
+        self.assertEqual(saved.json['reasonable_cents'], sum(RATES[2026]['capital'][1][i] for i in (0, 2, 3)))
+        second = self.trip(location='Cairns')
+        context = self.owner.get(f'/api/trips/{second}/overnight').json['salary_context']
+        self.assertEqual(context['employers'][0]['saved'], {'2026': 1})
+        self.assertEqual(self.settings(second, salary_bands={'2026': 2}, **values).status_code, 200)
+        self.assertEqual(self.owner.get(f'/api/trips/{first}/overnight').json['settings']['salary_bands'], {'2026': 1})
+        self.assertEqual(self.settings(second, salary_bands={'2025': 0}, **values).status_code, 400)
+
     def test_invoice_retry_is_atomic_and_keeps_deleted_tombstone(self):
         cid=self.call(self.owner,'billing/clients',{'name':'Native client'}).json['id']
         self.call(self.owner,'billing/settings',{'name':'Business','gst_registered':True,'abn':'12345678901'},'PUT')

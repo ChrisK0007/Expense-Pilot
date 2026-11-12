@@ -77,13 +77,12 @@
  grid-column:span 2;min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:15px;
 }
 .overview-grid>.dashboard-chart {grid-column:span 4}
-.overview-grid>.overview-recent {grid-column:1/-1;min-width:0}
 .overview-grid .chart-controls {gap:8px;margin-top:10px}
 .overview-grid .incoming .review-link {min-height:40px}
-.overview-grid .overview-recent th,.expenses-ledger th {background:var(--soft);font-size:11px;font-weight:700;letter-spacing:.04em}
-.overview-grid .overview-recent .merchant-icon,.expenses-ledger .merchant-icon {border-radius:8px;background:var(--accent-soft);color:var(--accent)}
-.overview-grid .overview-recent td,.expenses-ledger td {font-size:13px}
-.overview-grid .overview-recent .pill,.expenses-ledger .pill {border-radius:999px}
+.expenses-ledger th {background:var(--soft);font-size:11px;font-weight:700;letter-spacing:.04em}
+.expenses-ledger .merchant-icon {border-radius:8px;background:var(--accent-soft);color:var(--accent)}
+.expenses-ledger td {font-size:13px}
+.expenses-ledger .pill {border-radius:999px}
 
 /* Expenses */
 .expense-tools {
@@ -114,10 +113,6 @@
 /* Inbox */
 .inbox-workspace {display:grid;grid-template-columns:minmax(210px,.77fr) minmax(0,3fr);gap:12px;align-items:start}
 .inbox-queue {padding:10px;min-width:0}
-.inbox-segments {display:grid;grid-template-columns:1.35fr 1fr;gap:3px;padding:3px;background:var(--soft);border:1px solid var(--line);border-radius:10px;margin-bottom:10px}
-.inbox-segments button {border:0;min-height:35px;border-radius:7px;padding:4px;font-size:11.5px;font-weight:650;color:var(--muted)}
-.inbox-segments button[aria-pressed=true] {color:var(--accent);background:var(--surface);box-shadow:0 1px 4px var(--shadow)}
-.inbox-segments button span {font-variant-numeric:tabular-nums;margin-left:2px}
 .inbox-search input {font-size:13px}
 .inbox-list {display:grid;gap:4px;margin-top:8px}
 .inbox-row.receipt-card {display:flex;align-items:center;min-width:0;border-radius:9px;background:var(--surface);padding:0}
@@ -156,6 +151,13 @@
 }
 #modal.receipt-docked .receipt-preview::before {content:'Original';display:block;font-weight:700;font-size:14px}
 #modal.receipt-docked .receipt-preview img {width:100%;max-height:min(56vh,520px);object-fit:contain;margin:0;border-radius:7px}
+.receipt-inline-stage {position:relative;overflow:hidden;border-radius:7px}
+.receipt-inline-stage img {display:block}
+.receipt-magnifier {position:absolute;width:min(158px,100%);height:116px;pointer-events:none;background-color:var(--surface);background-repeat:no-repeat;border:2px solid var(--accent);border-radius:8px;box-shadow:0 3px 12px var(--shadow)}
+.receipt-inline-pages:not([hidden]) {display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.client-contacts,.client-contact {margin:14px 0}
+.client-contact,#setup-guide-form fieldset {min-width:0;padding:12px;border:1px solid var(--line);border-radius:8px}
+.release-changes li {margin-bottom:8px}
 #modal.receipt-docked .receipt-preview button {margin:0}
 #modal.receipt-docked .receipt-preview p {overflow-wrap:anywhere;margin:0}
 #modal.receipt-docked .modal-footer {

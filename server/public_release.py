@@ -1,8 +1,10 @@
 """Public-client discovery, onboarding and explicit data lifecycle controls."""
 import os
+import json
 import sqlite3
 import tempfile
 import uuid
+from pathlib import Path
 from flask import Response, g, jsonify, request, session
 
 
@@ -27,7 +29,33 @@ def reauthenticate():
 
 def register(app, auth):
     from app import DATA, VERSION, audit, db, fail, one, rows
+    from billing import settings, save_settings
     with app.app_context(): instance_id()
+    notes = json.loads(Path(__file__).with_name('release-notes.json').read_text(encoding='utf-8')).get(VERSION, [])
+
+    @app.route('/api/release-notes', methods=['GET', 'POST'])
+    @auth()
+    def release_notes():
+        first = False
+        if request.method == 'POST' and notes:
+            result = db().execute('INSERT OR IGNORE INTO release_notice_seen(user_id,version) VALUES (?,?)',
+                                  (g.user['id'], VERSION))
+            first = result.rowcount == 1
+            db().commit()
+        return jsonify(version=VERSION, changes=notes, first=first)
+
+    @app.route('/api/setup/guide', methods=['GET', 'PUT'])
+    @auth('owner')
+    def setup_guide():
+        if request.method == 'PUT':
+            data = request.get_json()
+            if (not isinstance(data, dict) or type(data.get('step')) is not int
+                    or not 0 <= data['step'] <= 5 or type(data.get('pending')) is not bool):
+                fail('Choose a valid setup guide step.')
+            db().execute('BEGIN IMMEDIATE')
+            save_settings('onboarding', {'step': data['step'], 'pending': data['pending'] and data['step'] < 5})
+            db().commit()
+        return jsonify(**settings('onboarding', {'step': 0, 'pending': False}))
 
     @app.get('/privacy')
     def privacy():

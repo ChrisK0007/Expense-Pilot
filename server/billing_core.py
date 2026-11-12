@@ -158,7 +158,7 @@ def pdf_document(doc):
         label = 'PAYMENT RECEIPT'
     if doc['state'] in ('draft', 'void'): label = doc['state'].upper() + ' ' + label
     right_side = [p(label, headline), Spacer(1, 5 * mm)]
-    buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'address', 'email') if client.get(k) and (k != 'address' or design['show_client_address']))
+    buyer = '\n'.join(str(client.get(k, '')) for k in ('name', 'contact', 'department', 'address', 'email') if client.get(k) and (k != 'address' or design['show_client_address']))
     if client.get('abn'): buyer += '\nABN: ' + client['abn']
     right_side += [p(buyer, right), Spacer(1, 3 * mm)]
     metadata = [('Number', doc['number']), ('Issued', date_au(doc['issue_date'])),
@@ -281,7 +281,7 @@ def pdf_statement(statement):
             seller_lines.append(p(seller[key], small))
     if seller.get('abn'):
         seller_lines.append(p('ABN: ' + seller['abn'], small))
-    buyer = [p('TO', small)] + [p(client[k]) for k in ('name', 'contact', 'address', 'email') if client.get(k)]
+    buyer = [p('TO', small)] + [p(client[k]) for k in ('name', 'contact', 'department', 'address', 'email') if client.get(k)]
     header = Table([[seller_lines, buyer]], colWidths=[87 * mm, 87 * mm])
     header.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 0),
                                ('RIGHTPADDING', (0, 0), (-1, -1), 12), ('BOTTOMPADDING', (0, 0), (-1, -1), 12)]))

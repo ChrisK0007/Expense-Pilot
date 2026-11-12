@@ -30,10 +30,7 @@ function pdf(lines){
   assert.equal(upload.status(),200,await upload.text());const rid=(await upload.json()).id;
   await post('receipts/'+rid+'/draft',{document_kind:'home_office',merchant:bill.payee,date:bill.date,amount:82.19,home_office_kind:'internet'},'PUT');
   const openReceipt=async filename=>{
-   const tabs=page.locator('.inbox-segments');
-   await tabs.locator('[aria-pressed=true]').waitFor();
    const card=page.locator('.receipt-card').filter({hasText:filename});
-   if(!await card.isVisible())await tabs.locator('[aria-pressed=false]').click();
    await card.getByRole('button',{name:/^Review & categorise/}).click();
   };
   await page.goto(url+'/#/receipts');await page.getByRole('heading',{name:'Inbox',exact:true}).waitFor();
@@ -138,8 +135,8 @@ function pdf(lines){
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.locator('#close-modal').click();
-  await page.getByRole('button',{name:/^Draft/}).click();
-  assert.equal(await page.locator('.receipt-card').filter({hasText:'Ready queue second'}).count(),0);
+  assert.equal(await page.locator('[data-inbox-status]').count(),0);
+  assert.equal(await page.locator('.receipt-card').filter({hasText:'Ready queue second'}).count(),1);
   await page.getByRole('button',{name:'More',exact:true}).click();
   await page.locator('[data-more-page=settings]').click();
   await page.getByRole('heading',{name:'Settings',exact:true}).waitFor();

@@ -33,6 +33,7 @@ const output=process.env.UI_OUTPUT||'/tmp/expense-pilot-ui';
   await page.route(themeScript,route=>route.abort());
   await page.goto(url+'/#/home_office');
   await page.getByRole('heading',{name:'Home office',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Finish later',exact:true}).click();
   assert.equal(await page.locator('#theme-choice').count(),0);
   await page.unroute(themeScript);
   await page.reload();

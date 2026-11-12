@@ -99,7 +99,7 @@ def receipt_values(rid):
     return {**extracted, **draft_for(rid)}
 
 def clean_draft(d):
-    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip','document_kind','employer','gross','withheld','period_start','period_end','amounts_basis','home_office_kind','bank_choice','bank_version','personally_paid'}
+    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip','document_kind','employer','gross','withheld','annual_base_salary','period_start','period_end','amounts_basis','home_office_kind','bank_choice','bank_version','personally_paid'}
     if set(d)-allowed: fail('Unknown receipt draft field.')
     result = {}
     for key, value in d.items():
@@ -107,7 +107,7 @@ def clean_draft(d):
             from income_documents import KINDS
             if value not in KINDS: fail('Invalid document type.')
             result[key]=value
-        elif key in ('gross','withheld'): result[key]=money(value)/100 if value not in ('',None) else None
+        elif key in ('gross','withheld','annual_base_salary'): result[key]=money(value)/100 if value not in ('',None) else None
         elif key in ('period_start','period_end'): result[key]=day(value) if value else ''
         elif key=='personally_paid': result[key]=value is True
         elif key=='date': result[key] = day(value) if value else ''

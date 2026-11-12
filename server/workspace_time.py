@@ -26,6 +26,11 @@ def name():
     return settings('workspace', {'timezone': DEFAULT})['timezone']
 
 
+def display_name():
+    from billing import settings
+    return settings('workspace', {}).get('name', '')
+
+
 def zone():
     return ZoneInfo(name())
 
@@ -52,8 +57,8 @@ def local_timestamp(value, occurrence=None):
 
 def register(app, auth):
     from flask import jsonify, request
-    from app import audit, db
-    from billing import save_settings
+    from app import audit, db, fail
+    from billing import settings, save_settings
 
     @app.get('/api/timezones')
     def timezones():
@@ -64,8 +69,16 @@ def register(app, auth):
     def workspace_settings():
         if request.method == 'PUT':
             data = request.get_json() or {}
+            if not isinstance(data, dict):
+                fail('Enter valid workspace settings.')
             value = validate(data.get('timezone'))
+            label = data.get('name')
+            if label is not None and (not isinstance(label, str) or len(label.strip()) > 100):
+                fail('Use up to 100 characters for the workspace name.')
             db().execute('BEGIN IMMEDIATE')
-            save_settings('workspace', {'timezone': value})
+            workspace = {**settings('workspace', {}), 'timezone': value}
+            if label is not None:
+                workspace['name'] = label.strip()
+            save_settings('workspace', workspace)
             audit('workspace timezone changed to '+value, 'workspace'); db().commit()
-        return jsonify(timezone=name())
+        return jsonify(timezone=name(), name=display_name())

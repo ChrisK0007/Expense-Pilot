@@ -3,7 +3,7 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.6` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.4` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.5` |
 
 The Docker server and web interface are released independently of the optional iPhone app, which remains in testing. See the [stable changelog](CHANGELOG.md) for shipped changes and [GitHub Releases](https://github.com/ChrisK0007/Expense-Pilot/releases) for stable release downloads.
 
@@ -25,7 +25,7 @@ Never mount the same data directory into two running installations. Do not point
 
 Back up each instance before upgrading. Startup runs numbered migrations; existing records and receipt paths are retained. An older image refuses a database containing newer migrations. Rollback therefore means restoring the matching older backup and image together, not only changing the image tag. Keep the current data volume intact until recovery is verified.
 
-Beta 1.0.7-beta.4 applies m030 for actual-cost calculations and review records. Restore a matching earlier backup if you need to return to beta.3.
+Beta 1.0.7-beta.5 applies m031 for billing contacts, salary bands and release notes. Restore a matching earlier backup if you need to return to beta.4.
 
 Stable 1.0.0 → 1.0.1 adds migration m008 for PocketSmith. Stable 1.0.2 adds migrations m009–m019 from the beta series; do not downgrade its database directly to stable 1.0.1. Stable 1.0.6 adds migrations m020–m028; moving from 1.0.6-beta.19 to stable adds none. Existing tax agents must be assigned shared years after upgrading from stable 1.0.5. Check [backup architecture](architecture.md#backups) and the [full-backup guide](public-release.md#backup-and-restore).
 
@@ -47,7 +47,7 @@ Beta builds reuse inline cache metadata from the published `:beta` image. This d
 
 Use this checklist for each release. Record results against the candidate version in its pull request or GitHub release; keep private data and diagnostics out of the repository.
 
-- [ ] Set the version, channel defaults and changelog together. Add `docs/release-notes/X.Y.Z.md` for a stable release; never replace an existing numbered image.
+- [ ] Set the version, channel defaults and changelog together. Add the in-app summary to `server/release-notes.json`. For a stable release, add `docs/release-notes/X.Y.Z.md`. Never replace an existing numbered image.
 - [ ] Pass `test-and-publish` on the current pull request. This covers dependency auditing, source archives, server tests, hardened startup and browser workflows.
 - [ ] Test a fresh installation using synthetic records and disconnected integrations. Check owner setup, receipt review, invoice PDFs, account permissions, restart persistence and source downloads.
 - [ ] Test an upgrade using a separate data directory. Restore a [full backup](public-release.md#backup-and-restore) into an empty destination and compare records, totals and receipt originals. Keep the original data and matching old image until recovery is confirmed.

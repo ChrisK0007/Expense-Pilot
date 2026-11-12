@@ -110,8 +110,9 @@ def edit_employment(eid):
         d=request.get_json() or {}
         if 'version' in d and d['version']!=existing['version']: fail('Income changed. Reopen it before saving.',409)
         values=employment_values(d);meta=income_documents.metadata(d,existing)
+        annual_base = income_documents.annual_base_cents(d, meta[0], existing)
         income_documents.check_overlap(values,meta,eid)
-        db().execute('UPDATE employment_income SET date=?,employer=?,gross_cents=?,withheld_cents=?,notes=?,record_kind=?,period_start=?,period_end=?,version=version+1 WHERE id=?',values+meta+(eid,))
+        db().execute('UPDATE employment_income SET date=?,employer=?,gross_cents=?,withheld_cents=?,notes=?,record_kind=?,period_start=?,period_end=?,annual_base_cents=?,version=version+1 WHERE id=?',values+meta+(annual_base,eid,))
     audit('employment income updated',eid);db().commit();return jsonify(ok=True)
 
 

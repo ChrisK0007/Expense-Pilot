@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.7-beta.4**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.7-beta.5**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.4**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.5**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -218,7 +218,9 @@ New database tables are created automatically on startup. Existing users, expens
 
 ### Review overnight deductions and annual handover
 
-Open **Spending & allowances** on an overnight trip. Choose an Australian locality or overseas country and enter the applicable annual salary for the ATO lookup. Overseas meal rates are shown as daily amounts. Partial overseas meal days require review. The ATO amount is a record-keeping reference when a qualifying employer allowance covers the expense. Confirm the supported actual costs to include them in the forecast. Changes to reviewed trip spending require another confirmation.
+Open **Spending & allowances** on an overnight trip. Choose an Australian locality or overseas country and confirm the salary band for the ATO lookup. Overseas meal rates are shown as daily amounts. Partial overseas meal days require review. The ATO amount is a record-keeping reference when a qualifying employer allowance covers the expense. Confirm the supported actual costs to include them in the forecast. Changes to reviewed trip spending require another confirmation.
+
+For employment trips, enter the employer and choose the ATO salary band directly, or enter annual salary excluding allowances to find it. Save the band as the default for that employer and financial year. New trips can reuse it, with a trip-specific override. A reviewed payslip with an explicitly stated annual base salary can suggest the band. Previously saved trip comparisons retain their recorded band.
 
 In **Reports → Annual handover**, save the figures reviewed with your tax agent. Later changes to recorded amounts and tracked records appear against the last saved revision. Download the handover ZIP for the current registers and saved revision history.
 
@@ -288,6 +290,8 @@ Trust only the actual forwarding proxy addresses. Do not trust an entire Docker 
 ## Document inbox and payslips
 
 Use **Document inbox → Capture documents**, or **Employment income → Upload payslip / statement**. JPEG, PNG, WebP and PDFs (up to 8 pages) use the existing 12 MB upload limit. Select the document type if known. Uploading and reading only create drafts.
+
+All unfiled documents appear in one Inbox list. **Save changes** keeps your edits with the original in the Inbox. Use **Save expense**, **Save employment income** or **Save home-office bill** to file the document. On a desktop, hover over the preview to magnify small print. The inline arrows turn PDF pages beside the form, and the full preview remains available.
 
 Review a payslip’s employer, payment date, gross taxable pay and PAYG tax withheld. Use this pay’s amounts, not YTD or net pay, and exclude employer super. Missing or ambiguous figures stay blank. Confirm the amounts in AUD before saving. The original can be viewed from Employment income. Use an annual income statement instead of payslips for the same pay; select its tax year ending 30 June. Existing overlapping records must be reviewed first. Legacy manual totals may need their type updated before importing more pay. Duplicate detection uses the entered employer name; check differently spelled employer names yourself.
 

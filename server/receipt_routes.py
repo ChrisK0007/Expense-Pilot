@@ -188,6 +188,8 @@ def extract_document(rid, unfiled_only=False):
     from receipt_core import currency_fields
     safe.update(currency_fields(result,body))
     safe.update(income_documents.clean(result))
+    if safe.get('document_kind') == 'payslip':
+        safe['annual_base_salary'] = income_documents.printed_base_salary(body)
     if used_local:
         safe['extraction_method']='local labels'
         if result.get('extraction_note'): safe['extraction_note']=result['extraction_note']
@@ -214,7 +216,7 @@ def extract_document(rid, unfiled_only=False):
     # read the current draft under the lock so concurrent edits are preserved.
     draft=draft_for(rid)
     if draft.get('document_kind') == safe.get('document_kind') and safe.get('document_kind') in income_documents.INCOME:
-        filled=[key for key in ('employer','date','gross','withheld','period_start','period_end')
+        filled=[key for key in ('employer','date','gross','withheld','period_start','period_end','annual_base_salary')
                 if key in draft and draft[key] in ('',None) and safe.get(key) not in ('',None)]
         if filled:
             for key in filled: draft.pop(key)

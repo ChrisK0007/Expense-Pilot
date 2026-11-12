@@ -43,10 +43,60 @@ def year_for(when):
     return int(when[:4]) - (int(when[5:7]) < 7)
 
 
+def band_for(year, salary_cents):
+    lower, upper = RATES[year]['bands']
+    return 0 if salary_cents <= lower * 100 else 1 if salary_cents <= upper * 100 else 2
+
+
+def salary_context(trip, years):
+    from app import rows
+    options = {}
+    for year in sorted(years & RATES.keys()):
+        lower, upper = RATES[year]['bands']
+        options[year] = [f'Up to ${lower:,}', f'${lower+1:,} to ${upper:,}', f'Over ${upper:,}']
+    employers = {}
+    if trip['scope'] == 'work':
+        for record in rows('SELECT employer,year,band FROM overnight_salary_bands WHERE user_id=? ORDER BY year DESC',
+                           (trip['user_id'],)):
+            value = employers.setdefault(record['employer'].casefold(), dict(name=record['employer'], saved={}, suggested={}))
+            if record['year'] in options:
+                value['saved'][record['year']] = record['band']
+        for record in rows("SELECT employer,date,annual_base_cents,record_kind,receipt_id FROM employment_income ORDER BY date DESC,id DESC"):
+            name = record['employer'].strip()
+            if not name:
+                continue
+            value = employers.setdefault(name.casefold(), dict(name=name, saved={}, suggested={}))
+            year = year_for(record['date'])
+            if year in options and record['record_kind'] == 'payslip' and record['receipt_id'] and record['annual_base_cents']:
+                value['suggested'].setdefault(year, band_for(year, record['annual_base_cents']))
+    return dict(years=options, employers=sorted(employers.values(), key=lambda item: item['name'].casefold()))
+
+
+def reviewed_bands(payload, trip, money, destination):
+    years = {year_for(day) for day in days(trip['start'], trip['end'])} & RATES.keys()
+    year_keys = {str(year) for year in years}
+    provided = payload.get('salary_bands', {})
+    if not isinstance(provided, dict) or any(
+        key not in year_keys or type(band) is not int or not 0 <= band <= 2
+        for key, band in provided.items()
+    ):
+        raise ValueError('Choose a valid ATO salary band for each financial year.')
+    salary = money(payload['salary']) if payload.get('salary') not in (None, '') else 0
+    if salary < 0:
+        raise ValueError('Enter a positive annual salary excluding allowances.')
+    bands = {**provided}
+    if salary:
+        bands = {str(year): band_for(year, salary) for year in years}
+    if trip['scope'] == 'work' and destination != 'custom' and len(bands) != len(years):
+        raise ValueError('Choose a salary band for each travel year or enter your annual salary excluding allowances.')
+    employer = payload.get('employer', '')
+    if not isinstance(employer, str) or len(employer.strip()) > 200:
+        raise ValueError('Enter an employer name of up to 200 characters.')
+    return salary, bands, employer.strip()
+
+
 def validate_settings(payload, trip, money):
     if not isinstance(payload, dict): raise ValueError('Provide comparison details as an object.')
-    salary = money(payload.get('salary', 0))
-    if salary <= 0: raise ValueError('Enter your annual salary excluding allowances (full-time equivalent if part-time).')
     destination = payload.get('destination_class')
     if destination not in ('capital', 'country', 'high_cost', 'custom', 'domestic', 'overseas'):
         raise ValueError('Choose a destination class, or enter custom verified amounts for overseas travel.')
@@ -74,7 +124,9 @@ def validate_settings(payload, trip, money):
     for name in ('allowance_received', 'allowance_declared'):
         if not isinstance(payload.get(name, False), bool): raise ValueError('Allowance selections must be on or off.')
         flags[name] = payload.get(name, False)
-    return dict(salary_cents=salary, destination_class=destination, destination=location, days=result, custom_rates=custom,
+    salary, bands, employer = reviewed_bands(payload, trip, money, destination)
+    return dict(salary_cents=salary, salary_bands=bands, employer=employer,
+                destination_class=destination, destination=location, days=result, custom_rates=custom,
                 source=str(payload.get('source', '')).strip()[:1000], **flags)
 
 
@@ -125,8 +177,10 @@ def comparison(trip, expenses):
         if destination == 'custom':
             rates = [settings['custom_rates'].get(meal, 0) for meal in MEALS]
             sources.add(settings.get('source', 'Custom amounts'))
-        elif table and salary and destination:
-            band = 0 if salary <= table['bands'][0]*100 else 1 if salary <= table['bands'][1]*100 else 2
+        elif table and destination and (str(year) in settings.get('salary_bands', {}) or salary):
+            band = settings.get('salary_bands', {}).get(str(year))
+            if band is None:
+                band = band_for(year, salary)
             if destination == 'overseas':
                 group=COUNTRY_GROUPS[year].get(location,3)
                 meal, incidental=OVERSEAS[band][group-1]
@@ -187,6 +241,18 @@ def register(app, auth):
             if payload.get('version') != trip['comparison_version']: fail('This comparison changed. Reload it before saving.',409)
             try: settings = validate_settings(payload, trip, money)
             except (ValueError, TypeError) as exc: fail(str(exc))
+            remember = payload.get('remember_salary', False)
+            if type(remember) is not bool:
+                fail('Choose whether to reuse this salary band.')
+            if remember:
+                employer = settings['employer']
+                if trip['scope'] != 'work' or not employer or not settings['salary_bands']:
+                    fail('Choose an employer and a salary band before saving a default.')
+                db().executemany("""INSERT INTO overnight_salary_bands(user_id,year,employer_key,employer,band)
+                    VALUES (?,?,?,?,?) ON CONFLICT(user_id,year,employer_key)
+                    DO UPDATE SET employer=excluded.employer,band=excluded.band""",
+                    [(trip['user_id'], int(year), employer.casefold(), employer, band)
+                     for year, band in settings['salary_bands'].items()])
             confirm=payload.get('confirm_claim',False)
             if type(confirm) is not bool: fail('Use a valid claim confirmation.')
             if confirm:
@@ -199,6 +265,9 @@ def register(app, auth):
             db().execute('UPDATE trips SET comparison_json=?,comparison_version=comparison_version+1 WHERE id=?', (json.dumps(settings),tid))
             audit('overnight comparison updated',tid); db().commit()
             trip = one('SELECT * FROM trips WHERE id=?', (tid,))
-        try: return jsonify(comparison(trip, rows('SELECT * FROM expenses WHERE trip_id=?', (tid,))))
+        try:
+            result = comparison(trip, rows('SELECT * FROM expenses WHERE trip_id=?', (tid,)))
+            result['salary_context'] = salary_context(trip, {year_for(day) for day in days(trip['start'], trip['end'])})
+            return jsonify(result)
         except ValueError as exc: fail(str(exc))
     app.register_blueprint(bp)

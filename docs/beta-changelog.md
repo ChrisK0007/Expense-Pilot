@@ -4,6 +4,15 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.5 — Inbox review, setup and billing contacts (2026-11-12)
+
+- Combine unfiled documents in one Inbox. Save edits in place, magnify the original on hover and browse multipage PDFs beside the form.
+- Show release notes once per user after an update. Reopen them from **What’s new** beside the version number.
+- Guide new owners through workspace preferences, expense capture, banking, invoicing and account protection.
+- Reuse a saved ATO salary band by employer and financial year. Confirm a suggested band from the annual base salary on a reviewed payslip, or choose a band directly.
+- Store phone numbers and multiple billing contacts per client. Select the recipient per invoice and preserve issued invoice snapshots.
+- Remove the **Recent expenses** card from Overview. This update applies migration m031.
+
 ## 1.0.7-beta.4 — Actual-cost claims and expense review (2026-11-11)
 
 - Keep Expenses and Bank accounts navigation visible on their subpages. Remove Drive tools from Vehicles and show reviewed ordinary business allocations on Overview.

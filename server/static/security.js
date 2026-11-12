@@ -40,5 +40,5 @@ const Security=(()=>{
   modal('Turn off two-factor authentication',`<form id="auth-disable">${field('Current password','disable_password','password','','required autocomplete="current-password"')}${field('Authenticator or recovery code','disable_code','text','','required autocomplete="one-time-code" maxlength="40"')}<button type="submit" class="danger">Turn off 2FA</button></form>`);
   formHandler('#auth-disable',async d=>{const result=await api('security/2fa/disable',{password:d.disable_password,code:d.disable_code});S.csrf=result.csrf;S.user.totp_enabled=0;$('#modal').close();$('#modal').innerHTML='';render();toast('Two-factor authentication disabled.');});
  }
- return {challenge,changeRequired,settings};
+ return {challenge,changeRequired,settings,setup};
 })();
