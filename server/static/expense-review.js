@@ -15,7 +15,7 @@ const ExpenseReview=(()=>{
  async function recurring(){
   const y=recurringYear??year();
   $('#content').innerHTML=heading('Recurring expenses','Review expected payments and match them to posted bank charges.',bookkeeper()?'<button id="recurring-add">+ New schedule</button>':'')+
-   Workflows.links('expenses')+`<div class="toolbar">${select('Financial year','recurring-year',fyOptions().filter(([v])=>v!=='all'),y)}</div><div id="recurring-content">Loading…</div>`;
+   Workflows.links('expenses')+`<div class="toolbar">${select('Financial year','recurring-year',fyOptions().filter(([v])=>v!=='all'),y)}</div><div id="recurring-content" class="page-stack">Loading…</div>`;
   bind('#manage-expense-categories',()=>Tracking.categories());
   const root=$('#recurring-content');
   $('#recurring-year').onchange=e=>{recurringYear=Number(e.target.value);recurring().catch(e=>toast(e.message));};
@@ -79,7 +79,7 @@ const ExpenseReview=(()=>{
   });
  }
  async function transfers(){
-  $('#content').innerHTML=heading('Transfers','Match money moved between accounts or paid to a credit card.')+Workflows.bankLinks()+'<div id="transfer-content">Loading…</div>';
+  $('#content').innerHTML=heading('Transfers','Match money moved between accounts or paid to a credit card.')+Workflows.bankLinks()+'<div id="transfer-content" class="page-stack">Loading…</div>';
   const root=$('#transfer-content');
   try{
    const data=await api('bank-transfers');

@@ -1,4 +1,9 @@
 {
+  "1.0.7-beta.6": [
+    "Save preferred merchant and payee names, reuse them on new expenses and group alternate names in reports.",
+    "Overview cards have even padding, with more room for labels and amounts.",
+    "Category budgets, Recurring expenses and Bank transfers have clearer spacing between panels."
+  ],
   "1.0.7-beta.5": [
     "The Inbox has one list for unfiled documents. Hover over the preview to read small print.",
     "Save your overnight salary band for the financial year and reuse it on new employment trips.",

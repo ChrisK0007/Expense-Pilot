@@ -73,12 +73,16 @@
 .overview-metric>strong {display:block;font-size:clamp(22px,2.4vw,29px);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .overview-metric .footnote {margin:0}
 .dashboard-grid.overview-grid {grid-template-columns:repeat(6,minmax(0,1fr));gap:13px;border:0}
-.overview-grid>.dash-cell,.overview-grid>.dash-cell:last-child {
- grid-column:span 2;min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:15px;
+.dashboard-grid.overview-grid>.dash-cell {
+ min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:15px;
 }
+.overview-grid>.dash-cell {grid-column:span 2}
 .overview-grid>.dashboard-chart {grid-column:span 4}
 .overview-grid .chart-controls {gap:8px;margin-top:10px}
 .overview-grid .incoming .review-link {min-height:40px}
+.overview-grid .summary-lines span {min-width:0;overflow-wrap:anywhere}
+.overview-grid :is(.summary-lines,.breakdown-list) strong {flex:none}
+.overview-grid .breakdown-list .colour-dot {flex:none}
 .expenses-ledger th {background:var(--soft);font-size:11px;font-weight:700;letter-spacing:.04em}
 .expenses-ledger .merchant-icon {border-radius:8px;background:var(--accent-soft);color:var(--accent)}
 .expenses-ledger td {font-size:13px}
@@ -240,7 +244,8 @@
  .overview-metric {padding:9px}
  .overview-metric h2 {font-size:11px}
  .dashboard-grid.overview-grid {display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
- .overview-grid>.dash-cell,.overview-grid>.dash-cell:last-child,.overview-grid>.dashboard-chart,.overview-grid>.incoming {grid-column:1/-1;padding:11px}
+ .overview-grid>.dash-cell,.overview-grid>.dash-cell:last-child {grid-column:1/-1}
+ .dashboard-grid.overview-grid>.dash-cell {padding:11px}
  .expense-tools {gap:3px 13px}
  .expense-filters.toolbar {padding:8px}
  .inbox-workspace {grid-template-columns:minmax(0,1fr)}

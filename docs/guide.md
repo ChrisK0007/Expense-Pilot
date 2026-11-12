@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.7-beta.5**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.7-beta.6**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.5**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.6**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -286,6 +286,12 @@ Open an invoice's **Reminder options** to set a custom schedule and individual s
 
 Trust only the actual forwarding proxy addresses. Do not trust an entire Docker subnet just because the proxy is on it. A trusted proxy must replace or append the real client address in `X-Forwarded-For`. If Docker NAT makes direct clients and the tunnel appear as the same gateway IP, first restrict the app port to the proxy or use a dedicated proxy network; trusting that gateway while allowing direct connections would let those clients forge their address. Leave `TRUSTED_PROXIES` blank until the forwarding path is verified.
 
+
+## Saved merchants and payees
+
+Open **Expenses → Saved merchants** to search names from existing expenses. Use **Add expense** beside a merchant to start with its name filled in. The expense and Inbox forms also suggest saved names as you type, and recognised receipt or bank names use the preferred spelling.
+
+Use **Edit names** to set a preferred name or add a bank or receipt description as an alternate. Existing expenses under an alternate name then group under the preferred name in **Reports → Group by → Merchant / payee**. Source descriptions and receipt originals remain available.
 
 ## Document inbox and payslips
 

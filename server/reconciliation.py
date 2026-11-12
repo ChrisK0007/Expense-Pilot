@@ -86,6 +86,8 @@ def register(app,auth):
                 expense=item['id']
                 if kind=='refund':
                     e=item['record']
+                    from merchant_directory import remember
+                    remember(db(),record_user_id(),bank['payee'])
                     refund=db().execute("INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,work_percent,business_percent,account_id,notes,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,'review')",
                                         (record_user_id(),bank['date'],bank['payee'],-item['amount_cents'],e['scope'],e['category'],e['percent'],e['work_percent'],e['business_percent'],bank['local_account_id'],'Refund of expense #'+str(expense))).lastrowid
             db().execute('INSERT INTO bank_reconciliations(bank_id,kind,amount_cents,income_id,invoice_id,payment_id,expense_id,refund_id,created_at) VALUES (?,?,?,?,?,?,?,?,?)',

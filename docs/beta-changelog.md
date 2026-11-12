@@ -4,6 +4,12 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.6 — Saved merchants and workspace spacing (2026-11-12)
+
+- Reuse saved merchant and payee names in new expenses and receipt reviews. Add alternate names for bank descriptions and group the Expense report by the preferred name. Migration m032 seeds the directory from existing expenses.
+- Restore even padding inside Overview cards, with more room for long labels and totals.
+- Separate the Category budgets, Recurring expenses and Bank transfers sections. Let headings and actions wrap on narrower screens.
+
 ## 1.0.7-beta.5 — Inbox review, setup and billing contacts (2026-11-12)
 
 - Combine unfiled documents in one Inbox. Save edits in place, magnify the original on hover and browse multipage PDFs beside the form.

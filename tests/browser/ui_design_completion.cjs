@@ -9,6 +9,16 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
  const post=async(path,data,method='POST')=>{const session=await(await context.request.get(url+'/api/session')).json();const response=await context.request.fetch(url+'/api/'+path,{method,headers:{'X-CSRF-Token':session.csrf},data});assert.equal(response.status(),200,await response.text());return response.json();};
  const shot=async(name)=>page.screenshot({path:output+'/design-completion-'+name+'.png',fullPage:true});
  const fits=async(label)=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,label);
+ const separated=async(selector,label)=>{
+  const boxes=await page.locator(selector).evaluateAll(nodes=>nodes.map(node=>{
+   const {top,bottom}=node.getBoundingClientRect();
+   return {top,bottom};
+  }));
+  assert.ok(boxes.length>1,label+' has adjacent sections');
+  for(let i=1;i<boxes.length;i++){
+   assert.ok(boxes[i].top-boxes[i-1].bottom>=10,label+' has space between sections');
+  }
+ };
  try{
   await post('login',{email:'owner@example.test',password:'Browser-test-password-123'});
   await post('features',{employment:true,business:true,home_office:true,trips:true,vehicles:true,banks:true,tax:true},'PUT');
@@ -66,7 +76,68 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
    await page.getByLabel('Answer',{exact:true}).fill('Recorded for review.');await page.getByLabel('Resolved',{exact:true}).check();await fits('adviser response mobile');await shot('adviser-response-mobile');await page.getByRole('button',{name:'Save response',exact:true}).click();await page.getByText('Response saved.',{exact:true}).waitFor();
    const after=await(await context.request.get(url+'/api/expenses')).json();assert.equal(JSON.stringify(after.find(e=>e.id===expenses[0].id)),original);
   }
-  await page.setViewportSize({width:1440,height:1050});await navigate(page,'quotes');await page.evaluate(()=>Theme.set('dark'));await fits('dark quotes');await shot('quotes-dark');
+  // Check panel spacing as well as horizontal overflow at widths where the layout changes.
+  await page.setViewportSize({width:1440,height:1050});
+  await navigate(page,'dashboard');
+  await page.evaluate(()=>Theme.set('dark'));
+  const overview=page.locator('.overview-grid > .dash-cell');
+  await overview.first().waitFor();
+  for(const width of [1440,1024,390]){
+   await page.setViewportSize({width,height:1050});
+   await fits('Overview '+width);
+   const padding=await overview.evaluateAll(cards=>cards.map(card=>{
+    const style=getComputedStyle(card);
+    return [parseFloat(style.paddingLeft),parseFloat(style.paddingRight)];
+   }));
+   assert.ok(padding.length>=3);
+   for(const [left,right] of padding){
+    assert.ok(left>=11&&left===right,'Overview card has even horizontal padding at '+width);
+   }
+  }
+  await page.setViewportSize({width:1440,height:1050});await shot('overview-dark-spacing');
+  await navigate(page,'budgets');
+  await page.locator('#budget-list > section').first().waitFor();
+  for(const width of [1440,1024,390]){
+   await page.setViewportSize({width,height:1050});
+   await separated('#content > .budget-period-card, #budget-list','Category budgets '+width);
+   await fits('Category budgets '+width);
+  }
+  await page.setViewportSize({width:1440,height:1050});await shot('category-budgets-dark-spacing');
+  await page.getByRole('link',{name:'Recurring expenses',exact:true}).click();
+  await page.getByRole('heading',{name:'Reviewed payments',exact:true}).waitFor();
+  for(const width of [1440,1024,390]){
+   await page.setViewportSize({width,height:1050});
+   await separated('#recurring-content > .panel','Recurring expenses '+width);
+   await fits('Recurring expenses '+width);
+  }
+  await page.setViewportSize({width:1440,height:1050});await shot('recurring-expenses-dark-spacing');
+  await navigate(page,'banks');
+  await page.getByRole('link',{name:'Transfers',exact:true}).click();
+  await page.getByRole('heading',{name:'Paired transfers',exact:true}).waitFor();
+  await separated('#transfer-content > section','Bank transfers');
+
+  const merchant='Example Coastal Supplies',alternate='CARD PAYMENT 842';
+  for(const name of [merchant,alternate]){
+   await post('expenses',{merchant:name,date:'2026-11-02',amount:10,scope:'work',category:'Other',status:'ready'});
+  }
+  await navigate(page,'expenses');
+  await page.getByRole('button',{name:'Saved merchants',exact:true}).click();
+  await page.getByRole('searchbox',{name:'Search merchants and alternate names'}).fill(merchant);
+  const savedMerchant=page.locator('.merchant-list li').filter({hasText:merchant});
+  await savedMerchant.getByRole('button',{name:'Edit names',exact:true}).click();
+  await page.getByLabel('Add an alternate name (optional)',{exact:true}).fill(alternate);
+  await page.getByRole('button',{name:'Save merchant',exact:true}).click();
+  await savedMerchant.getByRole('button',{name:'Add expense',exact:true}).click();
+  assert.equal(await page.locator('#expense-form #merchant').inputValue(),merchant);
+  await page.locator('#close-modal').click();
+  await navigate(page,'reports');
+  await page.locator('#report-year').selectOption('all');
+  await page.locator('#report-group').selectOption('merchant');
+  const merchantSummary=page.locator('.report-summary .breakdown-list');
+  assert.equal(await merchantSummary.getByText(merchant,{exact:true}).count(),1);
+  assert.equal(await merchantSummary.getByText(alternate,{exact:true}).count(),0);
+
+  await navigate(page,'quotes');await fits('dark quotes');await shot('quotes-dark');
   assert.deepEqual(errors,[]);console.log('PASS: complete server layouts, quote editor/search, client/service/time search, billing design/email navigation, 18 desktop/mobile destinations, document viewer and adviser response.');
  }catch(error){await shot('failure');throw error;}finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
