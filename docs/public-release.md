@@ -1,6 +1,6 @@
-# Beta installation and configuration — 1.0.7-beta.4
+# Beta installation and configuration — 1.0.7-beta.5
 
-Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes beta 1.0.7-beta.4, which extends the shared web design across billing, tracking, income and records. Use the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) for production installation defaults. The iPhone app stays in testing; no App Store setup is needed to install the container.
+Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend remains a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access; the phone retains local drafts during outages. This guide describes beta 1.0.7-beta.5, which adds guided setup, release notes, billing contacts and a single Inbox queue. Use the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) for production installation defaults. The iPhone app stays in testing; no App Store setup is needed to install the container.
 
 ## Unraid installation
 
@@ -21,7 +21,7 @@ For an additional installation, change the container name, host port and appdata
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.4` to pin this beta release.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.5` to pin this beta release.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
@@ -59,7 +59,7 @@ Archives are written to `/data/backups/<installation-id>` by default. A mounted 
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.4 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.5 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
@@ -85,6 +85,8 @@ Invoices, recurring drafts, reminders, budget date defaults, bank-feed sync rang
 The app remains Australian-focused: AUD, DD/MM/YYYY input, July–June financial years and Australian tax/allowance rules remain unchanged. Choosing another timezone does not select another country's accounting rules.
 
 ## Settings and optional setup
+
+On the first sign-in after owner creation, the setup guide covers the workspace, expense capture, banking, invoicing and account protection. Optional steps can be skipped. To pick up where you left off, open **Settings → Workspace setup → Setup guide**. After a server update, **What’s new** opens once for each existing account and remains available beside the version number.
 
 Settings is grouped into Workspace, Receipts & AI, Business & email, Bank feeds, Access & security, and Data & privacy. The topic buttons jump to each section. Features are personal preferences; timezone, AI and business configuration are shared owner-managed settings. Backup downloads are optional and are not setup checklist items. They do not schedule automatic backups.
 

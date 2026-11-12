@@ -20,7 +20,16 @@ const url=process.env.APP_URL||'http://127.0.0.1:8790',output=process.env.UI_OUT
   await page.getByRole('button',{name:'Sign in',exact:false}).waitFor();
   await page.getByLabel('Email address').fill('new@example.test');await page.getByLabel('Password',{exact:true}).fill('New-owner-password-123');
   await page.getByRole('button',{name:'Sign in',exact:false}).click();
-  await navigate(page,'settings');await page.locator('#setup-checklist').waitFor();
+  await page.getByRole('heading',{name:'Setup guide',exact:true}).waitFor();
+  await page.getByLabel('Workspace name (optional)').fill('Training workspace');
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByRole('heading',{name:'Choose how to capture expenses',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Finish later',exact:true}).click();
+  await navigate(page,'settings');
+  await page.getByRole('button',{name:'Setup guide',exact:true}).click();
+  await page.getByRole('heading',{name:'Choose how to capture expenses',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Finish later',exact:true}).click();
+  assert.equal(await page.evaluate(()=>S.workspace_name),'Training workspace');await page.locator('#setup-checklist').waitFor();
   assert.equal(await page.evaluate(()=>S.timezone),'Europe/London');
   assert.doesNotMatch(await page.locator('#setup-checklist').innerText(),/backup/i);
   await page.getByRole('navigation',{name:'Settings sections'}).getByRole('button',{name:'Email delivery',exact:true}).click();

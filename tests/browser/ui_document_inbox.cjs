@@ -138,8 +138,8 @@ function pdf(lines){
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.locator('#close-modal').click();
-  await page.getByRole('button',{name:/^Draft/}).click();
-  assert.equal(await page.locator('.receipt-card').filter({hasText:'Ready queue second'}).count(),0);
+  assert.equal(await page.locator('[data-inbox-status]').count(),0);
+  assert.equal(await page.locator('.receipt-card').filter({hasText:'Ready queue second'}).count(),1);
   await page.getByRole('button',{name:'More',exact:true}).click();
   await page.locator('[data-more-page=settings]').click();
   await page.getByRole('heading',{name:'Settings',exact:true}).waitFor();

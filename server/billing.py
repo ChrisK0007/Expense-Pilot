@@ -180,6 +180,7 @@ def hydrate(row):
     doc = dict(row)
     for key in ('client', 'business', 'lines', 'reminder_options'):
         doc[key] = json.loads(doc[key])
+    doc['billing_contact_id'] = doc['client'].get('billing_contact_id')
     doc['paid_cents'] = one('SELECT COALESCE(SUM(amount_cents),0) AS n FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['n']
     doc['paid_date'] = one('SELECT MAX(date) AS value FROM billing_payments WHERE document_id=? AND reversed_at IS NULL', (doc['id'],))['value'] if doc['paid_cents'] >= doc['total_cents'] and doc['paid_cents'] > 0 else None
     doc['balance_cents'] = doc['total_cents'] - doc['paid_cents']
@@ -196,7 +197,35 @@ def document(did):
     return hydrate(row)
 
 
-def validate_document(payload, terms=None, billable=False):
+def client_snapshot(client, payload, previous=None):
+    snapshot = {key: client[key] for key in ('id', 'name', 'contact', 'email', 'address', 'abn', 'terms', 'phone')}
+    same_client = previous is not None and previous.get('id') == client['id']
+    selected = payload.get('billing_contact_id')
+    if selected not in (None, ''):
+        selected = integer(selected, 'billing contact', 1, 1000000000)
+    else:
+        selected = None
+    if same_client and ('billing_contact_id' not in payload or selected == previous.get('billing_contact_id')):
+        for key in ('contact', 'email', 'department', 'contact_phone', 'billing_contact_id'):
+            if key in previous:
+                snapshot[key] = previous[key]
+        return snapshot
+    if 'billing_contact_id' not in payload:
+        contact = one('SELECT * FROM billing_client_contacts WHERE client_id=? AND is_default=1', (client['id'],))
+    elif selected is not None:
+        contact = one('SELECT * FROM billing_client_contacts WHERE client_id=? AND id=?', (client['id'], selected))
+        if not contact:
+            raise ValueError('Choose a billing contact belonging to this client.')
+    else:
+        contact = None
+    if contact:
+        snapshot.update(contact=contact['name'] or contact['department'], email=contact['email'],
+                        department=contact['department'] if contact['name'] else '',
+                        contact_phone=contact['phone'], billing_contact_id=contact['id'])
+    return snapshot
+
+
+def validate_document(payload, terms=None, billable=False, previous_client=None):
     kind = payload.get('kind', 'invoice')
     if kind not in ('invoice', 'quote'):
         raise ValueError('Choose an invoice or quote.')
@@ -220,7 +249,7 @@ def validate_document(payload, terms=None, billable=False):
     reminders = payload.get('reminders_enabled', True)
     if type(reminders) not in (bool, int) or reminders not in (0, 1):
         raise ValueError('Choose whether automatic reminders are on or off for this invoice.')
-    snapshot = {k: client[k] for k in ('id', 'name', 'contact', 'email', 'address', 'abn', 'terms')}
+    snapshot = client_snapshot(client, payload, previous_client)
     from billing_emails import validate_reminder_options
     options = validate_reminder_options(payload.get('reminder_options', {})) if kind == 'invoice' else {}
     return dict(kind=kind, reminders_enabled=int(reminders), reminder_options=options, client_id=client['id'], client=snapshot, business=seller, tax_mode=mode,
@@ -431,12 +460,23 @@ def email_test():
 @reader
 def clients():
     if request.method == 'POST':
-        values = client_values(body())
-        cur = db().execute('INSERT INTO billing_clients(name,contact,email,address,abn,terms,notes,archived) VALUES (?,?,?,?,?,?,?,?)', values)
+        payload = body()
+        values = client_values(payload)
+        db().execute('BEGIN IMMEDIATE')
+        cur = db().execute('INSERT INTO billing_clients(name,contact,email,address,abn,terms,notes,archived,phone) VALUES (?,?,?,?,?,?,?,?,?)', values)
+        if 'contacts' in payload:
+            save_contacts(cur.lastrowid, payload['contacts'])
         audit('client created', cur.lastrowid)
         db().commit()
         return jsonify(id=cur.lastrowid)
-    return jsonify(rows('SELECT * FROM billing_clients ORDER BY archived,name'))
+    db().execute('BEGIN')
+    result = rows('SELECT * FROM billing_clients ORDER BY archived,name')
+    by_client = {client['id']: [] for client in result}
+    for contact in rows('SELECT * FROM billing_client_contacts ORDER BY is_default DESC, name, department, id'):
+        by_client[contact['client_id']].append(contact)
+    for client in result:
+        client['contacts'] = by_client[client['id']]
+    return jsonify(result)
 
 
 def client_values(payload):
@@ -445,16 +485,55 @@ def client_values(payload):
         fail('Client name is required.')
     return (name, txt(payload.get('contact'), 200), email(payload.get('email')), txt(payload.get('address'), 2000),
             txt(payload.get('abn'), 50), integer(payload.get('terms', 14), 'payment terms'),
-            txt(payload.get('notes'), 3000), int(payload.get('archived') is True))
+            txt(payload.get('notes'), 3000), int(payload.get('archived') is True), txt(payload.get('phone'), 60))
+
+
+def save_contacts(client_id, contacts):
+    if not isinstance(contacts, list) or len(contacts) > 100:
+        raise ValueError('Provide a list of up to 100 billing contacts.')
+    existing = {row['id'] for row in rows('SELECT id FROM billing_client_contacts WHERE client_id=?', (client_id,))}
+    retained = set()
+    default_count = 0
+    updates = []
+    for item in contacts:
+        if not isinstance(item, dict) or type(item.get('is_default', False)) is not bool:
+            raise ValueError('Enter valid billing contact details.')
+        contact_id = item.get('id')
+        if contact_id is not None:
+            if type(contact_id) is not int or contact_id not in existing or contact_id in retained:
+                raise ValueError('Choose distinct billing contacts belonging to this client.')
+            retained.add(contact_id)
+        name = txt(item.get('name'), 200)
+        department = txt(item.get('department'), 200)
+        if not name and not department:
+            raise ValueError('Enter a name or department for every billing contact.')
+        default = int(item.get('is_default', False))
+        default_count += default
+        updates.append((contact_id, (name, department, email(item.get('email')), txt(item.get('phone'), 60), default)))
+    if default_count > 1:
+        raise ValueError('Choose one default billing contact.')
+    db().execute('UPDATE billing_client_contacts SET is_default=0 WHERE client_id=? AND is_default=1', (client_id,))
+    db().executemany('DELETE FROM billing_client_contacts WHERE id=?', [(cid,) for cid in existing-retained])
+    for contact_id, values in updates:
+        if contact_id is None:
+            db().execute('INSERT INTO billing_client_contacts(name,department,email,phone,is_default,client_id) VALUES (?,?,?,?,?,?)', values+(client_id,))
+        else:
+            db().execute('UPDATE billing_client_contacts SET name=?,department=?,email=?,phone=?,is_default=? WHERE id=?', values+(contact_id,))
 
 
 @bp.put('/clients/<int:cid>')
 @reader
 def edit_client(cid):
-    if not one('SELECT id FROM billing_clients WHERE id=?', (cid,)):
+    db().execute('BEGIN IMMEDIATE')
+    existing = one('SELECT phone FROM billing_clients WHERE id=?', (cid,))
+    if not existing:
         fail('Client not found.', 404)
-    values = client_values(body())
-    db().execute('UPDATE billing_clients SET name=?,contact=?,email=?,address=?,abn=?,terms=?,notes=?,archived=? WHERE id=?', values + (cid,))
+    payload = body()
+    payload.setdefault('phone', existing['phone'])
+    values = client_values(payload)
+    db().execute('UPDATE billing_clients SET name=?,contact=?,email=?,address=?,abn=?,terms=?,notes=?,archived=?,phone=? WHERE id=?', values + (cid,))
+    if 'contacts' in payload:
+        save_contacts(cid, payload['contacts'])
     audit('client updated', cid)
     db().commit()
     return jsonify(ok=True)
@@ -635,6 +714,7 @@ def schedules():
         fail('End date must follow start date.')
     terms = integer(payload.get('terms', 14), 'payment terms')
     template = {k: doc[k] for k in ('lines', 'tax_mode', 'notes', 'reference', 'payment_details')}
+    template['billing_contact_id'] = doc['billing_contact_id']
     template['reminders_enabled'] = bool(doc['reminders_enabled'])
     template['reminder_options'] = doc['reminder_options']
     if 'reminders_enabled' in payload:

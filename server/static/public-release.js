@@ -33,7 +33,8 @@ const PublicRelease=(()=>{
   bind('#full-backup',backupForm);bind('#delete-my-account',deletion);if(owner())autoBackup();
   $('#settings-receipts-cards').insertAdjacentHTML('afterbegin',`<section class="card"><h3>Receipt AI</h3><p class="settings-status" id="receipt-ai-status">${esc(S.ai_label||'No AI')}</p><p class="muted">Choose manual entry, local Ollama, an existing Ollama server or cloud AI. Photos and scans need a vision-capable model.</p>${owner()?'<button id="configure-ai">Configure receipt AI</button>':'<p class="footnote">Your workspace owner manages AI settings.</p>'}</section>`);
   if(!owner())return;
-  $('#settings-workspace-cards').insertAdjacentHTML('afterbegin',`<section class="card"><h3>Workspace setup</h3><ul id="setup-checklist" class="setup-checklist"><li>Loading setup status…</li></ul><p class="settings-status">${esc(WorkspaceTime.zone())}</p><div class="settings-options"><button class="secondary" id="configure-timezone">Workspace timezone</button><a class="button-link secondary" href="/help" target="_blank" rel="noopener">Installation & updates</a></div></section>`);
+  $('#settings-workspace-cards').insertAdjacentHTML('afterbegin',`<section class="card"><h3>Workspace setup</h3><ul id="setup-checklist" class="setup-checklist"><li>Loading setup status…</li></ul><p class="settings-status">${esc(WorkspaceTime.zone())}</p><div class="settings-options"><button class="secondary" id="open-setup-guide">Setup guide</button><button class="secondary" id="configure-timezone">Workspace timezone</button><a class="button-link secondary" href="/help" target="_blank" rel="noopener">Installation & updates</a></div></section>`);
+  bind('#open-setup-guide',()=>Onboarding.openGuide().catch(e=>toast(e.message)));
   bind('#configure-ai',()=>aiForm().catch(e=>toast(e.message)));bind('#configure-timezone',()=>WorkspaceTime.settings().catch(e=>toast(e.message)));
   await setupStatus();
  }
@@ -41,5 +42,5 @@ const PublicRelease=(()=>{
   const list=$('#setup-checklist');if(!list)return;
   try{const r=await api('setup/checklist');if(!list.isConnected)return;list.innerHTML=r.items.map(x=>`<li><span class="setup-indicator" aria-label="${x.complete?'Complete':x.optional?'Optional':'Not configured'}">${x.complete?'✓':'○'}</span><span>${esc(x.label)}${x.optional?' <small>(optional)</small>':''}</span></li>`).join('');}catch(e){if(list.isConnected)list.textContent=e.message;}
  }
- return {settings,aiForm};
+ return {settings,aiForm,backupForm};
 })();

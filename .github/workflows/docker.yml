@@ -33,6 +33,7 @@ jobs:
           node tests/browser/dashboard_periods.cjs
           node --check server/static/workspace-time.js
           node --check server/static/public-release.js
+          node --check server/static/onboarding.js
           node --check server/static/workflows.js
           node --check server/static/date-picker.js
           node --check server/static/adviser.js

@@ -21,6 +21,15 @@ class PublicReleaseTest(unittest.TestCase):
     login = base.AppTest.login
     expense = base.AppTest.expense
 
+    def test_release_summary_is_claimed_once_per_account(self):
+        preview = self.owner.get('/api/release-notes').json
+        self.assertTrue(preview['changes'])
+        self.assertFalse(preview['first'])
+        self.assertTrue(self.call(self.owner, 'release-notes', {}).json['first'])
+        self.assertFalse(self.call(self.owner, 'release-notes', {}).json['first'])
+        self.assertTrue(self.call(self.agent, 'release-notes', {}).json['first'])
+        self.assertEqual(self.owner.get('/api/release-notes').json['changes'], preview['changes'])
+
     def upload(self, ref):
         data = io.BytesIO(); Image.new('RGB', (20, 20), 'blue').save(data, 'PNG'); data.seek(0)
         return self.owner.post('/api/receipts', data={'file': (data, 'test.png'), 'client_ref': ref}, headers={'X-CSRF-Token': self.owner.get('/api/session').json['csrf']})

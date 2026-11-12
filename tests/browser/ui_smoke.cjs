@@ -33,6 +33,7 @@ async function main() {
     assert.equal(await page.evaluate(()=>dateISO('29/02/2024')),'2024-02-29');
     assert.equal(await page.evaluate(()=>{try{dateISO('31/02/2026');return false;}catch{return true;}}),true);
     assert.equal(await page.evaluate(()=>{try{dateISO('10/31/2026');return false;}catch{return true;}}),true);
+    await page.getByRole('button',{name:'Finish later',exact:true}).click();
     // Save several receipts without creating expenses, close and return later.
     await page.getByRole('button',{name:'Capture documents',exact:false}).click();
     assert.equal(await page.locator('#auto-scan').isChecked(),false);
@@ -86,15 +87,15 @@ async function main() {
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     await page.getByLabel('Receipt currency',{exact:true}).fill('USD');
     await page.getByLabel('Receipt currency',{exact:true}).press('Tab');
-    await page.getByRole('button',{name:'Save draft',exact:true}).click();
-    await page.getByText('Receipt draft saved.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Save changes',exact:true}).click();
+    await page.getByText('Inbox changes saved.',{exact:true}).waitFor();
     await page.reload();await navigate(page,'receipts');
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'USD');
-    // Currency hints must settle while typing, before a direct Save draft click.
+    // Currency hints must settle while typing, before a direct Save changes click.
     await page.getByLabel('Receipt currency',{exact:true}).fill('AUD');
-    await page.getByRole('button',{name:'Save draft',exact:true}).click();
-    await page.getByText('Receipt draft saved.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Save changes',exact:true}).click();
+    await page.getByText('Inbox changes saved.',{exact:true}).waitFor();
     await page.reload();await navigate(page,'receipts');
     await page.getByRole('button',{name:'Review & categorise',exact:false}).first().click();
     assert.equal(await page.getByLabel('Receipt currency',{exact:true}).inputValue(),'AUD','Edited currency survives reload');
@@ -103,6 +104,12 @@ async function main() {
     await page.screenshot({path:output+'/receipt-review-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false,'Currency review overflows');
     await page.setViewportSize({width:1440,height:1050});
+    await page.locator('.receipt-inline-stage img').hover();
+    await page.locator('.receipt-magnifier').waitFor({state:'visible'});
+    await page.getByLabel('Merchant / payee').hover();
+    await page.locator('.receipt-magnifier').waitFor({state:'hidden'});
+    await page.getByRole('button',{name:'Next inline page',exact:true}).click();
+    await page.locator('.receipt-inline-pages').getByText('Page 2 of 2').waitFor();
     await page.getByRole('button',{name:'View full receipt'}).click();
     await page.waitForFunction(()=>document.querySelector('#receipt-full-image')?.naturalWidth>0);
     assert.equal(await page.locator('#preview-page').innerText(),'Page 1 of 2');

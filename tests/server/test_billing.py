@@ -66,6 +66,27 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.json)
         return data
 
+    def test_invoice_recipient_selects_department_and_keeps_issued_snapshot(self):
+        client = dict(name='Example Client', email='office@example.test', phone='07 5555 0100',
+                      contacts=[dict(name='Training Accounts', department='Training', email='training@example.test',
+                                     phone='07 5555 0101', is_default=True),
+                                dict(name='Ops Accounts', department='Operations', email='ops@example.test')])
+        saved = self.call(self.owner, f'billing/clients/{self.cid}', client, 'PUT')
+        self.assertEqual(saved.status_code, 200, saved.json)
+        current = self.owner.get('/api/billing/clients').json[0]
+        self.assertEqual(current['phone'], client['phone'])
+        default, operations = current['contacts']
+        self.assertEqual(default['phone'], '07 5555 0101')
+        self.assertEqual(self.create()['client']['email'], 'training@example.test')
+        invoice = self.issue(self.create(billing_contact_id=operations['id']))
+        self.assertEqual(invoice['client']['department'], 'Operations')
+        operations.update(email='new-ops@example.test', is_default=False)
+        default['is_default'] = True
+        self.assertEqual(self.call(self.owner, f'billing/clients/{self.cid}', {**client, 'contacts': [default, operations]}, 'PUT').status_code, 200)
+        path = f"/api/billing/documents/{invoice['id']}/email-draft"
+        self.assertEqual(self.owner.get(path).json['recipient'], 'ops@example.test')
+        self.assertEqual(self.create(billing_contact_id=operations['id'])['client']['email'], 'new-ops@example.test')
+
     def test_separate_wording_defaults_and_existing_document_retention(self):
         legacy = self.create()
         self.assertEqual(legacy['notes'], 'Thank you for your business.')

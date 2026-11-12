@@ -71,13 +71,13 @@ def design():
 def preview():
     from billing import body, validate_document, pdf_document, fail, document
     payload = body()
-    values = validate_document(payload)
-    if payload.get('document_id'):
-        old = document(payload['document_id'])
+    old = document(payload['document_id']) if payload.get('document_id') else None
+    values = validate_document(payload, previous_client=old['client'] if old else None)
+    if old:
         values['number'] = old['number']; values['state'] = old['state']
     else:
         values.update(number=payload.get('number') or 'DRAFT', state='draft')
-    paid = old['paid_cents'] if payload.get('document_id') else 0
+    paid = old['paid_cents'] if old else 0
     values.update(paid_cents=paid, balance_cents=values['total_cents']-paid, payments=[])
     if 'design' in payload:
         values['business'] = {**values['business'], 'design': design_values(payload['design'])}

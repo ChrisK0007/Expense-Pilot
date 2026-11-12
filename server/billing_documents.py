@@ -84,7 +84,8 @@ def document_detail(did):
         payload.setdefault('reminders_enabled', bool(doc['reminders_enabled']))
         payload.setdefault('reminder_options', doc['reminder_options'])
         schedule=one('SELECT terms FROM billing_schedules WHERE id=?',(doc['schedule_id'],)) if doc['schedule_id'] and str(payload.get('client_id'))==str(doc['client_id']) else None
-        values = validate_document(payload, terms=schedule['terms'] if schedule else None,billable=True)
+        values = validate_document(payload, terms=schedule['terms'] if schedule else None,
+                                   billable=True, previous_client=doc['client'])
         if values['kind'] != doc['kind']:
             fail('Document type cannot be changed.')
         if one('SELECT id FROM billing_time WHERE document_id=?', (did,)) and values['client_id'] != doc['client_id']:

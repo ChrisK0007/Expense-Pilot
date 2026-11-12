@@ -7,7 +7,7 @@ from flask import g, request, jsonify, send_file
 from workflow_core import fiscal, integer, body, digest, now
 from expense_core import allocations
 
-SELF_ENDPOINTS={'security.security_status','current','logout','password','delete_account','security.setup_totp','security.confirm_totp',
+SELF_ENDPOINTS={'security.security_status','current','logout','password','delete_account','release_notes','security.setup_totp','security.confirm_totp',
  'security.disable_totp','security.remember_device','security.devices','signin_alerts_sessions','signin_alerts_signins'}
 
 
