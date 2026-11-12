@@ -25,6 +25,10 @@ class PublicReleaseTest(unittest.TestCase):
         preview = self.owner.get('/api/release-notes').json
         self.assertTrue(preview['changes'])
         self.assertFalse(preview['first'])
+        self.assertFalse(self.call(self.owner, 'release-notes', {}).json['first'])
+        with app.app_context():
+            db().execute('DELETE FROM release_notice_seen')
+            db().commit()
         self.assertTrue(self.call(self.owner, 'release-notes', {}).json['first'])
         self.assertFalse(self.call(self.owner, 'release-notes', {}).json['first'])
         self.assertTrue(self.call(self.agent, 'release-notes', {}).json['first'])

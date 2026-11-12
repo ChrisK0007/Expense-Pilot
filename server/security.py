@@ -420,7 +420,10 @@ def create_user_response():
         cursor = db().execute("INSERT INTO users(name,email,password,role,permission,must_change_password,invite_expires,invite_status) VALUES (?,?,?,?,?,1,?,'sending')", (name,email.lower(),newpass(password),role,permission,clock()+INVITE_HOURS*3600))
     except sqlite3.IntegrityError:
         fail('Email already exists. Resend the pending invitation from People & access.',409)
-    uid = cursor.lastrowid; audit('user invited',uid); db().commit()
+    from version import VERSION
+    uid = cursor.lastrowid
+    db().execute('INSERT INTO release_notice_seen(user_id,version) VALUES (?,?)', (uid, VERSION))
+    audit('user invited',uid); db().commit()
     return send_invitation(uid,password,config,1)
 
 

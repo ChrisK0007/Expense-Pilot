@@ -47,7 +47,7 @@ Beta builds reuse inline cache metadata from the published `:beta` image. This d
 
 Use this checklist for each release. Record results against the candidate version in its pull request or GitHub release; keep private data and diagnostics out of the repository.
 
-- [ ] Set the version, channel defaults and changelog together. Add `docs/release-notes/X.Y.Z.md` for a stable release; never replace an existing numbered image.
+- [ ] Set the version, channel defaults and changelog together. Add the in-app summary to `server/release-notes.json`. For a stable release, add `docs/release-notes/X.Y.Z.md`. Never replace an existing numbered image.
 - [ ] Pass `test-and-publish` on the current pull request. This covers dependency auditing, source archives, server tests, hardened startup and browser workflows.
 - [ ] Test a fresh installation using synthetic records and disconnected integrations. Check owner setup, receipt review, invoice PDFs, account permissions, restart persistence and source downloads.
 - [ ] Test an upgrade using a separate data directory. Restore a [full backup](public-release.md#backup-and-restore) into an empty destination and compare records, totals and receipt originals. Keep the original data and matching old image until recovery is confirmed.
