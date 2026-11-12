@@ -37,6 +37,23 @@ class AppTest(unittest.TestCase):
         c=app.test_client();self.assertEqual(c.get('/api/expenses').status_code,401)
     def test_owner_setup_cannot_repeat(self):
         self.assertEqual(self.call(self.owner,'setup',{'token':os.environ['SETUP_TOKEN']}).status_code,409)
+    def test_saved_merchants_reuse_names_and_group_alternates(self):
+        self.assertEqual(self.expense(self.owner,merchant='Coastal Supplies',category='Other').status_code,200)
+        self.assertEqual(self.expense(self.owner,merchant='COASTAL   SUPPLIES',category='Other').status_code,200)
+        self.assertEqual(self.expense(self.owner,merchant='CARD 842 COAST',category='Other').status_code,200)
+        directory=self.owner.get('/api/merchants?q=coastal').json
+        merchant=directory['items'][0]
+        self.assertEqual(merchant['name'],'Coastal Supplies')
+        path=f"merchants/{merchant['id']}"
+        result=self.call(self.owner,path,{'name':'Coastal Supplies','alias':'CARD 842 COAST'},'PUT')
+        self.assertEqual(result.status_code,200,result.json)
+        self.assertIn('CARD 842 COAST',result.json['aliases'])
+        self.assertEqual(self.owner.get('/api/merchants?q=card%20842%20coast').json['match'],merchant)
+        self.assertEqual(self.expense(self.owner,merchant='card 842 coast',category='Other').status_code,200)
+        records=self.owner.get('/api/expenses').json
+        self.assertEqual([e['merchant'] for e in records],['Coastal Supplies','CARD 842 COAST','Coastal Supplies','Coastal Supplies'])
+        self.assertEqual({e['merchant_display'] for e in records},{'Coastal Supplies'})
+        self.assertEqual(self.agent.get('/api/merchants').status_code,403)
     def test_employee_accounts_are_removed(self):
         self.assertEqual(self.call(self.staff2,'login',{'email':'staff2@example.test','password':'Testing-password-123'}).status_code,401)
         self.assertFalse(any(u['role']=='employee' for u in self.owner.get('/api/users').json))

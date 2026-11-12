@@ -23,6 +23,7 @@ def import_preview():
 @auth('owner','tax_agent')
 def bank_import():
     from app import HTTPException, audit, csv_rows, datetime, db, fail, hashlib, json, jsonify, money, one, record_user_id, request, textval
+    from merchant_directory import remember
     f=request.files.get('file')
     if not f: fail('Choose a CSV file.')
     data=csv_rows(f)
@@ -43,10 +44,14 @@ def bank_import():
         amount=-amount if mode=='negative' else amount
         if amount<=0: skipped+=1;continue
         canonical=json.dumps([aid,when,merchant,amount]);seen[canonical]=seen.get(canonical,0)+1;key=hashlib.sha256((canonical+'|'+str(seen[canonical])).encode()).hexdigest();parsed.append((when,merchant,amount,key))
+    uid=record_user_id()
+    db().execute('BEGIN IMMEDIATE')
     added=duplicate=0
     for when,merchant,amount,key in parsed:
-        c=db().execute("INSERT OR IGNORE INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,account_id,import_key) VALUES (?,?,?,?,'personal','Uncategorised',0,?,?)",(record_user_id(),when,merchant,amount,aid,key))
-        if c.rowcount: added+=1
+        c=db().execute("INSERT OR IGNORE INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,account_id,import_key) VALUES (?,?,?,?,'personal','Uncategorised',0,?,?)",(uid,when,merchant,amount,aid,key))
+        if c.rowcount:
+            remember(db(),uid,merchant)
+            added+=1
         else: duplicate+=1
     audit('bank CSV imported',json.dumps({'account':aid,'added':added,'duplicates':duplicate,'credits_skipped':skipped}));db().commit();return jsonify(added=added,duplicates=duplicate,credits_skipped=skipped)
 

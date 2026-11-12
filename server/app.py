@@ -12,6 +12,7 @@ from pdf_safety import inspect_pdf
 from werkzeug.exceptions import HTTPException
 from expense_core import split_values, percentages, allocations
 import features
+import merchant_directory
 import workspace_time
 from version import VERSION
 
@@ -42,6 +43,7 @@ def db():
         g.db=sqlite3.connect(DATA/'rounded.sqlite',timeout=30); g.db.row_factory=sqlite3.Row
         g.db.execute('PRAGMA foreign_keys=ON')
         g.db.create_function('ep_casefold',1,lambda value:str(value or '').strip().casefold(),deterministic=True)
+        g.db.create_function('ep_merchant_key',1,merchant_directory.merchant_key,deterministic=True)
     return g.db
 @app.teardown_appcontext
 def close(_):
@@ -214,12 +216,20 @@ def payload(d,existing=None):
     if aid and (not one('SELECT id FROM accounts WHERE id=?',(aid,)) or (g.user['role']=='employee' and (not existing or aid!=existing['account_id']))): fail('Invalid bank account.')
     shared=1
     if scope=='personal': percent=0
+    if not existing or merchant != existing.get('merchant'):
+        merchant=merchant_directory.remember(db(),uid,merchant)
     return (when,merchant,money(d.get('amount')),scope,cat,percent,int(bool(d.get('reimbursed'))),textval(d.get('notes'),3000),tid,meal,rid,aid,status,shared,work_pct,business_pct)
 @app.route('/api/expenses',methods=['GET','POST'])
 @auth()
 def expenses():
     if request.method=='GET':
-        w,a=visible();return jsonify(rows(f'SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,u.name AS owner,t.location FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id WHERE {w} ORDER BY e.date DESC,e.id DESC',a))
+        w,a=visible()
+        return jsonify(rows(f'''SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,
+            u.name AS owner,t.location,COALESCE(m.name,e.merchant) AS merchant_display
+            FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id
+            LEFT JOIN merchant_names mn ON mn.user_id=e.user_id AND mn.match_key=ep_merchant_key(e.merchant)
+            LEFT JOIN merchants m ON m.id=mn.merchant_id AND m.user_id=e.user_id
+            WHERE {w} ORDER BY e.date DESC,e.id DESC''',a))
     if not can_write(): fail('Read-only access.',403)
     db().execute('BEGIN IMMEDIATE')
     d=request.get_json();uid=record_user_id();existing=None
@@ -379,3 +389,4 @@ bank_transfers.register(app, auth)
 billable_expenses.register(app, auth)
 handover_review.register(app, auth)
 recurring_expenses.register(app, auth)
+merchant_directory.register(app, auth)

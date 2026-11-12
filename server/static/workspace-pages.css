@@ -1,10 +1,22 @@
 /* Shared page and record layouts, including every billing destination. */
-.pilot-shell #content {min-width:0}
+.pilot-shell #content {min-width:0;--page-section-gap:16px}
 .pilot-shell .heading p {max-width:760px}
+.pilot-shell :is(.heading,.section-title,.panel-header)>* {min-width:0}
+.pilot-shell :is(.heading,.section-title,.panel-header) :is(h1,h2,h3,p) {overflow-wrap:anywhere}
+.pilot-shell :is(.section-title,.panel-header),.pilot-shell .heading .actions {flex-wrap:wrap}
 .pilot-shell :is(button,.button-link,input,select,textarea) {border-radius:9px}
 .pilot-shell :is(input,select,textarea) {min-width:0;max-width:100%}
-.pilot-shell :is(.panel,.card,.table-wrap,.section-grid)>* {min-width:0}
+.pilot-shell :is(.panel,.card,.table-wrap,.section-grid,.grid2,.grid3)>* {min-width:0}
 .pilot-shell :is(.cards,.grid3,.section-grid,.home-office-overview) {gap:14px}
+.pilot-shell .page-stack {display:grid;grid-template-columns:minmax(0,1fr);gap:var(--page-section-gap,16px)}
+.pilot-shell #content>:is(.card,.panel)+:is(.card,.panel,.grid3,.page-stack) {margin-block-start:var(--page-section-gap)}
+.budget-period-card .field {margin:0}
+.budget-period-card .status-line {margin:14px 0 0}
+.budget-period-card .footnote {margin:10px 0 0}
+#budget-list>.empty {grid-column:1/-1}
+.merchant-list {list-style:none;margin:0;padding:0}
+.merchant-list li {display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.merchant-list li strong {min-width:0;overflow-wrap:anywhere}
 .pilot-shell .cards {margin:18px 0}
 .pilot-shell .card {padding:18px}
 .pilot-shell .card.feature::before {display:none}
@@ -281,6 +293,7 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
  .pilot-shell .invoice-live-preview {position:static}
 }
 @media(max-width:760px){
+ .pilot-shell #content {--page-section-gap:12px}
  .pilot-shell .page-metrics {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}
  .page-metric {padding:12px}
  .page-metric h2 {font-size:11px;gap:7px;margin-bottom:8px;align-items:start}
@@ -290,6 +303,7 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
  .page-metric>small {font-size:10.5px}
  .pilot-shell :is(.billing-tabs,.home-office-tabs,.page-tabs) {gap:0 19px;flex-wrap:nowrap;overflow:auto;max-width:100%}
  .pilot-shell :is(.billing-tabs,.home-office-tabs,.page-tabs) button {flex:none;font-size:12px;white-space:nowrap}
+ .pilot-shell .page-tabs a {flex:none;white-space:nowrap}
  .pilot-shell .billing-toolbar {padding:12px;gap:8px}
  .pilot-shell .billing-toolbar select {flex:1 1 100px;min-width:0;width:100%}
  .pilot-shell .billing-toolbar input {flex-basis:100%;width:100%}

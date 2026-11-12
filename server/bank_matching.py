@@ -24,6 +24,16 @@ def same_merchant(left, right):
     return bool(a and b and (a <= b or b <= a))
 
 
+def same_payee(uid, left, right):
+    if same_merchant(left, right):
+        return True
+    from app import db
+    from merchant_directory import lookup
+    first = lookup(db(), uid, left)
+    second = lookup(db(), uid, right)
+    return bool(first and second and first[0] == second[0])
+
+
 def expense_stamp(e):
     return hashlib.sha256(json.dumps(e, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
@@ -43,7 +53,7 @@ def candidates(uid, when, cents, merchant, account_id=None, include_linked=False
           AND b.source_status='posted' AND b.missing=0 AND b.changed=0 AND b.is_transfer=0
           AND (b.state='review' AND b.expense_id IS NULL OR b.state='linked' AND b.expense_id IS NOT NULL)
         ORDER BY b.date,b.id''', (-cents, (day-timedelta(days=3)).isoformat(), (day+timedelta(days=3)).isoformat()))
-    return [t for t in result if same_merchant(merchant, t['payee'])
+    return [t for t in result if same_payee(uid, merchant, t['payee'])
             and (not account_id or t['local_account_id'] == int(account_id))
             and (not t['expense_id'] or include_linked and t['expense_user_id'] == uid)]
 
@@ -63,7 +73,7 @@ def suggestions(uid, d):
         item['linked_expense_id']=t['expense_id'];item['existing_conflict']=False
         if t['expense_id'] and (t['expense_amount'] != -t['amount_cents']
                 or t['expense_account'] != t['local_account_id']
-                or not same_merchant(t['expense_merchant'],d['merchant'])):
+                or not same_payee(uid,t['expense_merchant'],d['merchant'])):
             item['existing_conflict']=True
         if not t['expense_id']:
             # A CSV/manual expense may predate this feed. Reuse a single exact
@@ -72,7 +82,7 @@ def suggestions(uid, d):
                 AND (account_id IS NULL OR account_id=?) AND bank_match_excluded=0
                 AND NOT EXISTS(SELECT 1 FROM bank_transactions b WHERE b.expense_id=e.id) AND NOT EXISTS(SELECT 1 FROM bank_reconciliations r WHERE r.expense_id=e.id)''',
                 (uid,d['date'],-t['amount_cents'],t['local_account_id']))
-            existing=[e for e in existing if same_merchant(e['merchant'],d['merchant'])]
+            existing=[e for e in existing if same_payee(uid,e['merchant'],d['merchant'])]
             if len(existing)==1:
                 item['expense_id']=existing[0]['id'];item['expense_receipt_id']=existing[0]['receipt_id']
             elif len(existing)>1: item['existing_conflict']=True
