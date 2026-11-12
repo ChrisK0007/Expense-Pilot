@@ -30,10 +30,7 @@ function pdf(lines){
   assert.equal(upload.status(),200,await upload.text());const rid=(await upload.json()).id;
   await post('receipts/'+rid+'/draft',{document_kind:'home_office',merchant:bill.payee,date:bill.date,amount:82.19,home_office_kind:'internet'},'PUT');
   const openReceipt=async filename=>{
-   const tabs=page.locator('.inbox-segments');
-   await tabs.locator('[aria-pressed=true]').waitFor();
    const card=page.locator('.receipt-card').filter({hasText:filename});
-   if(!await card.isVisible())await tabs.locator('[aria-pressed=false]').click();
    await card.getByRole('button',{name:/^Review & categorise/}).click();
   };
   await page.goto(url+'/#/receipts');await page.getByRole('heading',{name:'Inbox',exact:true}).waitFor();
