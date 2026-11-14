@@ -4,6 +4,11 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.8 — Expanded year comparison (2026-11-15)
+
+- Compare combined expense allocations, business expenses, employment expenses, business income or employment income on Overview. The selected measure also appears in View monthly figures.
+- Chart employment pay by payment date and show annual income statements separately in the full financial-year view. Clarify that the expense chart excludes overnight costs.
+
 ## 1.0.7-beta.7 — Payslip review and clearer amounts (2026-11-14)
 
 - Show the payment financial year when reviewing or editing payslips. Flag pay periods that cross 30 June and keep current pay distinct from year-to-date figures.
