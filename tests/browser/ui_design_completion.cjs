@@ -22,6 +22,12 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
  try{
   await post('login',{email:'owner@example.test',password:'Browser-test-password-123'});
   await post('features',{employment:true,business:true,home_office:true,trips:true,vehicles:true,banks:true,tax:true},'PUT');
+  const mixed={date:'2020-07-09',scope:'split',work_percent:20,business_percent:60,category:'Other',status:'ready'};
+  await post('expenses',{...mixed,merchant:'Comparison mixed purchase',amount:200});
+  await post('expenses',{...mixed,merchant:'Comparison mixed refund',amount:-50});
+  await post('expenses',{...mixed,merchant:'Comparison reimbursed purchase',amount:400,reimbursed:true});
+  await post('employment',{employer:'Comparison payroll fixture',record_kind:'payslip',date:'2020-07-09',period_start:'2020-06-24',period_end:'2020-07-07',gross:1234.56,withheld:234.56});
+  await post('employment',{employer:'Comparison annual fixture',record_kind:'income_statement',date:'2020-06-30',gross:40000,withheld:9000});
   const clients=await(await context.request.get(url+'/api/billing/clients')).json(),client=clients.find(c=>!c.archived);assert.ok(client,'An active client is available from the preceding billing workflows');
   await post('billing/time',{client_id:client.id,date:new Date().toISOString().slice(0,10),description:'Design completion billable time',hours:'1',rate:'125',billable:true});
   await page.goto(url);await page.locator('[data-page=dashboard]').waitFor();
@@ -101,6 +107,40 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
    }
   }
   await page.setViewportSize({width:1440,height:1050});await shot('overview-dark-spacing');
+  const chartSelect=async(id,value)=>{
+   const selector=page.locator('#'+id);
+   if(await selector.inputValue()===value)return;
+   const previous=await selector.elementHandle();
+   await selector.selectOption(value);
+   await page.waitForFunction(el=>!el.isConnected,previous);
+   await page.locator('.comparison-chart').waitFor();
+  };
+  const metricOptions=page.locator('#chart-metric option');
+  assert.deepEqual(await metricOptions.allTextContents(),['Allocated expenses','Business expenses','Employment expenses','Business income','Employment income']);
+  await chartSelect('chart-basis','financial');
+  await chartSelect('chart-period','full');
+  await chartSelect('chart-year','2020');
+  await chartSelect('compare-year','2019');
+  const monthly=page.locator('.chart-data');
+  const july=monthly.locator('tbody tr').first();
+  for(const [metric,label,value] of [
+   ['expenses','allocated expenses','$120.00'],
+   ['business_expenses','business expenses','$90.00'],
+   ['employment_expenses','employment expenses','$30.00'],
+   ['employment_income','employment income','$1,234.56'],
+  ]){
+   await chartSelect('chart-metric',metric);
+   await page.locator('.comparison-chart[aria-label*="'+label+'"]').waitFor();
+   await monthly.locator('summary').click();
+   assert.deepEqual(await july.locator('td').allTextContents(),['Jul',value,'$0.00']);
+  }
+  assert.deepEqual(await monthly.locator('tfoot td').allTextContents(),['—','$40,000.00']);
+  assert.equal(await monthly.locator('tbody tr').last().locator('td').last().innerText(),'$0.00');
+  await page.getByRole('button',{name:'Bar chart',exact:true}).click();
+  await page.locator('.comparison-chart rect.point-0[data-chart-label="Jul 2020: $1,234.56"]').waitFor();
+  await chartSelect('chart-basis','calendar');
+  assert.equal(await monthly.locator('tfoot').count(),0);
+  await chartSelect('chart-metric','income');
   await navigate(page,'budgets');
   await page.locator('#budget-list > section').first().waitFor();
   for(const width of [1440,1024,390]){

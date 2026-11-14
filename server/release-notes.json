@@ -1,4 +1,8 @@
 {
+  "1.0.7-beta.8": [
+    "Choose combined allocated expenses, business expenses, employment expenses, business income or employment income in Overview’s year comparison.",
+    "See the same measure in View monthly figures. Annual employment statements appear separately in the full financial-year view."
+  ],
   "1.0.7-beta.7": [
     "Payslip review shows the payment financial year and flags pay periods that cross 30 June.",
     "Inbox sits directly below Overview, and Recent invoices has more room.",

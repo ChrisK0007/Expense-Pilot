@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.7-beta.7**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.7-beta.8**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.7**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.8**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -266,6 +266,12 @@ This is the container-list icon. Your invoice business logo is separately set in
 ## Development and backup options
 
 See [architecture and backups](architecture.md) for development commands, numbered migrations, custom backup mounts and restore guidance. Run installation commands from the repository root.
+
+## Overview year comparison
+
+Choose **Allocated expenses**, **Business expenses**, **Employment expenses**, **Business income** or **Employment income** under **Show**. The same measure appears in the chart and **View monthly figures**. Financial years run from July to June, and Year to date compares the same elapsed period in each year.
+
+Expense charts use the saved business and employment shares. Personal, reimbursed and overnight costs are excluded. Recorded invoice receipts exclude GST. Employment pay appears in the month of payment. Annual income statements are listed separately in the financial-year full-year view.
 
 ## Billing navigation, reminders and deleting expenses
 
