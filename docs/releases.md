@@ -3,7 +3,7 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.6` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.6` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.7` |
 
 The Docker server and web interface are released independently of the optional iPhone app, which remains in testing. See the [stable changelog](CHANGELOG.md) for shipped changes and [GitHub Releases](https://github.com/ChrisK0007/Expense-Pilot/releases) for stable release downloads.
 
@@ -25,7 +25,7 @@ Never mount the same data directory into two running installations. Do not point
 
 Back up each instance before upgrading. Startup runs numbered migrations; existing records and receipt paths are retained. An older image refuses a database containing newer migrations. Rollback therefore means restoring the matching older backup and image together, not only changing the image tag. Keep the current data volume intact until recovery is verified.
 
-Beta 1.0.7-beta.6 applies m032 for saved merchant and payee names. Restore a matching earlier backup if you need to return to beta.5.
+Beta 1.0.7-beta.7 adds no database migration. Beta 1.0.7-beta.6 introduced m032 for saved merchant and payee names. Restore a matching earlier backup if you need to return to beta.5.
 
 Stable 1.0.0 → 1.0.1 adds migration m008 for PocketSmith. Stable 1.0.2 adds migrations m009–m019 from the beta series; do not downgrade its database directly to stable 1.0.1. Stable 1.0.6 adds migrations m020–m028; moving from 1.0.6-beta.19 to stable adds none. Existing tax agents must be assigned shared years after upgrading from stable 1.0.5. Check [backup architecture](architecture.md#backups) and the [full-backup guide](public-release.md#backup-and-restore).
 

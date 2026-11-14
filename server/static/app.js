@@ -219,8 +219,74 @@ let expenseSort={key:'date',direction:-1};
 function sortedExpenses(data){const key=expenseSort.key,dir=expenseSort.direction;return [...data].sort((a,b)=>{const value=e=>key==='merchant'?Merchants.display(e):key==='category'?categoryLabel(e.category):key==='workspace'?[e.work_percent?'Employment':'',e.business_percent?'Business':'',e.work_percent+e.business_percent<100?'Personal':''].filter(Boolean).join(' + '):e[key];const x=value(a),y=value(b);return (typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),'en-AU',{numeric:true,sensitivity:'base'}))*dir||(Number(b.id)-Number(a.id));});}
 function expenseHeading(label,key,right=false){const active=expenseSort.key===key;return `<th ${right?'class="right"':''} aria-sort="${active?(expenseSort.direction===1?'ascending':'descending'):'none'}"><button type="button" class="sort-expenses" data-sort="${key}" aria-label="Sort by ${label}">${label} <span aria-hidden="true">${active?(expenseSort.direction===1?'↑':'↓'):'↕'}</span></button></th>`;}
 function filtered(){return E.filter(e=>!Overnights.isOvernight(e)&&filters.scopes.some(scope=>Splits.matches(e,scope))&&(filters.status==='all'||e.status===filters.status)&&(!filters.search||(Merchants.display(e)+' '+e.merchant+' '+categoryLabel(e.category)+' '+e.notes).toLowerCase().includes(filters.search.toLowerCase()))&&(filters.fy==='all'||(e.date>=fyBounds(filters.fy)[0]&&e.date<=fyBounds(filters.fy)[1])))}
-function table(data,limit,sortable=false){const ordered=sortable?sortedExpenses(data):data,r=limit?ordered.slice(0,limit):ordered;return `<div class="table-wrap"><table><thead><tr>${sortable?[["Expense","merchant"],["Date","date"],["Allocation","workspace"],["Category","category"],["Status","status"],["Amount","amount_cents"]].map(([n,k])=>expenseHeading(n,k,k==="amount_cents")).join(''):'<th>Expense</th><th>Date</th><th>Workspace</th><th>Category</th><th>Status</th><th class="right">Amount</th>'}<th></th></tr></thead><tbody>${r.map(e=>`<tr><td><div class="merchant"><span class="merchant-icon">${esc(e.merchant.slice(0,1).toUpperCase())}</span><div><strong>${esc(Merchants.display(e))}</strong><br><small>${esc(e.owner)} ${e.receipt_id?'· Receipt attached':''}</small></div></div></td><td>${esc(dateAU(e.date))}</td><td>${Splits.badges(e)}</td><td>${esc(categoryLabel(e.category))}</td><td><span class="pill ${e.status}">${e.status==='review'?'To review':'Reviewed'}</span></td><td class="right"><strong>${money(e.amount_cents)}</strong></td><td><button class="ghost edit-expense" data-id="${e.id}" aria-label="${editor()?'Edit':'View'} ${esc(e.merchant)}">${editor()?'Edit':'View'} ↗</button>${actionMenu('Expense actions for '+e.merchant,`<button class="edit-expense" data-id="${e.id}">${editor()?'Edit expense':'View details'}</button>${owner()&&Features.enabled('business')&&allocated(e,'business')>0?`<button class="billable-expense" data-id="${e.id}">Bill to client</button>`:''}${e.receipt_id?`<button class="row-view-receipt" data-rid="${e.receipt_id}">View receipt</button>`:''}`)}</td></tr>`).join('')}</tbody></table>${!r.length?`<div class="empty"><div class="bubble">▤</div><h2>No expenses here yet</h2><p>${editor()?'Add a receipt or enter your first expense.':'All workspace records will appear here.'}</p></div>`:''}</div>`}
-function tableEvents(){document.querySelectorAll('.billable-expense').forEach(b=>b.onclick=()=>ExpenseReview.markBillable(E.find(e=>e.id===Number(b.dataset.id))).catch(e=>toast(e.message)));document.querySelectorAll('.sort-expenses').forEach(b=>b.onclick=()=>{expenseSort=expenseSort.key===b.dataset.sort?{key:b.dataset.sort,direction:-expenseSort.direction}:{key:b.dataset.sort,direction:1};$('#expense-table').innerHTML=table(filtered(),null,true);tableEvents();$('#expense-table [data-sort="'+expenseSort.key+'"]')?.focus();});document.querySelectorAll('.row-view-receipt').forEach(b=>b.onclick=()=>Receipts.preview(b.dataset.rid));document.querySelectorAll('.edit-expense').forEach(b=>b.onclick=()=>expenseModal(E.find(e=>e.id===Number(b.dataset.id))))}
+function expenseAmount(e){
+ const full='<strong>'+money(e.amount_cents)+'</strong>';
+ if(!e.amount_cents||e.reimbursed||e.equipment_id||e.home_office_bill)return full;
+ const use=record=>{const p=Splits.percentages(record);return p.work+p.business;};
+ const items=JSON.parse(e.items_json||'[]');
+ const percent=items.length?items.reduce((sum,item)=>sum+item.amount_cents*use({...e,...item}),0)/e.amount_cents:use(e);
+ if(!(percent>0&&percent<100))return full;
+ const label=percent<.01?'<0.01%':percent>99.99?'>99.99%':Number(percent.toFixed(2))+'%';
+ const {work,business}=Splits.amounts(e);
+ const parts=items.length?items.map(item=>Splits.percentages({...e,...item})):[Splits.percentages(e)];
+ const employment=parts.some(p=>p.work>0), commercial=parts.some(p=>p.business>0);
+ const title=employment&&commercial?'Total allocation':employment?'Employment allocation':'Business allocation';
+ const breakdown=employment&&commercial?`<small>Employment ${money(work)}</small><small>Business ${money(business)}</small>`:'';
+ const id='allocation-tip-'+(++menuNumber);
+ return `<span class="expense-amount"><button type="button" class="expense-percent" aria-label="${esc(label)} allocated" aria-describedby="${id}" data-allocation-tip="${id}">${esc(label)}</button>${full}</span><span id="${id}" class="expense-allocation-tip" role="tooltip" popover="manual"><small>${title}</small><strong>${money(work+business)}</strong>${breakdown}</span>`;
+}
+let allocationTip=null,allocationTimer;
+function hideAllocationTip(){
+ clearTimeout(allocationTimer);
+ if(allocationTip?.tip.matches(':popover-open'))allocationTip.tip.hidePopover();
+ allocationTip=null;
+}
+function showAllocationTip(button){
+ clearTimeout(allocationTimer);
+ if(allocationTip?.button===button)return;
+ hideAllocationTip();
+ const tip=document.getElementById(button.dataset.allocationTip);
+ tip.showPopover();
+ allocationTip={button,tip,pinned:false};
+ positionAllocationTip();
+}
+function positionAllocationTip(){
+ if(!allocationTip)return;
+ const {button,tip}=allocationTip;
+ if(!button.isConnected){hideAllocationTip();return;}
+ const anchor=button.getBoundingClientRect();
+ if(anchor.bottom<0||anchor.top>innerHeight){hideAllocationTip();return;}
+ const {width,height}=tip.getBoundingClientRect();
+ tip.style.left=Math.max(8,Math.min(innerWidth-width-8,anchor.left+(anchor.width-width)/2))+'px';
+ tip.style.top=(anchor.bottom+height+10>innerHeight?Math.max(8,anchor.top-height-5):anchor.bottom+5)+'px';
+}
+function allocationTipEvents(){
+ document.querySelectorAll('[data-allocation-tip]').forEach(button=>{
+  const tip=document.getElementById(button.dataset.allocationTip);
+  const dismiss=()=>{allocationTimer=setTimeout(()=>{
+   if(allocationTip?.button===button&&!allocationTip.pinned&&!button.matches(':hover,:focus-visible')&&!tip.matches(':hover'))hideAllocationTip();
+  },130);};
+  button.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')showAllocationTip(button);});
+  button.addEventListener('pointerleave',dismiss);
+  button.addEventListener('focus',()=>{if(button.matches(':focus-visible'))showAllocationTip(button);});
+  button.addEventListener('blur',dismiss);
+  tip.addEventListener('pointerenter',()=>clearTimeout(allocationTimer));
+  tip.addEventListener('pointerleave',dismiss);
+  button.addEventListener('click',()=>{
+   if(allocationTip?.button===button&&allocationTip.pinned){hideAllocationTip();return;}
+   showAllocationTip(button);
+   allocationTip.pinned=true;
+  });
+ });
+}
+document.addEventListener('click',event=>{
+ if(allocationTip&&!allocationTip.button.contains(event.target)&&!allocationTip.tip.contains(event.target))hideAllocationTip();
+});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&allocationTip)hideAllocationTip();});
+window.addEventListener('resize',positionAllocationTip);
+window.addEventListener('scroll',positionAllocationTip,true);
+function table(data,limit,sortable=false){const ordered=sortable?sortedExpenses(data):data,r=limit?ordered.slice(0,limit):ordered;return `<div class="table-wrap"><table><thead><tr>${sortable?[["Expense","merchant"],["Date","date"],["Allocation","workspace"],["Category","category"],["Status","status"],["Amount","amount_cents"]].map(([n,k])=>expenseHeading(n,k,k==="amount_cents")).join(''):'<th>Expense</th><th>Date</th><th>Workspace</th><th>Category</th><th>Status</th><th class="right">Amount</th>'}<th></th></tr></thead><tbody>${r.map(e=>`<tr><td><div class="merchant"><span class="merchant-icon">${esc(e.merchant.slice(0,1).toUpperCase())}</span><div><strong>${esc(Merchants.display(e))}</strong><br><small>${esc(e.owner)} ${e.receipt_id?'· Receipt attached':''}</small></div></div></td><td>${esc(dateAU(e.date))}</td><td>${Splits.badges(e)}</td><td>${esc(categoryLabel(e.category))}</td><td><span class="pill ${e.status}">${e.status==='review'?'To review':'Reviewed'}</span></td><td class="right">${expenseAmount(e)}</td><td><button class="ghost edit-expense" data-id="${e.id}" aria-label="${editor()?'Edit':'View'} ${esc(e.merchant)}">${editor()?'Edit':'View'} ↗</button>${actionMenu('Expense actions for '+e.merchant,`<button class="edit-expense" data-id="${e.id}">${editor()?'Edit expense':'View details'}</button>${owner()&&Features.enabled('business')&&allocated(e,'business')>0?`<button class="billable-expense" data-id="${e.id}">Bill to client</button>`:''}${e.receipt_id?`<button class="row-view-receipt" data-rid="${e.receipt_id}">View receipt</button>`:''}`)}</td></tr>`).join('')}</tbody></table>${!r.length?`<div class="empty"><div class="bubble">▤</div><h2>No expenses here yet</h2><p>${editor()?'Add a receipt or enter your first expense.':'All workspace records will appear here.'}</p></div>`:''}</div>`}
+function tableEvents(){hideAllocationTip();allocationTipEvents();document.querySelectorAll('.billable-expense').forEach(b=>b.onclick=()=>ExpenseReview.markBillable(E.find(e=>e.id===Number(b.dataset.id))).catch(e=>toast(e.message)));document.querySelectorAll('.sort-expenses').forEach(b=>b.onclick=()=>{expenseSort=expenseSort.key===b.dataset.sort?{key:b.dataset.sort,direction:-expenseSort.direction}:{key:b.dataset.sort,direction:1};$('#expense-table').innerHTML=table(filtered(),null,true);tableEvents();$('#expense-table [data-sort="'+expenseSort.key+'"]')?.focus();});document.querySelectorAll('.row-view-receipt').forEach(b=>b.onclick=()=>Receipts.preview(b.dataset.rid));document.querySelectorAll('.edit-expense').forEach(b=>b.onclick=()=>expenseModal(E.find(e=>e.id===Number(b.dataset.id))))}
 function expenseChart(){const now=today(), start=new Date(now.slice(0,7)+'-01T00:00:00Z'), months=[];for(let i=5;i>=0;i--){const d=new Date(start);d.setUTCMonth(start.getUTCMonth()-i);const key=d.toISOString().slice(0,7);months.push({label:d.toLocaleDateString('en-AU',{month:'short',timeZone:'UTC'}),amount:E.filter(e=>!Overnights.isOvernight(e)&&e.date.startsWith(key)).reduce((s,e)=>s+allocated(e),0)});}const max=Math.max(...months.map(x=>Math.abs(x.amount)),1);return `<div class="monthly-chart">${months.map(m=>`<div class="month-col"><div class="month-amount">${money(m.amount)}</div><div class="chart-bar" data-height="${Math.max(2,Math.round(Math.abs(m.amount)/max*100))}"></div><small>${m.label}</small></div>`).join('')}</div><div class="chart-caption"><i></i> Employment + business · allocated amounts</div>`;}
 function employeeDashboard(){const work=E.filter(e=>!Overnights.isOvernight(e)).reduce((s,e)=>s+allocated(e,'work'),0),business=E.filter(e=>!Overnights.isOvernight(e)).reduce((s,e)=>s+allocated(e,'business'),0),review=E.filter(e=>e.status==='review'&&!e.meal&&e.category!=='Meals').length,meals=E.filter(e=>e.meal).reduce((s,e)=>s+e.amount_cents,0);$('#content').innerHTML=heading(`Your expenses, in order.`,`${S.user.name.split(' ')[0]}, here’s the picture across your workspace.`,editor()?'<button class="secondary" id="quick-capture">▣ Capture documents</button><button id="add">+ Add expense</button>':'<span class="pill">Read-only access</span>')+`<div class="cards"><div class="card feature"><div class="label">Employment expenses</div><div class="metric">${money(work)}</div><small>Allocated amount · all dates</small></div><div class="card"><div class="label">Business expenses</div><div class="metric">${money(business)}</div><small>Allocated amount · all dates</small></div><div class="card"><div class="label">Overnight meals</div><div class="metric">${money(meals)}</div><small>Actual spend linked to trips</small></div><div class="card"><div class="label">Needs a little attention</div><div class="metric">${review}<span class="muted"> ↗</span></div><small>Expenses waiting for review</small></div></div><div class="section-grid"><section class="card"><div class="section-title"><h2>Expense activity</h2><span class="pill">Last 6 months</span></div>${expenseChart()}<p class="footnote">Use percentage applied. Personal and reimbursed expenses excluded.<br>Allocation is a recordkeeping figure, not a tax deduction decision.</p></section><section class="card"><div class="section-title"><h2>Stay on top of the details</h2><span>✧</span></div><div class="review-box"><div class="bubble">▤</div><div><strong>${review?`${review} expenses to check`:'You’re all caught up'}</strong><br><small>Review the details. Keep the evidence.</small></div></div><button class="secondary wide" id="review">Open expense inbox →</button></section></div><section class="panel"><div class="panel-header"><h2>Recent expenses</h2><button class="ghost" id="all">View all →</button></div>${table(E.filter(e=>!e.meal&&e.category!=='Meals'),6)}</section><p class="footnote">${role()==='tax_agent'?'All workspace financial records are visible to your tax-agent account.':'Amounts are in Australian dollars. All financial years are included in this overview.'}</p>`;document.querySelectorAll('[data-height]').forEach(b=>b.style.height=b.dataset.height+'px');document.querySelectorAll('[data-width]').forEach(b=>b.style.width=b.dataset.width+'%');bind('#add',()=>expenseModal());bind('#quick-capture',Receipts.capture);bind('#all',()=>{navigate('expenses')});bind('#review',()=>{filters.status='review';navigate('expenses')});tableEvents()}
 function expensePage(){

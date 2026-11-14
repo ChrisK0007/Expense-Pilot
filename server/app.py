@@ -225,6 +225,7 @@ def expenses():
     if request.method=='GET':
         w,a=visible()
         return jsonify(rows(f'''SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,
+            EXISTS(SELECT 1 FROM home_office_costs h WHERE h.expense_id=e.id AND h.kind!='') AS home_office_bill,
             u.name AS owner,t.location,COALESCE(m.name,e.merchant) AS merchant_display
             FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id
             LEFT JOIN merchant_names mn ON mn.user_id=e.user_id AND mn.match_key=ep_merchant_key(e.merchant)

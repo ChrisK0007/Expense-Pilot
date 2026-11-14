@@ -34,6 +34,16 @@ Test Person 000000 - ****0000 $3,150.00
 '''
 
 
+# The earlier dates describe work performed. Identical current-pay and YTD
+# values represent the first payment of the new tax year.
+CROSS_YEAR = (COMPONENTS.replace('01/09/2026', '25/06/2026')
+              .replace('14/09/2026', '08/07/2026').replace('15/09/2026', '09/07/2026')
+              .replace('$20,000.00', '$4,000.00').replace('$1,000.00', '$200.00')
+              .replace('$21,000.00', '$4,200.00').replace('$4,500.00', '$900.00')
+              .replace('$2,520.00', '$504.00').replace('$750.00', '$150.00')
+              .replace('$3,270.00', '$654.00'))
+
+
 class PayrollTableTests(unittest.TestCase):
     def test_current_columns_reconcile_with_salary_sacrifice_and_wrapped_employer(self):
         for text in (COMPONENTS, COMPONENTS.replace(' ', '   ')):
@@ -51,6 +61,21 @@ class PayrollTableTests(unittest.TestCase):
                 self.assertEqual(result['ytd_gross'], 20250)
                 self.assertEqual(result['ytd_withheld'], 4500)
                 self.assertIn('salary-sacrifice super ($150.00)', result['extraction_note'])
+
+    def test_cross_year_payslip_with_parallel_summary_columns(self):
+        text = CROSS_YEAR
+        for label in ('Period Starting', 'Period Ending', 'Date Paid',
+                      'Gross Earnings', 'Net Payment', 'Super Payments'):
+            text = text.replace(label + ':', 'Example address text   ' + label + ':')
+        result = local_payslip(text)
+        self.assertTrue(result['local_complete'])
+        self.assertEqual(result['period_start'], '2026-06-25')
+        self.assertEqual(result['period_end'], '2026-07-08')
+        self.assertEqual(result['date'], '2026-07-09')
+        self.assertEqual(result['gross'], 4050)
+        self.assertEqual(result['withheld'], 900)
+        self.assertEqual(result['gross'], result['ytd_gross'])
+        self.assertEqual(result['withheld'], result['ytd_withheld'])
 
     def test_without_salary_sacrifice_and_zero_payg(self):
         text = COMPONENTS.replace('Salary Sacrifice Super $150.00 $750.00\n', '')
@@ -120,6 +145,38 @@ class PayrollTableRouteTests(unittest.TestCase):
         original = self.owner.get('/api/receipts/' + rid)
         self.assertEqual(original.data, raw)
         original.close()
+
+    def test_explicit_payment_date_takes_precedence_over_ai_period_date(self):
+        text = 'PAYSLIP\nEmployer: Synthetic Flight Services\nDate Paid: 09/07/2026\n'
+        rid = self.upload(payslip_pdf(text)).json['id']
+        suggestion = dict(document_kind='payslip', amounts_basis='period',
+                          date='2026-06-25', gross=4050, withheld=900)
+        with patch('ai_providers.configured', return_value=True), patch('ai_providers.extract', return_value=suggestion):
+            result = self.call(self.owner, f'receipts/{rid}/extract', {})
+        self.assertEqual(result.status_code, 200, result.json)
+        self.assertEqual(result.json['date'], '2026-07-09')
+
+    def test_cross_year_payment_counts_once_in_payment_year(self):
+        for when, period, year, gross, withheld in [
+            ('2026-06-30', ('2026-06-25', '2026-07-01'), 2025, 2000, 400),
+            ('2026-07-09', ('2026-06-25', '2026-07-08'), 2026, 4050, 900),
+        ]:
+            with self.subTest(when=when):
+                employer = 'Synthetic employer ' + str(year)
+                rid = self.upload(payslip_pdf('PAYSLIP\nEmployer: ' + employer)).json['id']
+                values = dict(date=when, employer=employer, gross=gross, withheld=withheld,
+                              period_start=period[0], period_end=period[1],
+                              record_kind='payslip', reviewed=True, currency='AUD')
+                saved = self.call(self.owner, f'receipts/{rid}/income', values)
+                self.assertEqual(saved.status_code, 200, saved.json)
+                retry = self.call(self.owner, f'receipts/{rid}/income', values)
+                self.assertTrue(retry.json['duplicate'])
+                tax = self.owner.get(f'/api/tax/{year}').json['recorded']
+                self.assertEqual(tax['salary_cents'], gross * 100)
+                self.assertEqual(tax['withheld_cents'], withheld * 100)
+                checks = self.owner.get(f'/api/workflows/income/{year}').json['employers']
+                self.assertEqual([p['id'] for p in checks[0]['payments']], [saved.json['id']])
+        self.assertEqual(len(self.owner.get('/api/employment').json), 2)
 
     def test_ai_cannot_supply_a_local_calculation_note(self):
         rid = self.upload(payslip_pdf('PAYSLIP\nUnreadable synthetic columns')).json['id']

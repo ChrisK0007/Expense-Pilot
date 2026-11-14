@@ -12,15 +12,25 @@ PAIR = MONEY + r'\s+' + MONEY
 
 
 def read_components(text):
-    lines = [' '.join(line.split()) for line in text.splitlines() if line.strip()]
+    raw_lines = [line for line in text.splitlines() if line.strip()]
+    lines = [' '.join(line.split()) for line in raw_lines]
     heading = 'pay slip components hours/units rate this pay year to date'
     lower = [line.lower() for line in lines]
     if lower.count(heading) != 1:
         return None
+    heading_index = lower.index(heading)
+    # Some PDF text extractors preserve the parallel address and pay summary
+    # columns on one line. Keep only explicitly named fields after a column gap.
+    fields = r'ABN|Date Paid|Payment Date|Pay Date|Period Starting|Period Ending|Gross Earnings|Net Payment|Super Payments'
+    prefix = []
+    for line in raw_lines[:heading_index]:
+        columns = re.split(r'\s{2,}(?=(?:' + fields + r')\s*:)', line.strip(), flags=re.I)
+        prefix.extend(' '.join(column.split()) for column in columns)
     # Never pick one payment out of a bundle, even when its totals reconcile.
-    if len(re.findall(r'(?im)^\s*(?:date\s+paid|payment\s+date|pay\s+date)\s*:', text)) != 1:
+    labelled = prefix + lines[heading_index:]
+    if sum(bool(re.match(r'(?:date paid|payment date|pay date)\s*:', line, re.I)) for line in labelled) != 1:
         return None
-    if len(re.findall(r'(?im)^\s*ABN\s*:', text)) != 1:
+    if sum(bool(re.match(r'ABN\s*:', line, re.I)) for line in labelled) != 1:
         return None
 
     def single(pattern, source):
@@ -41,7 +51,6 @@ def read_components(text):
         return lines[a + 1:b]
 
     try:
-        prefix = lines[:lower.index(heading)]
         abn = next(i for i, line in enumerate(prefix) if re.fullmatch(r'ABN:\s*[\d ]{11,14}', line, re.I))
         # This layout prints the company above its ABN, sometimes on two lines.
         if not 1 <= abn <= 3:

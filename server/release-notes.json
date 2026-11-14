@@ -1,4 +1,9 @@
 {
+  "1.0.7-beta.7": [
+    "Payslip review shows the payment financial year and flags pay periods that cross 30 June.",
+    "Inbox sits directly below Overview, and Recent invoices has more room.",
+    "Hover, focus or tap a partial allocation badge to see the allocated amounts."
+  ],
   "1.0.7-beta.6": [
     "Save preferred merchant and payee names, reuse them on new expenses and group alternate names in reports.",
     "Overview cards have even padding, with more room for labels and amounts.",

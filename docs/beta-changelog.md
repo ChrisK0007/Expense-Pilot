@@ -4,6 +4,12 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.7 — Payslip review and clearer amounts (2026-11-14)
+
+- Show the payment financial year when reviewing or editing payslips. Flag pay periods that cross 30 June and keep current pay distinct from year-to-date figures.
+- Place Inbox directly below Overview. Give Recent invoices two dashboard columns on desktop and readable rows on phones.
+- Show a badge next to partially allocated expenses. Hover, focus or tap it to see the allocated amount and any employment/business split.
+
 ## 1.0.7-beta.6 — Saved merchants and workspace spacing (2026-11-12)
 
 - Reuse saved merchant and payee names in new expenses and receipt reviews. Add alternate names for bank descriptions and group the Expense report by the preferred name. Migration m032 seeds the directory from existing expenses.

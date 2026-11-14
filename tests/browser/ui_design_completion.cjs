@@ -25,6 +25,8 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   const clients=await(await context.request.get(url+'/api/billing/clients')).json(),client=clients.find(c=>!c.archived);assert.ok(client,'An active client is available from the preceding billing workflows');
   await post('billing/time',{client_id:client.id,date:new Date().toISOString().slice(0,10),description:'Design completion billable time',hours:'1',rate:'125',billable:true});
   await page.goto(url);await page.locator('[data-page=dashboard]').waitFor();
+  const workspaceLinks=page.locator('.workspace-navigation .workspace-nav-group').first().locator('button[data-page]');
+  assert.deepEqual((await workspaceLinks.evaluateAll(buttons=>buttons.map(b=>b.dataset.page))).slice(0,3),['dashboard','receipts','expenses']);
   // A quote goes through the same live PDF editor and saved-document actions as an invoice.
   await navigate(page,'quotes');await page.getByRole('button',{name:'New quote',exact:false}).click();
   await page.getByLabel('Line description',{exact:true}).fill('Design completion quote');await page.getByLabel('Unit price',{exact:true}).fill('275');
@@ -82,9 +84,13 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   await page.evaluate(()=>Theme.set('dark'));
   const overview=page.locator('.overview-grid > .dash-cell');
   await overview.first().waitFor();
+  const recent=page.locator('.recent-invoices'), invoiceTable=recent.locator('.table-wrap');
+  await invoiceTable.waitFor();
+  assert.equal(await recent.evaluate(el=>getComputedStyle(el).gridColumnStart),'span 4');
   for(const width of [1440,1024,390]){
    await page.setViewportSize({width,height:1050});
    await fits('Overview '+width);
+   assert.equal(await invoiceTable.evaluate(el=>el.scrollWidth>el.clientWidth),false,'Recent invoices fit at '+width);
    const padding=await overview.evaluateAll(cards=>cards.map(card=>{
     const style=getComputedStyle(card);
     return [parseFloat(style.paddingLeft),parseFloat(style.paddingRight)];
@@ -120,7 +126,21 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   for(const name of [merchant,alternate]){
    await post('expenses',{merchant:name,date:'2026-11-02',amount:10,scope:'work',category:'Other',status:'ready'});
   }
+  await post('expenses',{merchant:'Partial allocation fixture',date:'2026-11-02',amount:289.99,scope:'business',business_percent:75,work_percent:0,category:'Other',status:'ready'});
+  await page.reload();
   await navigate(page,'expenses');
+  await page.locator('#search').fill('Partial allocation fixture');
+  const expense=page.locator('#expense-table tbody tr');
+  await expense.getByText('$289.99',{exact:true}).waitFor();
+  const badge=expense.getByRole('button',{name:'75% allocated'}), tip=page.locator('[role=tooltip]:popover-open');
+  await badge.hover();
+  await tip.getByText('$217.49',{exact:true}).waitFor();
+  await page.keyboard.press('Escape');
+  await tip.waitFor({state:'hidden'});
+  await badge.click();
+  await tip.waitFor({state:'visible'});
+  await page.locator('#search').fill('');
+  assert.equal(await tip.count(),0);
   await page.getByRole('button',{name:'Saved merchants',exact:true}).click();
   await page.getByRole('searchbox',{name:'Search merchants and alternate names'}).fill(merchant);
   const savedMerchant=page.locator('.merchant-list li').filter({hasText:merchant});

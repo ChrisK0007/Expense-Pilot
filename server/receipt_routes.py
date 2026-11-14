@@ -190,6 +190,10 @@ def extract_document(rid, unfiled_only=False):
     safe.update(income_documents.clean(result))
     if safe.get('document_kind') == 'payslip':
         safe['annual_base_salary'] = income_documents.printed_base_salary(body)
+    if not used_local and local and safe.get('document_kind') == 'payslip' and safe.get('amounts_basis') == 'period':
+        for key in ('date','period_start','period_end'):
+            if local.get(key):
+                safe[key]=local[key]
     if used_local:
         safe['extraction_method']='local labels'
         if result.get('extraction_note'): safe['extraction_note']=result['extraction_note']
@@ -205,7 +209,9 @@ def extract_document(rid, unfiled_only=False):
     previous=json.loads(stored['extraction'] or '{}')
     if previous.get('currency_status')=='confirmed':
         safe.update({k:previous[k] for k in ('currency','currency_status','currency_evidence')})
-    try: safe['date']=date.fromisoformat(str(result.get('date'))).isoformat()
+    try:
+        if safe.get('document_kind') not in income_documents.INCOME:
+            safe['date']=date.fromisoformat(str(result.get('date'))).isoformat()
     except ValueError: pass
     try:
         value=Decimal(str(result.get('amount')))
