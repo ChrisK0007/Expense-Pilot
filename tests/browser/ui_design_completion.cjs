@@ -132,14 +132,16 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
    await chartSelect('chart-metric',metric);
    await page.locator('.comparison-chart[aria-label*="'+label+'"]').waitFor();
    await monthly.locator('summary').click();
+   assert.equal((await monthly.locator('caption').innerText()).toLowerCase(),label);
    assert.deepEqual(await july.locator('td').allTextContents(),['Jul',value,'$0.00']);
+   assert.deepEqual(await monthly.locator('tfoot tr').first().locator('td').allTextContents(),[value,'$0.00']);
   }
-  assert.deepEqual(await monthly.locator('tfoot td').allTextContents(),['—','$40,000.00']);
+  assert.deepEqual(await monthly.locator('.chart-annual-statements td').allTextContents(),['—','$40,000.00']);
   assert.equal(await monthly.locator('tbody tr').last().locator('td').last().innerText(),'$0.00');
   await page.getByRole('button',{name:'Bar chart',exact:true}).click();
   await page.locator('.comparison-chart rect.point-0[data-chart-label="Jul 2020: $1,234.56"]').waitFor();
   await chartSelect('chart-basis','calendar');
-  assert.equal(await monthly.locator('tfoot').count(),0);
+  assert.equal(await monthly.locator('.chart-annual-statements').count(),0);
   await chartSelect('chart-metric','income');
   await navigate(page,'budgets');
   await page.locator('#budget-list > section').first().waitFor();
