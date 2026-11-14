@@ -8,7 +8,7 @@ async function main(){
  try{
   await page.goto(url);await page.getByLabel('Email address').fill('owner@example.test');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-123');await page.getByRole('button',{name:'Sign in',exact:false}).click();
   await page.locator('[data-page=dashboard]').waitFor();
-  assert.deepEqual(await page.locator('.workspace-navigation .workspace-nav-group').first().locator('[data-page]').evaluateAll(elements=>elements.map(el=>el.dataset.page).filter(key=>key!=='banks')),['dashboard','expenses','receipts','equipment']);
+  assert.deepEqual(await page.locator('.workspace-navigation .workspace-nav-group').first().locator('[data-page]').evaluateAll(elements=>elements.map(el=>el.dataset.page).filter(key=>key!=='banks')),['dashboard','receipts','expenses','equipment']);
   assert.equal(await page.locator('.brand small').innerText(),'A clearer view of every dollar');
   assert.equal(await page.getByText('Private workspace · AUD',{exact:true}).count(),0);
   await page.locator('[data-page=invoices]').waitFor();

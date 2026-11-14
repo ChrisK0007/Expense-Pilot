@@ -126,12 +126,13 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   for(const name of [merchant,alternate]){
    await post('expenses',{merchant:name,date:'2026-11-02',amount:10,scope:'work',category:'Other',status:'ready'});
   }
-  await navigate(page,'expenses');
   await post('expenses',{merchant:'Partial allocation fixture',date:'2026-11-02',amount:289.99,scope:'business',business_percent:75,work_percent:0,category:'Other',status:'ready'});
+  await page.reload();
+  await navigate(page,'expenses');
   await page.locator('#search').fill('Partial allocation fixture');
   const expense=page.locator('#expense-table tbody tr');
   await expense.getByText('$289.99',{exact:true}).waitFor();
-  const badge=expense.getByRole('button',{name:'75% allocated'}), tip=expense.getByRole('tooltip');
+  const badge=expense.getByRole('button',{name:'75% allocated'}), tip=page.locator('[role=tooltip]:popover-open');
   await badge.hover();
   await tip.getByText('$217.49',{exact:true}).waitFor();
   await page.keyboard.press('Escape');
@@ -139,7 +140,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
   await badge.click();
   await tip.waitFor({state:'visible'});
   await page.locator('#search').fill('');
-  await tip.waitFor({state:'hidden'});
+  assert.equal(await tip.count(),0);
   await page.getByRole('button',{name:'Saved merchants',exact:true}).click();
   await page.getByRole('searchbox',{name:'Search merchants and alternate names'}).fill(merchant);
   const savedMerchant=page.locator('.merchant-list li').filter({hasText:merchant});
