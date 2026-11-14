@@ -46,10 +46,9 @@ const WorkspaceUI=(()=>{
    key===pageParents[page]&&!['adviser_questions','drive_review'].includes(page);
  }
  function sections(){
-  const workspace=[['dashboard','Overview','overview'],['expenses','Expenses','card']];
+  const workspace=[['dashboard','Overview','overview'],['receipts','Inbox','inbox'],['expenses','Expenses','card']];
   const tracking=[],income=[],records=[];
   if(owner()&&Features.enabled('banks'))workspace.push(['banks','Bank accounts','bank']);
-  workspace.push(['receipts','Inbox','inbox']);
   if(owner())workspace.push(['equipment','Deductions','deduct']);
   if(Features.enabled('vehicles'))tracking.push(['drive_review','Drives','car'],['vehicles','Vehicles','vehicles']);
   if(owner()&&Features.enabled('home_office'))tracking.push(['home_office','Home office','home']);

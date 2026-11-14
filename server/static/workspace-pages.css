@@ -323,6 +323,7 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
  .pilot-shell table[data-record-cards]>tbody>tr>td::before {content:attr(data-label);display:block;color:var(--muted);font-size:10px;font-weight:600;margin-bottom:3px}
  .pilot-shell table[data-record-cards]>tbody>tr>td:first-child {grid-column:1/-1;font-size:14px}
  .pilot-shell table[data-record-cards]>tbody>tr>td:last-child {grid-column:1/-1}
+ .pilot-shell .recent-invoices table[data-record-cards]>tbody>tr>td:last-child {grid-column:2;text-align:right}
  .pilot-shell table[data-record-cards]>tbody>tr>td:empty {display:none}
  .pilot-shell table[data-record-cards]>tbody>tr>td:first-child::before {display:none}
  .pilot-shell table[data-record-cards] .client-cell {max-width:none}
