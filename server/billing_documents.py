@@ -63,11 +63,13 @@ def document_detail(did):
     doc = document(did)
     revision(doc, payload)
     if request.method == 'DELETE':
-        if doc['kind'] != 'invoice' and doc['state'] != 'draft':
-            fail('Only draft quotes can be deleted. Void an issued quote to retain its history.', 409)
+        if doc['kind'] == 'quote' and doc['state'] not in ('draft', 'accepted'):
+            fail('Only draft and accepted quotes can be deleted. Void an issued quote to retain its history.', 409)
         if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')", (did,)):
             fail('Resolve the pending or uncertain email delivery before deleting this document.', 409)
         if doc['source_quote']:
+            from quote_acceptance import revoke
+            revoke(doc['source_quote'])
             db().execute("UPDATE billing_documents SET state='accepted',version=version+1 WHERE id=?", (doc['source_quote'],))
         db().execute('UPDATE billing_time SET document_id=NULL WHERE document_id=?', (did,))
         db().execute('DELETE FROM billing_payments WHERE document_id=?', (did,))
@@ -80,6 +82,7 @@ def document_detail(did):
         if doc['state']!='draft' and (doc['kind']!='invoice' or doc['state']!='issued'):
             fail('Only draft quotes can be fully edited.',409)
         payload.setdefault('due_date_manual',bool(doc['due_date_manual']))
+        payload.setdefault('payment_details', doc['payment_details'])
         if {'reminders_enabled', 'reminder_options'} & payload.keys() and g.user['role'] != 'owner':
             fail('Only the owner can change automatic reminder preferences.', 403)
         payload.setdefault('reminders_enabled', bool(doc['reminders_enabled']))
@@ -190,16 +193,21 @@ def document_action(did):
     elif action in ('accepted', 'declined'):
         if doc['kind'] != 'quote' or doc['state'] != 'issued':
             fail('Only issued quotes can be marked accepted or declined.', 409)
-        from quote_acceptance import revoke
-        revoke(did)
+        if action == 'declined' or doc['due_date'] < local_today():
+            from quote_acceptance import revoke
+            revoke(did)
         db().execute('UPDATE billing_documents SET state=?,version=version+1 WHERE id=?', (action, did))
     elif action == 'convert':
         if doc['kind'] != 'quote' or doc['state'] != 'accepted':
             fail('Mark the quote accepted before converting it.', 409)
         payload = {**doc, 'kind': 'invoice', 'reminders_enabled': True, 'due_date_manual':False, 'issue_date': local_today(),
                    'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}
+        if not doc['payment_details']:
+            payload.pop('payment_details')
         values = validate_document(payload)
         result_id = insert_document(values, source_quote=did)
+        from quote_acceptance import revoke
+        revoke(did)
         db().execute("UPDATE billing_documents SET state='converted',version=version+1 WHERE id=?", (did,))
     elif action == 'duplicate':
         payload = {**doc, 'reminders_enabled': bool(doc['reminders_enabled']), 'due_date_manual':False, 'issue_date': local_today(), 'due_date': (date.fromisoformat(local_today()) + timedelta(days=doc['client']['terms'])).isoformat()}

@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.7-beta.9**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.7-beta.10**. For fresh installs and setup, AI or backup controls, see [installation and configuration](public-release.md). For stable 1.0.6, see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -158,7 +158,7 @@ The host script discovers the container’s actual `/data` mount, stops it if ru
 
 ## Billing and your own email
 
-1. Open **Settings → Business profile & branding**. Enter your trading name, ABN, contact details, payment instructions and default terms. Enable GST only if your business is registered. A logo and brand colour are supported. Invoice and quote numbering have separate configurable prefixes.
+1. Open **Settings → Business profile & branding**. Enter your trading name, ABN, contact details and default terms. Set payment instructions under **Invoice & quote defaults**. Enable GST only if your business is registered. A logo and brand colour are supported. Invoice and quote numbering have separate configurable prefixes.
 2. Open **Settings → Email delivery (SMTP)**. Enter your provider's SMTP hostname, port, username, password/app password, sender name/address and optional reply-to address. Choose STARTTLS (usually port 587) or SSL/TLS (usually port 465). Save, then use **Send test email** to send one message to your saved sender address.
 3. Add billing contacts in **Clients**. Client payment terms are applied to new invoices.
 4. Choose **Invoices → New invoice** or **Quotes → New quote**. Add line items, quantities, rates, discounts and GST treatment. Save a draft, inspect it and download the PDF.
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.9**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.10**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -269,15 +269,15 @@ See [architecture and backups](architecture.md) for development commands, number
 
 ## Vehicle running costs
 
-Open **Vehicles → Running costs** on a vehicle. Set the report dates or download the expense and fuel rows to CSV. Use **Add fuel** to create an expense with fill-up details, or open a vehicle-linked expense and choose **Record as a fuel fill-up**. Enter the fuel-only amount, litres, dashboard odometer and whether the tank was full. Attach the receipt on the expense as usual.
+Open **Vehicles → Running costs** on a vehicle. Set the report dates or download the expense and fuel rows to CSV. Use **Add fuel** to create an expense with fill-up details, or choose **Record as a fuel fill-up** while reviewing a vehicle receipt in Inbox or editing the expense. Receipt AI suggests the printed litres and purchase time. Expense Pilot estimates the odometer from the last actual reading in the vehicle’s **Odometer log** and synced drives up to the fill-up. Check the values, enter the fuel-only amount and choose **Full** or **Partial**. Use a dashboard reading when drive timing is ambiguous. Enter the fill-up time in your workspace timezone when the receipt time is unavailable or needs adjusting.
 
 Running costs use the recorded unreimbursed expense amounts, excluding purchase costs, parking and tolls. Set a cost type such as Servicing under **Compare vehicle methods → Cost settings**. Cost per kilometre uses expenses between the first and last measured odometer dates shown on the report. Fuel economy uses complete full-to-full intervals and includes the intervening partial fill-ups.
 
 ## Online quote acceptance
 
-Set the client-accessible HTTPS address in **Settings → User access** and configure **Email delivery**. Open a current quote, select **Email quote** (or **Issue & email**) and leave the online acceptance link selected. The client can review the quote, download its PDF and accept it by entering their name and confirming authorisation. The link expires after the quote’s validity date. Sending a new link replaces the previous one, and **Disable acceptance link** removes client access.
+Set the client-accessible HTTPS address in **Settings → User access** and configure **Email delivery**. Open a current quote, select **Email quote** (or **Issue & email**) and leave the online acceptance link selected. The client can review the quote, download its PDF and accept it by entering their name and confirming authorisation. An unaccepted link expires at the end of the quote’s validity date in your workspace timezone. After acceptance the link remains available until you convert the quote to an invoice. Sending a new link replaces the previous one, and **Disable acceptance link** removes client access.
 
-Open the quote to review the recorded name, time and contact email. The notification bell shows recent acceptances. Enable quote-acceptance emails in notification settings if you want an email alert. Select **Convert to invoice** to create a draft invoice for review.
+Open the quote to review the recorded name, time and contact email. The notification bell shows recent acceptances. Enable quote-acceptance emails in notification settings if you want an email alert. Select **Convert to invoice** to create a draft invoice for review. The draft uses your default invoice payment instructions if the quote has none. To remove an accepted quote, open it and select **Delete quote**. This removes the acceptance and invalidates the client link.
 
 ## Overview year comparison
 
@@ -287,7 +287,7 @@ Expense charts use the saved business and employment shares. Personal, reimburse
 
 ## Billing navigation, reminders and deleting expenses
 
-Invoices, Quotes, Clients and Recurring invoices share a top navigation bar. Services & prices and Billable time also use that menu. Choose Invoices or Quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Document notes and payment instructions remain under Invoice & quote defaults.
+Invoices, Quotes, Clients and Recurring invoices share a top navigation bar. Services & prices and Billable time also use that menu. Choose Invoices or Quotes to return to a document list. Email settings opens the message templates/signature, SMTP delivery and reminder settings. Set document notes and default payment instructions under **Invoice & quote defaults**. When editing an invoice, select **Use default payment instructions** to replace that invoice’s saved instructions.
 
 The owner can switch automatic reminders on or off while creating an invoice or directly in any invoice’s details. The preference is saved for drafts, issued invoices and recurring-generated invoices. Editing or duplicating a draft preserves it. When making a recurring schedule, select whether its generated invoices allow reminders; each generated invoice can then be changed individually.
 

@@ -1,8 +1,9 @@
 import csv
 import io
 import unittest
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 import test_app as base
+import test_receipts
 import workspace_time
 from app import app
 
@@ -11,6 +12,63 @@ class VehicleRunningCostsTest(unittest.TestCase):
     setUp = base.AppTest.setUp
     call = base.AppTest.call
     login = base.AppTest.login
+    upload = test_receipts.ReceiptTest.upload
+    scan = test_receipts.ReceiptTest.scan
+
+    def test_prefill_and_save_fuel_in_the_receipt_inbox(self):
+        vid = self.call(self.owner, 'vehicles', {'name': 'Test vehicle'}).json['id']
+        with app.app_context():
+            zone = workspace_time.zone()
+        day = datetime.now(zone).date() - timedelta(days=3)
+        midnight = datetime.combine(day, time.min, zone)
+        odometer = f'vehicles/{vid}/odometer'
+        lookup = f'/api/{odometer}/estimate'
+
+        def estimate(clock=None):
+            args = {'date': day.isoformat()}
+            if clock is not None:
+                args['time'] = clock
+            response = self.owner.get(lookup, query_string=args)
+            self.assertEqual(response.status_code, 200, response.json)
+            return response.json
+
+        self.assertEqual(estimate()['reason'], 'no_baseline')
+        baseline = self.call(self.owner, odometer, {'recorded_at': (midnight - timedelta(hours=2)).timestamp(), 'reading': '1000'})
+        self.assertEqual(baseline.status_code, 200, baseline.json)
+        self.assertEqual(estimate(), {'estimate_m': 1000000})
+        for start, end, distance in [(9, 10, '15.5'), (12, 13, '26.25')]:
+            trip = self.call(self.owner, 'vehicle-journeys', dict(
+                vehicle_id=vid, date=day.isoformat(), origin='A', destination='B', scope='personal',
+                started_at=(midnight + timedelta(hours=start)).timestamp(),
+                ended_at=(midnight + timedelta(hours=end)).timestamp(), distance=distance))
+            self.assertEqual(trip.status_code, 200, trip.json)
+        self.assertEqual(estimate()['reason'], 'time_needed')
+        self.assertEqual(estimate('09:30')['reason'], 'trip_timing')
+        self.assertEqual(estimate('11:30'), {'estimate_m': 1015500})
+        self.assertEqual(estimate('13:00'), {'estimate_m': 1041750})
+        self.assertEqual(self.agent.get(lookup, query_string={'date': day.isoformat()}).status_code, 403)
+        self.assertEqual(self.owner.get(lookup, query_string={'date': day.isoformat(), 'time': '24:12'}).status_code, 400)
+
+        rid = self.upload().json['id']
+        response = self.scan(rid, dict(merchant='Example fuel', date=day.isoformat(), amount='81.30',
+                                       category='Vehicle expenses', fuel_litres='40.625', fuel_time='11:30'))
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual((response.json['fuel_litres'], response.json['fuel_time']), (40.625, '11:30'))
+        data = dict(date=day.isoformat(), merchant='Example fuel', amount='81.30', category='Vehicle expenses', scope='personal',
+                    vehicle_id=vid, fuel_details=dict(litres=response.json['fuel_litres'], odometer_km='', full_tank=None),
+                    fuel_time=response.json['fuel_time'])
+        draft = self.call(self.owner, f'receipts/{rid}/draft', data, 'PUT')
+        self.assertEqual(draft.status_code, 200, draft.json)
+        self.assertEqual(draft.json['draft']['fuel_details'], dict(litres=40.625, odometer_km=None, full_tank=None))
+        self.assertEqual(self.owner.get('/api/expenses').json, [])
+        data['fuel_details'].update(odometer_km=estimate(data['fuel_time'])['estimate_m'] / 1000, full_tank=False)
+        saved = self.call(self.owner, f'receipts/{rid}/expense', data)
+        self.assertEqual(saved.status_code, 200, saved.json)
+        expense = self.owner.get('/api/expenses').json[0]
+        self.assertEqual(expense['receipt_id'], rid)
+        self.assertEqual((expense['fuel_volume_ml'], expense['fuel_odometer_m'], expense['fuel_full_tank']), (40625, 1015500, 0))
+        report = self.owner.get(f'/api/vehicles/{vid}/running-costs?from={day}&to={day}').json
+        self.assertEqual(report['fuel_cents'], 8130)
 
     def test_running_costs_join_expenses_fillups_and_odometer(self):
         vid = self.call(self.owner, 'vehicles', {'name': 'Test vehicle'}).json['id']

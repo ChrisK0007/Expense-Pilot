@@ -70,6 +70,44 @@ class NotificationTest(AppTest):
         self.assertEqual([x['kind'] for x in events], ['invoicePaid'])
         self.assertEqual(events[0]['item'], '1')
 
+    def test_dismissing_paid_invoice_clears_web_bell_until_next_payment(self):
+        today = n.workspace_time.today().isoformat()
+        with app.app_context():
+            db().execute("INSERT INTO billing_clients(id,name) VALUES (1,'Client')")
+            db().execute("""INSERT INTO billing_documents(id,kind,number,state,client_id,client,business,
+                issue_date,due_date,tax_mode,lines,subtotal_cents,gst_cents,total_cents,created_at)
+                VALUES (1,'invoice','INV-0001','issued',1,'{}','{}','2020-01-01',
+                '2020-01-02','none','[]',100,0,100,?)""", (today,))
+            db().execute("""INSERT INTO billing_payments(document_id,date,amount_cents,reference,request_key,created_at)
+                VALUES (1,?,100,'payment','payment-1',?)""", (today, today))
+            db().commit()
+
+        endpoint = '/api/workspace-notifications'
+        first = self.owner.get(endpoint).json['items'][0]
+        self.assertEqual(first['kind'], 'invoicePaid')
+        key = first['dismiss_key']
+        self.assertEqual(self.call(self.agent, 'workspace-notifications/dismiss', {'key': key}).status_code, 403)
+        for _ in range(2):
+            self.assertEqual(self.call(self.owner, 'workspace-notifications/dismiss', {'key': key}).status_code, 200)
+        other_browser = app.test_client()
+        self.login(other_browser, 'owner@example.test', 'Owner-password-123')
+        self.assertEqual(other_browser.get(endpoint).json['items'], [])
+        self.assertEqual(self.owner.get('/api/notifications/events').json[0]['key'], first['key'])
+
+        with app.app_context():
+            db().execute('UPDATE billing_payments SET reversed_at=?', (today,))
+            db().commit()
+        overdue = self.owner.get(endpoint).json['items'][0]
+        self.assertEqual(overdue['kind'], 'invoiceOverdue')
+        self.assertNotIn('dismiss_key', overdue)
+        with app.app_context():
+            db().execute("""INSERT INTO billing_payments(document_id,date,amount_cents,reference,request_key,created_at)
+                VALUES (1,?,100,'replacement payment','payment-2',?)""", (today, today))
+            db().commit()
+        latest = self.owner.get(endpoint).json['items'][0]
+        self.assertEqual(latest['kind'], 'invoicePaid')
+        self.assertNotEqual(latest['dismiss_key'], key)
+
     @patch.dict(os.environ, {'PUSH_RELAY_URL': 'https://relay.example/notify', 'PUSH_RELAY_TOKEN': 'x'*40})
     def test_device_validation_scope_and_csrf(self):
         value = self.registration()

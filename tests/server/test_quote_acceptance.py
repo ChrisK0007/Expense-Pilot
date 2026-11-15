@@ -72,11 +72,47 @@ class QuoteAcceptanceTest(unittest.TestCase):
         self.assertEqual(self.call(self.owner, document_path + '/wording',
                                    {'version': accepted['version'], 'descriptions': ['Changed']}, 'PUT').status_code, 409)
 
+        with patch('workspace_time.today', return_value=workspace_time.today() + timedelta(days=1)):
+            self.assertEqual(self.client.get(path).status_code, 200)
+            self.assertEqual(self.client.get(path + '/pdf').status_code, 200)
+            self.assertTrue(self.get(quote['id'])['online_acceptance']['linked'])
+
         invoice = self.action(accepted, 'convert')
         self.assertEqual(invoice.status_code, 200, invoice.json)
         saved = self.get(invoice.json['id'])
         self.assertEqual((saved['kind'], saved['state'], saved['total_cents']), ('invoice', 'draft', quote['total_cents']))
         self.assertEqual(self.get(quote['id'])['state'], 'converted')
+        self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(self.client.get(path + '/pdf').status_code, 404)
+        self.assertEqual(self.call(self.owner, f"billing/documents/{saved['id']}",
+                                   {'version': saved['version']}, 'DELETE').status_code, 200)
+        restored = self.get(quote['id'])
+        self.assertEqual(restored['state'], 'accepted')
+        self.assertFalse(restored['online_acceptance']['linked'])
+        self.assertEqual(self.client.get(path).status_code, 404)
+
+    def test_delete_accepted_quote_closes_the_client_link(self):
+        quote = self.create(kind='quote')
+        path = self.send(quote)
+        self.assertEqual(self.client.post(path, data={'full_name': 'Alex Taylor', 'authorised': 'yes'}).status_code, 303)
+        accepted = self.get(quote['id'])
+        self.assertEqual(self.call(self.owner, f"billing/documents/{quote['id']}",
+                                   {'version': accepted['version']}, 'DELETE').status_code, 200)
+        self.assertEqual(self.owner.get(f"/api/billing/documents/{quote['id']}").status_code, 404)
+        self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(self.client.get(path + '/pdf').status_code, 404)
+
+    def test_manually_accepted_quote_link_becomes_read_only(self):
+        quote = self.create(kind='quote')
+        path = self.send(quote)
+        self.assertEqual(self.action(self.get(quote['id']), 'accepted').status_code, 200)
+        with patch('workspace_time.today', return_value=workspace_time.today() + timedelta(days=1)):
+            page = self.client.get(path)
+            self.assertEqual(page.status_code, 200)
+            self.assertIn(b'The sender recorded acceptance', page.data)
+            self.assertNotIn(b'Accept this quote', page.data)
+        self.assertEqual(self.client.post(path, data={'full_name': 'Alex Taylor', 'authorised': 'yes'}).status_code, 303)
+        self.assertIsNone(self.get(quote['id'])['online_acceptance']['accepted_at'])
 
     def test_sender_can_rotate_or_revoke_links_and_expired_links_cannot_accept(self):
         quote = self.create(kind='quote')

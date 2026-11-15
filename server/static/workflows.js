@@ -33,8 +33,17 @@ const Workflows=(()=>{
    const data=await Notifications.items(year);if(!root.isConnected)return;
    $('#attention-kind').innerHTML='<option value="all">All items</option>'+[...new Set(data.items.map(i=>i.kind))].map(k=>`<option value="${esc(k)}">${esc(k.replaceAll('_',' '))}</option>`).join('');
    function draw(){const sort=$('#attention-sort').value,kind=$('#attention-kind').value;let items=data.items.filter(i=>kind==='all'||i.kind===kind);if(sort==='date')items.sort((a,b)=>a.date.localeCompare(b.date));if(sort==='amount')items.sort((a,b)=>b.amount_cents-a.amount_cents);
-    root.innerHTML=`<p class="footnote">${esc(data.notice)}</p><p>${items.length} item(s)</p>`+table(['Record','Needs review','Date','Amount',''],items.map((r,i)=>[esc(r.title),esc(r.detail),esc(dateAU(r.date)),r.amount_cents?money(r.amount_cents):'—',button('Review','open',i)]));
-    actions(root,{open:async id=>{await openAttention(items[Number(id)]);}});
+    root.innerHTML=`<p class="footnote">${esc(data.notice)}</p><p>${items.length} item(s)</p>`+table(['Record','Needs review','Date','Amount',''],items.map((r,i)=>[esc(r.title),esc(r.detail),esc(dateAU(r.date)),r.amount_cents?money(r.amount_cents):'—',button('Review','open',i)+(r.dismiss_key?button('Dismiss','dismiss',i):'')]));
+    actions(root,{
+     open:async id=>{await openAttention(items[Number(id)]);},
+     dismiss:async id=>{
+      const item=items[Number(id)];
+      await Notifications.dismiss(item);
+      data.items=data.items.filter(entry=>entry.dismiss_key!==item.dismiss_key);
+      if(root.isConnected)draw();
+      await Notifications.mount();
+     }
+    });
    }
    $('#attention-sort').onchange=draw;$('#attention-kind').onchange=draw;$('#workflow-year').onchange=e=>{year=Number(e.target.value);attention();};actions($('#content'),{refresh:attention});draw();
   }catch(e){if(root.isConnected)root.innerHTML=`<p class="error">${esc(e.message)}</p>`;}

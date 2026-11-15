@@ -20,6 +20,19 @@ def measurement(value, maximum, label):
     return int(scaled)
 
 
+def clean_fuel_draft(details):
+    if details is None:
+        return None
+    if not isinstance(details, dict) or details.get('full_tank') is not None and type(details['full_tank']) is not bool:
+        tracking.fail('Enter valid fuel details.')
+    litres, odometer = details.get('litres'), details.get('odometer_km')
+    return dict(
+        litres=measurement(litres, 1000000, 'fuel volume') / 1000 if litres not in ('', None) else None,
+        odometer_km=measurement(odometer, 10000000000, 'odometer reading') / 1000 if odometer not in ('', None) else None,
+        full_tank=details.get('full_tank'),
+    )
+
+
 def save_fuel(connection, eid, payload, previous=None):
     """Keep fuel data attached to the expense in the same transaction."""
     if 'fuel_details' not in payload and not (previous and previous['vehicle_id']):

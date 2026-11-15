@@ -1,5 +1,23 @@
 """Currency evidence for receipt drafts; never interpret an unqualified $ as USD."""
 import re
+from decimal import Decimal, InvalidOperation
+
+
+def fuel_clock(value):
+    return value if isinstance(value, str) and re.fullmatch(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]', value) else None
+
+
+def fuel_fields(result):
+    """Keep only a valid receipt quantity, in litres, and its printed time."""
+    try:
+        volume = Decimal(str(result.get('fuel_litres')))
+        if not volume.is_finite() or not Decimal('0.001') <= volume <= 1000 or volume * 1000 != (volume * 1000).to_integral_value():
+            return {}
+    except InvalidOperation:
+        return {}
+    return dict(fuel_litres=float(volume), fuel_time=fuel_clock(result.get('fuel_time')))
+
+
 CODES=('AUD','USD','NZD','CAD','SGD','HKD','FJD','EUR','GBP','JPY','CNY','THB','IDR','MYR','CHF','INR','KRW','AED','ZAR','PHP','VND','TWD','NOK','SEK','DKK','PLN','BRL','MXN')
 
 def markers(text):

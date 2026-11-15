@@ -97,6 +97,11 @@ class BillingTest(unittest.TestCase):
                       invoice_email_subject='Invoice {number}', invoice_email_body='Pay by {due_date}',
                       quote_email_subject='Quote {number}', quote_email_body='Accept by {due_date}')
         self.assertEqual(self.call(self.owner, 'billing/document-defaults', values, 'PUT').status_code, 200)
+        settings = self.owner.get('/api/billing/settings').json
+        self.assertEqual(settings['business']['payment_details'], values['invoice_payment_details'])
+        edit = {key: legacy[key] for key in ('version', 'client_id', 'issue_date', 'due_date', 'tax_mode', 'lines', 'notes')}
+        self.assertEqual(self.call(self.owner, f"billing/documents/{legacy['id']}", edit, 'PUT').status_code, 200)
+        self.assertEqual(self.get(legacy['id'])['payment_details'], 'Example bank details')
         self.assertEqual(self.get(legacy['id'])['notes'], legacy['notes'])
         invoice, quote = self.create(), self.create(kind='quote')
         self.assertEqual(invoice['notes'], 'Invoice terms')
@@ -319,6 +324,9 @@ class BillingTest(unittest.TestCase):
 
     def test_quote_conversion_and_duplicate_guard(self):
         quote = self.issue(self.create(kind='quote'))
+        self.assertEqual(quote['payment_details'], '')
+        self.assertEqual(self.call(self.owner, 'billing/document-defaults',
+                                   {'invoice_payment_details': 'Quote conversion instructions'}, 'PUT').status_code, 200)
         self.assertEqual(self.action(quote, 'convert').status_code, 409)
         self.assertEqual(self.action(quote, 'accepted').status_code, 200)
         quote = self.get(quote['id'])
@@ -327,6 +335,10 @@ class BillingTest(unittest.TestCase):
         invoice = self.get(response.json['id'])
         self.assertEqual(invoice['kind'], 'invoice')
         self.assertEqual(invoice['total_cents'], quote['total_cents'])
+        self.assertEqual(invoice['payment_details'], 'Quote conversion instructions')
+        from pypdf import PdfReader
+        pdf = self.owner.get(f"/api/billing/documents/{invoice['id']}/pdf")
+        self.assertIn('Quote conversion instructions', PdfReader(io.BytesIO(pdf.data)).pages[0].extract_text())
         self.assertEqual(self.action(quote, 'convert').status_code, 409)
         self.assertEqual(self.call(self.owner, f"billing/documents/{invoice['id']}", {'version':invoice['version']}, 'DELETE').status_code, 200)
         self.assertEqual(self.get(quote['id'])['state'], 'accepted')

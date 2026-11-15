@@ -4,6 +4,13 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.10 — Fuel receipt prefill and billing fixes (2026-11-15)
+
+- Read the printed litres and time from a fuel receipt and estimate the fill-up odometer from an actual reading and synced journeys. Confirm the figures and whether the tank is full or partial before saving.
+- An unaccepted quote link expires at the end of its validity date. Accepted quotes remain viewable until converted or deleted. An accepted quote can be deleted before conversion.
+- Apply default payment instructions to invoices converted from quotes without payment details. Return the saved default to the iPhone app and let users apply it while editing an invoice.
+- Clear paid-invoice alerts and other activity from the notification bell. Dismissals are saved per account.
+
 ## 1.0.7-beta.9 — Vehicle running costs and billing (2026-11-15)
 
 - Open a vehicle’s Running costs report to see recorded fuel spend, operating costs, cost per kilometre, and fuel economy between full tanks. Link fill-up details to the original expense, and export the report to CSV.

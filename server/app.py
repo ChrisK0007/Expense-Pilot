@@ -230,9 +230,12 @@ def expenses():
         return jsonify(rows(f'''SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,
             EXISTS(SELECT 1 FROM home_office_costs h WHERE h.expense_id=e.id AND h.kind!='') AS home_office_bill,
             u.name AS owner,t.location,COALESCE(m.name,e.merchant) AS merchant_display,
-            vf.volume_ml AS fuel_volume_ml,vf.odometer_m AS fuel_odometer_m,vf.full_tank AS fuel_full_tank
+            vf.volume_ml AS fuel_volume_ml,vf.odometer_m AS fuel_odometer_m,vf.full_tank AS fuel_full_tank,
+            json_extract(rd.extraction, '$.fuel_litres') AS fuel_receipt_litres,
+            json_extract(rd.extraction, '$.fuel_time') AS fuel_receipt_time
             FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id
             LEFT JOIN vehicle_fuel vf ON vf.expense_id=e.id
+            LEFT JOIN receipt_details rd ON rd.receipt_id=e.receipt_id
             LEFT JOIN merchant_names mn ON mn.user_id=e.user_id AND mn.match_key=ep_merchant_key(e.merchant)
             LEFT JOIN merchants m ON m.id=mn.merchant_id AND m.user_id=e.user_id
             WHERE {w} ORDER BY e.date DESC,e.id DESC''',a))
