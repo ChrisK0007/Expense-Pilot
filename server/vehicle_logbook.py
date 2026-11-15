@@ -2,7 +2,7 @@
 import math
 import time
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import tracking as t
 from flask import request, jsonify
@@ -41,13 +41,33 @@ def metadata(d, existing=None):
     return start, end, ref
 
 
-def estimate(reading, journeys):
+def day_bounds(day, zone):
+    return tuple(datetime.combine(when, datetime.min.time(), zone).timestamp() for when in (day, day + timedelta(days=1)))
+
+
+def journey_bounds(journey):
+    if journey['started_at'] is not None:
+        return journey['started_at'], journey['ended_at']
+    zone = ZoneInfo(journey.get('date_timezone', workspace_time.DEFAULT))
+    return day_bounds(date.fromisoformat(journey['date']), zone)
+
+
+def estimate(reading, journeys, *, at=None):
     if not reading: return None, 0
     total, unknown = reading['reading_m'], 0
     now=time.time()
     for j in journeys:
-        if j['ended_at'] is not None and j['ended_at']>now: continue
-        if j['ended_at'] is None:
+        if at is not None:
+            start, end = journey_bounds(j)
+            if start >= at or end <= reading['recorded_at']:
+                continue
+            if start < reading['recorded_at'] or end > at:
+                unknown += 1
+            else:
+                total += j['distance_m']
+        elif j['ended_at'] is not None and j['ended_at']>now:
+            continue
+        elif j['ended_at'] is None:
             zone = ZoneInfo(j.get('date_timezone', workspace_time.DEFAULT))
             if j['date'] > datetime.fromtimestamp(now, zone).date().isoformat(): continue
             reading_day = datetime.fromtimestamp(reading['recorded_at'], zone).date().isoformat()
@@ -57,6 +77,42 @@ def estimate(reading, journeys):
             if j['started_at'] < reading['recorded_at']: unknown += 1
             else: total += j['distance_m']
     return total, unknown
+
+
+def fill_up_estimate(vid, day, clock):
+    """Use a dashboard baseline and only driving known to precede the fill-up."""
+    day = date.fromisoformat(day)
+    if day > workspace_time.today():
+        return dict(estimate_m=None, reason='future')
+    start, end = day_bounds(day, workspace_time.zone())
+    if end <= 0:
+        return dict(estimate_m=None, reason='no_baseline')
+    at = start
+    if clock:
+        local = f'{day}T{clock}'
+        at = workspace_time.local_timestamp(local, 'first')
+        if at != workspace_time.local_timestamp(local, 'second'):
+            return dict(estimate_m=None, reason='clock_ambiguous')
+    if at > time.time():
+        return dict(estimate_m=None, reason='future')
+    baseline = t.one('''
+        SELECT reading_m,recorded_at FROM vehicle_odometer
+        WHERE vehicle_id=? AND recorded_at<=? ORDER BY recorded_at DESC LIMIT 1
+    ''', (vid, at))
+    if not clock and t.one('SELECT id FROM vehicle_odometer WHERE vehicle_id=? AND recorded_at>? AND recorded_at<?',
+                           (vid, start, end)):
+        return dict(estimate_m=None, reason='time_needed')
+    if not baseline:
+        return dict(estimate_m=None, reason='no_baseline')
+    # Fetch only the timing and distance required for the estimate.
+    journeys = t.rows('''
+        SELECT date,date_timezone,started_at,ended_at,distance_m
+        FROM vehicle_journeys WHERE vehicle_id=? AND (ended_at IS NULL OR ended_at>?)
+    ''', (vid, baseline['recorded_at']))
+    if not clock and any(a < end and b > start for a, b in map(journey_bounds, journeys)):
+        return dict(estimate_m=None, reason='time_needed')
+    value, ambiguous = estimate(baseline, journeys, at=at)
+    return dict(estimate_m=None, reason='trip_timing') if ambiguous else dict(estimate_m=value)
 
 
 def logbook(vid):
@@ -86,6 +142,16 @@ def reading_values(d, vid, exclude=None):
 
 
 def register():
+    @t.bp.get('/vehicles/<int:vid>/odometer/estimate')
+    @t.access
+    def odometer_estimate_api(vid):
+        from receipt_core import fuel_clock
+        t.vehicle(vid)
+        clock = request.args.get('time', '')
+        if clock and not fuel_clock(clock):
+            t.fail('Enter a fill-up time in hours and minutes.')
+        return jsonify(fill_up_estimate(vid, t.day(request.args.get('date')), clock))
+
     @t.bp.route('/vehicles/<int:vid>/odometer', methods=['GET','POST'])
     @t.access
     def odometer_api(vid):

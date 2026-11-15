@@ -1,4 +1,10 @@
 {
+  "1.0.7-beta.10": [
+    "Read fuel litres and purchase time from receipts. Estimate the odometer at the fill-up using an actual reading and synced drives.",
+    "Unaccepted quote links expire after the validity date. Accepted links close on conversion to an invoice. Delete accepted quotes from their details.",
+    "Converted quotes and the iPhone app use the saved invoice payment instructions. Apply the default from the invoice editor.",
+    "Dismiss paid-invoice alerts and other activity from the notification bell."
+  ],
   "1.0.7-beta.9": [
     "Open Running costs on a vehicle to log fuel against expenses, check cost per kilometre and fuel economy, or download CSV.",
     "Email a quote with an acceptance link. See who accepted it and when, then convert it to a draft invoice.",

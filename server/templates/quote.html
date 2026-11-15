@@ -20,7 +20,7 @@
           <h1>{{ doc.reference or 'Quote ' ~ doc.number }}</h1>
           <p>{{ doc.number }} · Valid until {{ date_au(doc.due_date) }}</p>
         </div>
-        <span class="status{% if link.accepted_at %} accepted{% endif %}">{{ 'Accepted' if link.accepted_at else 'Awaiting acceptance' }}</span>
+        <span class="status{% if doc.state == 'accepted' %} accepted{% endif %}">{{ 'Accepted' if doc.state == 'accepted' else 'Awaiting acceptance' }}</span>
       </div>
       <div class="quote-grid">
         <section class="quote-card">
@@ -43,9 +43,13 @@
           <a class="button secondary" href="{{ url_for('quote_acceptance.pdf', token=request.view_args.token) }}">Download PDF</a>
         </section>
         <section class="quote-card acceptance">
-          {% if link.accepted_at %}
+          {% if doc.state == 'accepted' %}
             <h2>Acceptance recorded</h2>
-            <p>{{ link.accepted_name }} accepted quote {{ doc.number }}. The sender can now see your acceptance.</p>
+            {% if link.accepted_at %}
+              <p>{{ link.accepted_name }} accepted quote {{ doc.number }}. The sender can now see your acceptance.</p>
+            {% else %}
+              <p>The sender recorded acceptance of this quote.</p>
+            {% endif %}
           {% else %}
             <h2>Accept this quote</h2>
             <p>Confirm who is accepting on behalf of {{ doc.client.name }}.</p>

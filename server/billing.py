@@ -129,8 +129,9 @@ def business():
     return settings('business', DEFAULT_BUSINESS)
 
 
-def document_defaults():
-    seller, mail = business(), mail_settings()
+def document_defaults(seller=None):
+    seller = business() if seller is None else seller
+    mail = mail_settings()
     defaults = dict(invoice_notes=seller['notes'], quote_notes=seller['notes'],
                     invoice_payment_details=seller['payment_details'], quote_valid_days=seller['terms'])
     from billing_email_core import DEFAULT_TEMPLATES
@@ -285,10 +286,10 @@ def ready_to_issue(doc):
 @bp.route('/settings', methods=['GET', 'PUT'])
 @reader
 def configure():
-    if g.user['role']!='owner':
-        if request.method!='GET': fail('Only the owner can change business settings.',403)
-        return jsonify(business=business(), defaults=document_defaults())
+    is_owner = g.user['role'] == 'owner'
     if request.method == 'PUT':
+        if not is_owner:
+            fail('Only the owner can change business settings.', 403)
         payload = body()
         old = business()
         seller = {k: txt(payload.get(k, old[k]), 5000 if k == 'notes' else 2000 if k in ('address', 'payment_details') else 200)
@@ -311,8 +312,15 @@ def configure():
         save_settings('business', seller)
         audit('business settings updated', 'billing')
         db().commit()
-    return jsonify(business=business(), defaults=document_defaults(), email={k: v for k, v in mail_settings().items() if k != 'password_encrypted'},
-                   password_saved=bool(mail_settings()['password_encrypted']))
+    seller = business()
+    defaults = document_defaults(seller)
+    # Older iPhone clients read the default instructions from business.payment_details.
+    settings_view = dict(business={**seller, 'payment_details': defaults['invoice_payment_details']}, defaults=defaults)
+    if is_owner:
+        mail = mail_settings()
+        settings_view.update(email={k: v for k, v in mail.items() if k != 'password_encrypted'},
+                             password_saved=bool(mail['password_encrypted']))
+    return jsonify(settings_view)
 
 
 @bp.route('/logo', methods=['POST', 'DELETE'])

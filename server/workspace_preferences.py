@@ -1,8 +1,11 @@
 """Owner dashboard and notification choices, with durable one-time email delivery."""
+import hashlib
 import json
+import re
 from flask import g, jsonify, request
 
 EVENTS = ('quoteAccepted', 'invoicePaid', 'invoiceOverdue', 'emailFailure', 'receipts', 'bank', 'budgets')
+DISMISSIBLE = {'invoicePaid', 'quoteAccepted', 'budgets'}
 PANELS = ('chart', 'incoming', 'income', 'expenses', 'tax', 'invoices', 'allocation')
 
 
@@ -61,6 +64,28 @@ def process_emails():
             db().commit()
 
 
+def bell_events(user):
+    from app import one
+    from notifications import collect
+
+    config = get(user['id'])['notifications']
+    for alert in collect(user):
+        kind = alert['kind']
+        if not config.get(kind, {}).get('bell'):
+            continue
+        if kind not in DISMISSIBLE:
+            yield alert
+            continue
+        identity = alert['key']
+        if kind == 'invoicePaid' and alert.get('item'):
+            payment = one('''SELECT id,created_at FROM billing_payments
+                WHERE document_id=? AND reversed_at IS NULL ORDER BY id DESC LIMIT 1''', (alert['item'],))
+            if payment:
+                # A later payment can make a corrected invoice paid again.
+                identity += f".{payment['id']}.{payment['created_at']}"
+        yield {**alert, 'dismiss_key': hashlib.sha256(identity.encode()).hexdigest()}
+
+
 def register(app, auth):
     @app.route('/api/workspace-preferences', methods=['GET', 'PUT'], endpoint='workspace_preference_options')
     @auth('owner')
@@ -85,6 +110,25 @@ def register(app, auth):
     @app.get('/api/workspace-notifications', endpoint='workspace_notification_events')
     @auth('owner')
     def events():
-        from notifications import collect
-        config = get(g.user['id'])['notifications']
-        return jsonify(items=[e for e in collect(g.user) if config.get(e['kind'], {}).get('bell')])
+        from app import rows
+
+        cleared = {row['event_key'] for row in rows(
+            'SELECT event_key FROM owner_bell_dismissals WHERE user_id=?', (g.user['id'],)
+        )}
+        return jsonify(items=[event for event in bell_events(g.user) if event.get('dismiss_key') not in cleared])
+
+    @app.post('/api/workspace-notifications/dismiss')
+    @auth('owner')
+    def dismiss():
+        from app import db, fail
+        from billing import body
+
+        key = body().get('key')
+        if not isinstance(key, str) or not re.fullmatch(r'[0-9a-f]{64}', key):
+            fail('Choose a notification to dismiss.')
+        db().execute('BEGIN IMMEDIATE')
+        if any(event.get('dismiss_key') == key for event in bell_events(g.user)):
+            db().execute('INSERT OR IGNORE INTO owner_bell_dismissals(user_id,event_key) VALUES (?,?)',
+                         (g.user['id'], key))
+        db().commit()
+        return jsonify(ok=True)

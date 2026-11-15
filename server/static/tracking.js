@@ -52,39 +52,109 @@ const Tracking=(()=>{
   document.querySelectorAll('.vehicle-odometer').forEach(b=>b.onclick=()=>odometerLog(Number(b.dataset.id)));
   tableEvents();document.querySelectorAll('.edit-vehicle').forEach(b=>b.onclick=()=>editVehicle(V.find(v=>v.id===Number(b.dataset.id))));document.querySelectorAll('.edit-journey').forEach(b=>b.onclick=()=>editJourney(journeys.find(x=>x.id===Number(b.dataset.id))));document.querySelectorAll('.vehicle-add-journey').forEach(b=>b.onclick=()=>editJourney(null,Number(b.dataset.id)));document.querySelectorAll('.vehicle-add-expense').forEach(b=>b.onclick=()=>expenseModal(null,null,{vehicle_id:Number(b.dataset.id),category:'Vehicle expenses',scope:V.find(v=>v.id===Number(b.dataset.id))?.owner_role==='employee'?'business':'work',percent:100,amount_cents:0}));
  }
- function fuelFields(expense){
-  const active=expense.fuel_volume_ml!=null||expense.new_fuel;
+ function fuelFields(expense,{markFromReceipt=false}={}){
+  const saved=expense.fuel_details||{};
+  const savedLitres=expense.fuel_volume_ml==null?saved.litres:expense.fuel_volume_ml/1000;
+  const reading=expense.fuel_odometer_m==null?saved.odometer_km:expense.fuel_odometer_m/1000;
+  const tank=expense.fuel_full_tank??saved.full_tank;
+  const active=expense.fuel_details!==null&&(expense.fuel_volume_ml!=null||expense.new_fuel||expense.fuel_details||
+   (markFromReceipt&&expense.fuel_receipt_litres!=null));
   return `<fieldset id="fuel-details" class="allocation-fields span2">
    <legend>Fuel details</legend>
    <label class="check"><input type="checkbox" name="is_fuel" ${active?'checked':''}> Record as a fuel fill-up</label>
    <div class="grid2" id="fuel-measurements">
-    ${field('Litres','fuel_litres','number',expense.fuel_volume_ml==null?'':expense.fuel_volume_ml/1000,'min="0.001" max="1000" step="0.001" required')}
-    ${field('Odometer (km)','fuel_km','number',expense.fuel_odometer_m==null?'':expense.fuel_odometer_m/1000,'min="0" max="10000000" step="0.001" required')}
-    ${select('Tank after fill-up','fuel_tank',[['','Select full or partial'],['full','Full'],['partial','Partial']],expense.fuel_full_tank==null?'':expense.fuel_full_tank?'full':'partial')}
-    <p class="footnote">Use the fuel-only amount for the price per litre. Log partial fill-ups as well as full tanks.</p>
+    ${field('Litres','fuel_litres','number',savedLitres??expense.fuel_receipt_litres??'','min="0.001" max="1000" step="0.001" required')}
+    ${field('Fill-up time (optional)','fuel_time','time',expense.fuel_time??expense.fuel_receipt_time??'','aria-describedby="fuel-time-zone"')}
+    ${field('Odometer (km)','fuel_km','number',reading??'','min="0" max="10000000" step="0.001" required aria-describedby="fuel-estimate"')}
+    ${select('Tank after fill-up','fuel_tank',[['','Select full or partial'],['full','Full'],['partial','Partial']],tank==null?'':tank?'full':'partial')}
+    <p id="fuel-time-zone" class="footnote span2">Use ${esc(WorkspaceTime.zone())} time for the odometer estimate.</p>
+    <p id="fuel-estimate" class="footnote span2" role="status"></p>
+    <p class="footnote span2">Check the litres against the receipt and use the fuel-only amount for the price per litre.</p>
    </div>
   </fieldset>`;
  }
- function bindFuelFields(form){
-  const vehicle=form.elements.vehicle_id, fillUp=form.elements.is_fuel, details=$('#fuel-details'), measurements=$('#fuel-measurements');
-  form.elements.fuel_tank.required=true;
-  const update=()=>{
-   const active=!!vehicle.value&&fillUp.checked;
-   details.hidden=!vehicle.value;
-   measurements.hidden=!active;
-   for(const element of measurements.querySelectorAll('input, select'))element.disabled=!active;
+ function bindFuelFields(form,{prefix='',allowed=true}={}){
+  const {is_fuel:fillUp,fuel_litres:litres,fuel_time:clock,fuel_km:reading,fuel_tank:tank}=form.elements;
+  const vehicle=form.elements[prefix+'vehicle_id'], date=form.elements[prefix+'date'], category=form.elements[prefix+'category'];
+  const details=form.querySelector('#fuel-details'), measurements=form.querySelector('#fuel-measurements');
+  const hint=form.querySelector('#fuel-estimate');
+  const available=()=>allowed&&!!vehicle.value&&category.value!=='Meals';
+  const active=()=>available()&&fillUp.checked;
+  tank.required=true;
+  let revision=0, estimated=false, fuelChoiceChanged=false;
+  const clearEstimate=()=>{
+   revision++;
+   if(estimated)reading.value='';
+   estimated=false;
+   hint.textContent='';
   };
-  vehicle.addEventListener('change',update);
-  fillUp.addEventListener('change',update);
+  const suggest=async()=>{
+   clearEstimate();
+   if(!active()||reading.value)return;
+   let day;
+   try{day=dateValue(date);}catch(_){return;}
+   if(!day)return;
+   const version=revision, params=new URLSearchParams({date:day,time:clock.value});
+   const isCurrent=()=>form.isConnected&&form.closest('dialog')?.open&&version===revision;
+   try{
+    const result=await api(`vehicles/${vehicle.value}/odometer/estimate?${params}`);
+    if(!isCurrent())return;
+    if(result.estimate_m!=null){
+     reading.value=result.estimate_m/1000;
+     estimated=true;
+     hint.textContent='Estimated from synced drives. Check against the dashboard if available.';
+    }else{
+     hint.textContent={
+      time_needed:'Enter the fill-up time to estimate the odometer for this date.',
+      no_baseline:'Enter the dashboard odometer or add an earlier actual reading in the Odometer log.',
+      trip_timing:'A tracked drive overlaps this time or has no time recorded. Enter the dashboard odometer.',
+      clock_ambiguous:'This time occurs twice when the clocks change. Enter the dashboard odometer.',
+      future:'Use the date and time the fill-up took place.',
+     }[result.reason]||'Enter the dashboard odometer.';
+    }
+   }catch(error){if(isCurrent())hint.textContent=error.message;}
+  };
+  const update=()=>{
+   details.hidden=!available();
+   fillUp.disabled=!available();
+   measurements.hidden=!active();
+   for(const element of measurements.querySelectorAll('input, select'))element.disabled=!active();
+   suggest();
+  };
+  vehicle.addEventListener('change',()=>{reading.value='';fuelChoiceChanged ||= fillUp.checked;update();});
+  fillUp.addEventListener('change',()=>{fuelChoiceChanged=true;update();});
+  category.addEventListener('change',update);
+  date.addEventListener('input',clearEstimate);
+  date.addEventListener('change',suggest);
+  clock.addEventListener('input',suggest);
+  reading.addEventListener('input',()=>{
+   revision++;
+   estimated=false;
+   hint.textContent='';
+  });
   update();
+  return {
+   applyReceipt(receipt){
+    if(receipt.fuel_litres!=null){
+     if(!litres.value)litres.value=receipt.fuel_litres;
+     if(!clock.value&&receipt.fuel_time)clock.value=receipt.fuel_time;
+     fillUp.checked=true;
+    }
+    update();
+   },
+   values(draft=false){
+    if(!active())return draft&&fuelChoiceChanged?{fuel_details:null,fuel_time:null}:{};
+    return {
+     fuel_details:{litres:litres.value,odometer_km:draft&&estimated?'':reading.value,full_tank:tank.value?tank.value==='full':null},
+     fuel_time:clock.value||null,
+    };
+   },
+  };
  }
- function saveFuelFields(data,form,expense){
-  if(data.vehicle_id&&form.elements.is_fuel.checked){
-   data.fuel_details={litres:data.fuel_litres,odometer_km:data.fuel_km,full_tank:data.fuel_tank==='full'};
-  }else if(expense.fuel_volume_ml!=null){
-   data.fuel_details=null;
-  }
-  for(const key of ['is_fuel','fuel_litres','fuel_km','fuel_tank'])delete data[key];
+ function saveFuelFields(data,fields,expense){
+  const {fuel_details}=fields.values();
+  if(fuel_details||expense.fuel_volume_ml!=null)data.fuel_details=fuel_details??null;
+  for(const key of ['is_fuel','fuel_litres','fuel_time','fuel_km','fuel_tank'])delete data[key];
  }
  async function showRunningCosts(vid,range={},showExpenses=false){
   const vehicle=V.find(item=>item.id===vid);

@@ -49,8 +49,13 @@ def token_hash(token):
     return hashlib.sha256(token.encode('ascii')).hexdigest()
 
 
+def active_link(doc):
+    from billing import local_today
+    return doc['state'] == 'accepted' or (doc['state'] == 'issued' and doc['due_date'] >= local_today())
+
+
 def details(doc):
-    from billing import one, local_today
+    from billing import one
     if doc['kind'] != 'quote':
         return None
     row = one("""
@@ -58,8 +63,7 @@ def details(doc):
         FROM billing_quote_acceptance WHERE document_id=?
     """, (doc['id'],))
     if row:
-        row['linked'] = bool(row['linked'] and doc['due_date'] >= local_today()
-                             and doc['state'] in ('issued', 'accepted', 'converted'))
+        row['linked'] = bool(row['linked'] and active_link(doc))
     return row
 
 
@@ -88,16 +92,14 @@ def revoke_link(did):
 
 
 def find(token):
-    from billing import document, local_today, one
+    from billing import document, one
     if not re.fullmatch(r'[A-Za-z0-9_-]{43}', token):
         return None, None
     link = one('SELECT * FROM billing_quote_acceptance WHERE token_hash=?', (token_hash(token),))
     if not link:
         return None, None
     doc = document(link['document_id'])
-    if doc['due_date'] < local_today() or not (
-        doc['state'] == 'issued' or link['accepted_at'] and doc['state'] in ('accepted', 'converted')
-    ):
+    if not active_link(doc):
         return None, None
     return doc, link
 
@@ -132,7 +134,7 @@ def view(token):
     doc, link = find(token)
     if not doc:
         return page(status=404)
-    if link['accepted_at']:
+    if doc['state'] == 'accepted':
         db().rollback()
         return redirect(url_for('quote_acceptance.view', token=token), code=303)
     if not consent or not 1 <= len(name) <= 120 or any(ord(char) < 32 or ord(char) == 127 for char in name):

@@ -99,7 +99,7 @@ def receipt_values(rid):
     return {**extracted, **draft_for(rid)}
 
 def clean_draft(d):
-    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip','document_kind','employer','gross','withheld','annual_base_salary','period_start','period_end','amounts_basis','home_office_kind','bank_choice','bank_version','personally_paid'}
+    allowed = {'merchant','date','amount','currency','scope','category','percent','work_percent','business_percent','notes','meal','merchant_city','merchant_address','merchant_location','trip_id','vehicle_id','exclude_trip','document_kind','employer','gross','withheld','annual_base_salary','period_start','period_end','amounts_basis','home_office_kind','bank_choice','bank_version','personally_paid','fuel_details','fuel_time'}
     if set(d)-allowed: fail('Unknown receipt draft field.')
     result = {}
     for key, value in d.items():
@@ -134,6 +134,13 @@ def clean_draft(d):
             try: result[key] = int(value) if value else None
             except (ValueError, TypeError): fail('Invalid linked record.')
         elif key=='exclude_trip': result[key] = value is True
+        elif key=='fuel_details':
+            from vehicle_running_costs import clean_fuel_draft
+            result[key] = clean_fuel_draft(value)
+        elif key=='fuel_time':
+            from receipt_core import fuel_clock
+            result[key] = fuel_clock(value)
+            if value and not result[key]: fail('Enter a fill-up time in hours and minutes.')
         else: result[key] = textval(value, 3000 if key=='notes' else 500 if key=='merchant_address' else 200)
     return result
 

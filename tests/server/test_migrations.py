@@ -14,6 +14,28 @@ class MigrationTest(unittest.TestCase):
         self.connection.execute('PRAGMA foreign_keys=ON')
         self.addCleanup(self.connection.close)
 
+    def test_quote_link_upgrade_expires_converted_and_previously_converted_quotes(self):
+        c = self.connection
+        previous = sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name < 'm037_')
+        with patch('migrations.Path.glob', return_value=previous):
+            apply(c)
+        c.execute("INSERT INTO billing_clients(id,name) VALUES (1,'Test client')")
+        c.executemany("""INSERT INTO billing_documents(id,kind,number,state,client_id,client,business,
+            issue_date,due_date,lines,tax_mode,subtotal_cents,gst_cents,total_cents,created_at)
+            VALUES (?,'quote',?,?,1,'{}','{}','2026-11-01','2026-11-15','[]','none',100,0,100,'2026-11-01')""",
+            [(1, 'QUO-1', 'converted'), (2, 'QUO-2', 'accepted'), (3, 'QUO-3', 'accepted')])
+        c.executemany("""INSERT INTO billing_quote_acceptance(document_id,token_hash,recipient,accepted_name,accepted_at)
+            VALUES (?,?,'client@example.test','Test client','2026-11-12')""",
+            [(1, 'converted-token'), (2, 'restored-token'), (3, 'current-token')])
+        c.executemany('INSERT INTO audit(action,entity) VALUES (?,?)',
+                      [('quote draft created', '2'), ('document convert', '2'),
+                       ('document convert', '3'), ('quote draft created', '3')])
+        c.commit()
+        apply(c)
+        self.assertEqual(c.execute('SELECT token_hash FROM billing_quote_acceptance ORDER BY document_id').fetchall(),
+                         [(None,), (None,), ('current-token',)])
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM billing_quote_acceptance WHERE accepted_name IS NOT NULL').fetchone(), (3,))
+
     def test_merchant_directory_upgrade_preserves_source_names(self):
         c=self.connection
         previous=sorted(p for p in Path(migrations.__file__).parent.glob('m[0-9][0-9][0-9]_*.py') if p.name<'m032_')
@@ -55,7 +77,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT active,version FROM users WHERE id=1').fetchone(),(1,3))
         self.assertEqual(c.execute('SELECT count(*) FROM login_sessions').fetchone()[0],1)
         ledger = c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall()
-        self.assertEqual(len(ledger),35)
+        self.assertEqual(len(ledger),37)
         self.assertEqual(c.execute('SELECT version,data FROM wfh_schedules WHERE user_id=1').fetchone(),(3,'{}'))
         apply(c)
         self.assertEqual(c.execute('SELECT * FROM schema_migrations ORDER BY version').fetchall(),ledger)
@@ -77,7 +99,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(c.execute('SELECT version FROM schema_migrations').fetchall(), [('m001_core',)])
         self.assertFalse(c.in_transaction)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],35)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],37)
 
     def test_stable_100_upgrade_preserves_records_and_starts_disconnected(self):
         c = self.connection
@@ -101,12 +123,12 @@ class MigrationTest(unittest.TestCase):
             with self.subTest(table=table):
                 current = c.execute('SELECT '+columns[table]+' FROM "'+table+'"').fetchall()
                 self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],35)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],37)
         self.assertEqual(c.execute('SELECT key_encrypted,auto_sync FROM pocketsmith_connection').fetchone(),('',0))
         self.assertEqual(c.execute('SELECT count(*) FROM bank_transactions').fetchone()[0],0)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],35)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],37)
 
     def test_modified_migration_is_rejected(self):
         apply(self.connection)
@@ -157,10 +179,10 @@ class MigrationTest(unittest.TestCase):
         for table,records in before.items():
             after=c.execute('SELECT '+columns[table]+' FROM "'+table+'" ORDER BY rowid').fetchall()
             self.assertEqual(after[:len(records)] if table=='schema_migrations' else after,records,table)
-        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],35)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],37)
         self.assertEqual(c.execute('PRAGMA foreign_key_check').fetchall(),[])
         apply(c)
-        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],35)
+        self.assertEqual(c.execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0],37)
 
     def test_document_upgrade_preserves_all_beta_four_records(self):
         c=self.connection
@@ -179,7 +201,7 @@ class MigrationTest(unittest.TestCase):
             self.assertEqual(current[:len(records)] if table=='schema_migrations' else current,records)
         self.assertEqual(c.execute('SELECT count(*) FROM tax_documents').fetchone()[0],0)
         apply(c)
-        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],35)
+        self.assertEqual(c.execute('SELECT count(*) FROM schema_migrations').fetchone()[0],37)
 
     def test_tax_workspace_upgrade_preserves_annual_shares_and_authorship(self):
         c=self.connection
