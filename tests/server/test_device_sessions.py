@@ -128,7 +128,7 @@ class DeviceSessionTest(unittest.TestCase):
         with patch('security.clock', return_value=now):
             phone = self.phone()
             self.assertTrue(phone.get('/api/session').json['mfa_required'])
-            self.assertFalse(phone.get('/api/session').json['device_session'])
+            self.assertNotIn('device_session', phone.get('/api/session').json)
             self.assertEqual(self.call(phone,'security/device-session',{'device_name':'Phone'}).status_code,401)
             self.assertEqual(self.call(phone,'login/2fa',{'code':security.totp(secret,int(now)//30)}).status_code,200)
             self.assertTrue(phone.get('/api/session').json['device_session'])

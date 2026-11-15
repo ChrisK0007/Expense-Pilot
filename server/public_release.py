@@ -64,8 +64,8 @@ def register(app, auth):
     @app.get('/api/server-info')
     def server_info():
         return jsonify(product='Expense Pilot', api_version=1, minimum_client_api=1,
-                       version=VERSION, setup=not bool(one('SELECT id FROM users LIMIT 1')),
-                       setup_token_required=bool(os.environ.get('SETUP_TOKEN','')), privacy_path='/privacy', instance_id=instance_id())
+                       setup=not bool(one('SELECT id FROM users LIMIT 1')),
+                       setup_token_required=bool(os.environ.get('SETUP_TOKEN','')), privacy_path='/privacy')
 
     @app.get('/api/setup/checklist')
     @auth('owner')

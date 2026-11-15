@@ -10,6 +10,9 @@ const url=process.env.APP_URL||'http://127.0.0.1:8790',output=process.env.UI_OUT
   for(let i=0;i<30;i++){try{if((await page.request.get(url+'/api/session')).ok())break;}catch{}await new Promise(r=>setTimeout(r,500));}
   await page.goto(url);
   await page.getByRole('button',{name:'Create workspace'}).waitFor();
+  const publicKeys=['user','csrf','setup','setup_token_required','mfa_required','product','api_version','minimum_client_api'].sort();
+  assert.deepEqual(Object.keys(await(await page.request.get(url+'/api/session')).json()).sort(),publicKeys);
+  assert.doesNotMatch(await page.locator('.footnote').filter({hasText:'Expense Pilot'}).innerText(), /undefined|Expense Pilot v/);
   assert.equal(await page.getByLabel('Setup token',{exact:true}).count(),0);
   await page.getByLabel('Your name').fill('New owner');
   await page.getByLabel('Email address').fill('new@example.test');
@@ -38,6 +41,8 @@ const url=process.env.APP_URL||'http://127.0.0.1:8790',output=process.env.UI_OUT
   await page.screenshot({path:output+'/new-workspace-settings-mobile.png',fullPage:true});
   await page.locator('#signout').click();await page.getByRole('button',{name:'Sign in',exact:false}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Create workspace'}).count(),0);
+  assert.deepEqual(Object.keys(await(await page.request.get(url+'/api/session')).json()).sort(),publicKeys);
+  assert.doesNotMatch(await page.locator('.footnote').filter({hasText:'Expense Pilot'}).innerText(), /undefined|Expense Pilot v/);
   assert.deepEqual(errors,[]);console.log('PASS: fresh token-free setup, login, regional setting, optional backups and owner creation closes.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

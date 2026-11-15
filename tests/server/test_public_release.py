@@ -137,18 +137,18 @@ class PublicReleaseTest(unittest.TestCase):
     def test_account_deletion_requires_reauth_and_removes_workspace(self):
         self.expense(self.owner); rid = self.upload(str(uuid.uuid4())).json['id']
         old_id = self.owner.get('/api/session').json['user']['id']
-        old_instance = self.owner.get('/api/server-info').json['instance_id']
+        old_instance = self.owner.get('/api/session').json['instance_id']
         self.assertEqual(self.call(self.owner, 'account', {'password': 'Owner-password-123'}, 'DELETE').status_code, 400)
         result = self.call(self.owner, 'account', {'password': 'Owner-password-123', 'confirmation': 'DELETE WORKSPACE'}, 'DELETE')
         self.assertEqual(result.status_code, 200, result.json)
         self.assertTrue(self.owner.get('/api/session').json['setup'])
-        self.assertNotEqual(self.owner.get('/api/server-info').json['instance_id'], old_instance)
         self.assertEqual(self.agent.get('/api/expenses').status_code, 401)
         from app import DATA
         self.assertFalse((DATA/'receipts'/rid).exists())
         self.call(self.owner, 'setup', dict(token=os.environ['SETUP_TOKEN'], name='New owner', email='new@example.test', password='Owner-password-123'))
         self.login(self.owner, 'new@example.test', 'Owner-password-123')
         self.assertGreater(self.owner.get('/api/session').json['user']['id'], old_id)
+        self.assertNotEqual(self.owner.get('/api/session').json['instance_id'], old_instance)
 
     def test_tax_agent_can_delete_own_read_only_account(self):
         self.expense(self.owner)

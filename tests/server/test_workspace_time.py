@@ -43,6 +43,8 @@ class WorkspaceTimeTest(unittest.TestCase):
         self.assertTrue(self.owner.get('/api/session').json['setup'])
         data['timezone'] = 'Pacific/Auckland'
         self.assertEqual(self.call(self.owner, 'setup', data).status_code, 200)
+        self.assertNotIn('timezone', self.owner.get('/api/session').json)
+        self.login(self.owner, 'new@example.test', 'New-owner-password-123')
         self.assertEqual(self.owner.get('/api/session').json['timezone'], 'Pacific/Auckland')
 
     def test_calendar_day_and_daylight_saving_ignore_host_region(self):
