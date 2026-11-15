@@ -233,11 +233,18 @@ const Billing = (() => {
       <button type="submit">Record payment</button>
     </form>`;
     billingModal(`Payment for ${d.number}`,`<div class="billing-review-layout"><section class="billing-preview-paper"><h3>Payment receipt preview</h3>
-      <div id="payment-preview" aria-live="polite"><p>Preparing receipt preview…</p></div></section>${form}</div>`);
-    const dialog=$('#modal'), editor=$('#payment-form'), preview=$('#payment-preview');
+      <div id="payment-preview" aria-live="polite"><p>Preparing receipt preview…</p></div>
+      <div class="payment-preview-actions"><a id="payment-preview-download" class="button-link secondary" target="_blank" rel="noopener" hidden>Open full receipt PDF</a></div>
+      </section>${form}</div>`);
+    const dialog=$('#modal'), editor=$('#payment-form'), preview=$('#payment-preview'), download=$('#payment-preview-download');
     dialog.classList.add('billing-review-dialog');
     let timer, url='', revision=0;
-    const clearPDF=()=>{if(url)URL.revokeObjectURL(url);url='';};
+    const clearPDF=()=>{
+      if(url)URL.revokeObjectURL(url);
+      url='';
+      download.hidden=true;
+      download.removeAttribute('href');
+    };
     const cleanup=()=>{clearTimeout(timer);revision++;clearPDF();};
     dialog.addEventListener('close',cleanup,{once:true});
     async function redraw(snapshot){
@@ -249,8 +256,9 @@ const Billing = (() => {
         if(snapshot!==revision||!dialog.open||!preview.isConnected)return;
         clearPDF();
         url=BillingWorkspace.pdfURL(result.pdf);
-        preview.innerHTML=`<img class="billing-preview-image" src="data:image/png;base64,${result.image}" alt="Payment receipt preview, first page">
-          <a class="button-link secondary" href="${url}" target="_blank" rel="noopener">Open full receipt PDF</a>`;
+        preview.innerHTML=`<img class="billing-preview-image" src="data:image/png;base64,${result.image}" alt="Payment receipt preview, first page">`;
+        download.href=url;
+        download.hidden=false;
       }catch(error){
         if(snapshot===revision&&dialog.open&&preview.isConnected){
           clearPDF();
@@ -266,7 +274,6 @@ const Billing = (() => {
       timer=setTimeout(()=>redraw(snapshot),300);
     };
     editor.addEventListener('input',update);
-    editor.addEventListener('change',update);
     redraw(++revision);
     formHandler('#payment-form',async(data,form)=>{
       const receipt=owner()&&form.elements.email_receipt.checked;

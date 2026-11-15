@@ -42,6 +42,25 @@ dialog.billing-review-dialog {
   margin-bottom: 12px;
   background: #fff;
 }
+#payment-preview {
+  position: relative;
+  aspect-ratio: 210 / 297;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#payment-preview img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  object-fit: contain;
+}
+.payment-preview-actions { min-height: 46px; margin-top: 12px; }
+#payment-preview-download[hidden] { display: none; }
 .billing-review-editor { min-width: 0; }
 .email-message-preview {
   margin: 14px 0;

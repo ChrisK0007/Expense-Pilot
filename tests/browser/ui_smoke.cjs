@@ -178,7 +178,11 @@ async function main() {
     await page.getByRole('button',{name:'Record payment',exact:true}).click();
     await page.getByLabel('Amount received (AUD)').fill('200');
     await page.getByRole('img',{name:'Payment receipt preview, first page'}).waitFor();
-    await page.getByRole('button',{name:'Record payment',exact:true}).click();
+    const [paymentResponse]=await Promise.all([
+      page.waitForResponse(r=>r.request().method()==='POST'&&/\/billing\/documents\/\d+\/payments$/.test(r.url())),
+      page.locator('#payment-form').getByRole('button',{name:'Record payment',exact:true}).click(),
+    ]);
+    assert.equal(paymentResponse.status(),200,await paymentResponse.text());
     await page.locator('#modal').getByText('Part paid',{exact:true}).waitFor();
     assert.match(await page.locator('#modal').innerText(),/845\.00/);
     await page.getByRole('button',{name:'Edit',exact:true}).click();
