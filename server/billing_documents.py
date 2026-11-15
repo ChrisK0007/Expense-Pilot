@@ -1,6 +1,7 @@
 """Billing documents endpoints and services."""
 from billing import bp, owner, reader
 from billable_expenses import save_links, validate_links
+from billing_workspace import bounded_preview
 
 @bp.route('/documents', methods=['GET', 'POST'])
 @reader
@@ -50,6 +51,8 @@ def document_detail(did):
     from billing import audit, body, can_write, db, document, fail, g, json, jsonify, one, request, revision, rows, validate_document
     if request.method == 'GET':
         doc = document(did)
+        from quote_acceptance import details
+        doc['online_acceptance'] = details(doc)
         doc['payments'] = rows('SELECT * FROM billing_payments WHERE document_id=? ORDER BY id', (did,))
         doc['emails'] = rows('SELECT id,recipient,subject,state,error,created_at,message_kind FROM billing_outbox WHERE document_id=? ORDER BY id DESC', (did,)) if g.user['role'] == 'owner' else []
         return jsonify(doc)
@@ -70,8 +73,6 @@ def document_detail(did):
         db().execute('DELETE FROM billing_payments WHERE document_id=?', (did,))
         db().execute('DELETE FROM billing_outbox WHERE document_id=?', (did,))
         db().execute('DELETE FROM billing_documents WHERE id=?', (did,))
-        if doc['kind'] == 'invoice':
-            db().execute('INSERT OR REPLACE INTO billing_reusable_invoice_numbers(number) VALUES (?)', (doc['number'],))
         audit(doc['kind'] + ' deleted', f"{did} ({doc['number']})")
     else:
         from billing_revisions import editable, remember, check_payments
@@ -124,8 +125,8 @@ def document_number(did):
     from billing_revisions import editable, remember
     editable(doc)
     remember(doc)
-    change_number(doc, payload.get('number'))
-    if doc['state']=='issued' and payload.get('number')!=doc['number']:
+    changed = change_number(doc, payload.get('number'))
+    if doc['state']=='issued' and changed:
         db().execute('UPDATE billing_documents SET needs_reissue=1 WHERE id=?',(did,))
     db().commit()
     return jsonify(ok=True)
@@ -161,6 +162,9 @@ def document_wording(did):
                  (json.dumps(doc['lines']), values['reference'], values['notes'], values['payment_details'], did))
     if doc['kind']=='invoice' and doc['state']=='issued':
         db().execute('UPDATE billing_documents SET needs_reissue=1 WHERE id=?',(did,))
+    if doc['kind'] == 'quote':
+        from quote_acceptance import revoke
+        revoke(did)
     audit('document wording updated', did)
     db().commit()
     return jsonify(ok=True)
@@ -180,10 +184,14 @@ def document_action(did):
         if doc['state'] != 'draft' and not (doc['state']=='issued' and doc['needs_reissue']):
             fail('Only drafts or amended invoices can be issued.', 409)
         ready_to_issue(doc)
+        from billing_numbers import record_issued
+        record_issued(doc)
         db().execute("UPDATE billing_documents SET state='issued',needs_reissue=0,version=version+1 WHERE id=?", (did,))
     elif action in ('accepted', 'declined'):
         if doc['kind'] != 'quote' or doc['state'] != 'issued':
             fail('Only issued quotes can be marked accepted or declined.', 409)
+        from quote_acceptance import revoke
+        revoke(did)
         db().execute('UPDATE billing_documents SET state=?,version=version+1 WHERE id=?', (action, did))
     elif action == 'convert':
         if doc['kind'] != 'quote' or doc['state'] != 'accepted':
@@ -201,6 +209,9 @@ def document_action(did):
             fail('Only issued, unpaid documents can be voided. Reverse recorded payments first.', 409)
         if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')", (did,)):
             fail('Resolve the pending or uncertain email delivery before voiding this document.', 409)
+        if doc['kind'] == 'quote':
+            from quote_acceptance import revoke
+            revoke(did)
         db().execute("UPDATE billing_documents SET state='void',version=version+1 WHERE id=?", (did,))
         save_links(did,[])
         db().execute('UPDATE billing_time SET document_id=NULL WHERE document_id=?', (did,))
@@ -233,10 +244,39 @@ def download_pdf(did):
     return send_file(io.BytesIO(pdf_document(doc)), mimetype='application/pdf', as_attachment=True, download_name=doc['number'] + '.pdf')
 
 
+def payment_details(doc, data):
+    from billing import cents, day, decimal_value, fail, local_today, txt
+    if doc['needs_reissue']:
+        fail('Reissue the amended invoice before recording another payment.', 409)
+    amount = cents(decimal_value(data.get('amount'), 'payment amount', '0.01') * 100)
+    when = day(data.get('date'))
+    if when > local_today() or when < doc['issue_date']:
+        fail('Payment date must be between the issue date and today.')
+    if doc['kind'] != 'invoice' or doc['state'] != 'issued' or amount > doc['balance_cents']:
+        fail('Record payments only on issued invoices and up to the remaining balance.', 409)
+    return when, amount, txt(data.get('reference'), 200)
+
+
+@bp.post('/documents/<int:did>/payments/preview')
+@reader
+@bounded_preview
+def preview_payment(did):
+    from billing import body, db, document, revision
+    from billing_emails import document_attachment
+    from billing_workspace import pdf_preview_image
+    data = body()
+    db().execute('BEGIN')
+    doc = document(did)
+    revision(doc, data)
+    when, amount, reference = payment_details(doc, data)
+    pdf, _ = document_attachment(doc, 'receipt', dict(date=when, amount_cents=amount, reference=reference))
+    return pdf_preview_image(pdf)
+
+
 @bp.post('/documents/<int:did>/payments')
 @reader
 def add_payment(did):
-    from billing import audit, body, cents, day, db, decimal_value, document, fail, jsonify, local_today, now, one, request_key, revision, txt
+    from billing import audit, body, db, document, fail, jsonify, now, one, request_key, revision
     payload = body()
     key = request_key(payload.get('request_key'))
     db().execute('BEGIN IMMEDIATE')
@@ -247,19 +287,35 @@ def add_payment(did):
         return jsonify(id=existing['id'])
     doc = document(did)
     revision(doc, payload)
-    if doc['needs_reissue']: fail('Reissue the amended invoice before recording another payment.',409)
-    amount = cents(decimal_value(payload.get('amount'), 'payment amount', '0.01') * 100)
-    when = day(payload.get('date'))
-    if when > local_today() or when < doc['issue_date']:
-        fail('Payment date must be between the issue date and today.')
-    if doc['kind'] != 'invoice' or doc['state'] != 'issued' or amount > doc['balance_cents']:
-        fail('Record payments only on issued invoices and up to the remaining balance.', 409)
+    when, amount, reference = payment_details(doc, payload)
     cur = db().execute('INSERT INTO billing_payments(document_id,date,amount_cents,reference,request_key,created_at) VALUES (?,?,?,?,?,?)',
-                       (did, when, amount, txt(payload.get('reference'), 200), key, now()))
+                       (did, when, amount, reference, key, now()))
     db().execute('UPDATE billing_documents SET version=version+1 WHERE id=?', (did,))
     audit('invoice payment recorded', did)
     db().commit()
     return jsonify(id=cur.lastrowid)
+
+
+@bp.get('/documents/<int:did>/email-attachment')
+@owner
+@bounded_preview
+def preview_email_attachment(did):
+    from billing import db, document, fail, request, send_file
+    from billing_emails import document_attachment, validate_message_kind
+    from billing_workspace import pdf_preview_image
+    import io
+    db().execute('BEGIN')
+    doc = document(did)
+    if request.args.get('version', type=int) != doc['version']:
+        fail('The document changed. Reopen the email to preview the current attachment.', 409)
+    kind = request.args.get('kind', 'document')
+    validate_message_kind(doc, kind)
+    if doc['state'] == 'draft':
+        doc['state'] = 'issued'
+    pdf, filename = document_attachment(doc, kind)
+    if request.args.get('format') == 'image':
+        return pdf_preview_image(pdf, include_pdf=False)
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True, download_name=filename)
 
 
 @bp.get('/documents/<int:did>/email-draft')
@@ -271,8 +327,11 @@ def email_draft(did):
     kind = request.args.get('kind') or ('reminder_manual' if request.args.get('reminder') == '1' else 'document')
     draft = document_message(doc, kind)
     from billing_workspace import attachment_list
+    from quote_acceptance import pending, public_origin
     draft['attachments'] = attachment_list(did)
+    draft['acceptance_available'] = kind == 'document' and pending(doc) and bool(public_origin())
     return jsonify(**draft, **email_copy_defaults(config), recipient=doc['client']['email'], from_email=config['from_email'],
+                   from_name=config['from_name'], reply_to=config['reply_to'],
                    attachment_url=f'/api/billing/documents/{did}/' + ('receipt' if kind == 'receipt' else 'pdf'),
                    filename=doc['number'] + ('-receipt' if kind == 'receipt' else '') + '.pdf',
                    ready=bool(config['host'] and config['from_email']), request_key=secrets.token_hex(24), version=doc['version'])
@@ -307,6 +366,11 @@ def send_document(did):
     from billing_workspace import selected_attachments
     import json
     attachments = selected_attachments(did, payload.get('attachment_ids', []))
+    if payload.get('include_acceptance_link') is True:
+        if kind != 'document':
+            fail('Only quote emails can include an online acceptance link.')
+        from quote_acceptance import email_link
+        message += '\n\nReview and accept this quote online:\n' + email_link(doc, recipient)
     oid, attachment, filename = queue_document_email(doc, recipient, subject, message, key, kind, signature)
     db().execute('UPDATE billing_outbox SET attachments_json=? WHERE id=?', (json.dumps([{k: a[k] for k in ('id','filename','mime','sha256')} for a in attachments]), oid))
     db().commit()

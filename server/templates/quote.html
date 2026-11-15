@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{% if doc %}Quote {{ doc.number }}{% else %}Quote unavailable{% endif %} · Expense Pilot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='quote.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='expense-pilot-logo.png') }}">
+</head>
+<body>
+  <main class="quote-page">
+    <header class="brand">
+      <img src="{{ url_for('static', filename='expense-pilot-logo.png') }}" alt="" width="36" height="36">
+      <span>Expense Pilot</span>
+    </header>
+    {% if doc %}
+      <div class="quote-heading">
+        <div>
+          <h1>{{ doc.reference or 'Quote ' ~ doc.number }}</h1>
+          <p>{{ doc.number }} · Valid until {{ date_au(doc.due_date) }}</p>
+        </div>
+        <span class="status{% if link.accepted_at %} accepted{% endif %}">{{ 'Accepted' if link.accepted_at else 'Awaiting acceptance' }}</span>
+      </div>
+      <div class="quote-grid">
+        <section class="quote-card">
+          <h2>Quote details</h2>
+          <dl class="parties">
+            <div><dt>From</dt><dd>{{ doc.business.name }}</dd></div>
+            <div><dt>Prepared for</dt><dd>{{ doc.client.name }}</dd></div>
+          </dl>
+          <table>
+            <thead><tr><th scope="col">Description</th><th scope="col">Quantity</th><th scope="col">Amount</th></tr></thead>
+            <tbody>
+              {% for line in doc.lines %}
+                <tr><td>{{ line.description }}</td><td>{{ line.quantity }}</td><td>{{ aud(line.net_cents + line.gst_cents) }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if doc.gst_cents %}<p class="tax">Includes GST {{ aud(doc.gst_cents) }}</p>{% endif %}
+          <p class="total"><strong>Quote total (AUD)</strong><strong>{{ aud(doc.total_cents) }}</strong></p>
+          {% if doc.notes %}<p class="notes">{{ doc.notes }}</p>{% endif %}
+          <a class="button secondary" href="{{ url_for('quote_acceptance.pdf', token=request.view_args.token) }}">Download PDF</a>
+        </section>
+        <section class="quote-card acceptance">
+          {% if link.accepted_at %}
+            <h2>Acceptance recorded</h2>
+            <p>{{ link.accepted_name }} accepted quote {{ doc.number }}. The sender can now see your acceptance.</p>
+          {% else %}
+            <h2>Accept this quote</h2>
+            <p>Confirm who is accepting on behalf of {{ doc.client.name }}.</p>
+            {% if message %}<p class="error" role="alert">{{ message }}</p>{% endif %}
+            <form method="post">
+              <label for="full-name">Full name</label>
+              <input id="full-name" name="full_name" autocomplete="name" maxlength="120" required>
+              <div><strong>Billing contact</strong><p>{{ link.recipient }}</p></div>
+              <label class="checkbox"><input type="checkbox" name="authorised" value="yes" required> I’m authorised to accept this quote.</label>
+              <button class="button" type="submit">Accept quote</button>
+            </form>
+            <p>Your name and acceptance will be shared with the sender.</p>
+          {% endif %}
+        </section>
+      </div>
+    {% else %}
+      <h1>Quote unavailable</h1>
+      <p>Ask the sender for a current quote link.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -72,19 +72,27 @@ const Billing = (() => {
     await BillingWorkspace.leave();
     await loadOwner();
     const recovery=await BillingWorkspace.recover(doc,type);
-    const active=clients.filter(c=>!c.archived);
+    const active=clients.filter(c=>!c.archived||c.id===doc?.client_id);
     if(!active.length){await clientForm();return;}
     const seller=config.business;
-    const original=doc||{due_date_manual:false,kind:type,client_id:active[0].id,issue_date:today(),due_date:dueDate(today(),type==='quote'?config.defaults.quote_valid_days:active[0].terms),tax_mode:seller.gst_registered?'exclusive':'none',reminders_enabled:true,notes:config.defaults[type+'_notes'],payment_details:config.defaults.invoice_payment_details,lines:[{description:'',quantity:'1',unit_price:'',discount:'0',tax:seller.gst_registered?'gst':'none'}]};
+    const newInvoice=!doc&&type==='invoice';
+    const original=doc||{due_date_manual:false,kind:type,client_id:newInvoice?'':active[0].id,issue_date:today(),due_date:newInvoice?'':dueDate(today(),config.defaults.quote_valid_days),tax_mode:seller.gst_registered?'exclusive':'none',reminders_enabled:true,notes:config.defaults[type+'_notes'],payment_details:config.defaults.invoice_payment_details,lines:[{description:'',quantity:'1',unit_price:'',discount:'0',tax:seller.gst_registered?'gst':'none'}]};
     const d={...original,...(recovery.conflict?{}:recovery.payload||{})};
+    if(newInvoice&&(!recovery.payload?.client_selected||!active.some(client=>String(client.id)===String(d.client_id)))){
+      d.client_id='';
+      d.billing_contact_id=null;
+      if(!d.due_date_manual)d.due_date='';
+    }
     const title=doc?`Edit ${doc.number}`:`New ${type}`;
-    billingModal(title,`<form id="document-form"><div class="grid2">${select('Client','client_id',active.map(c=>[c.id,c.name]),d.client_id)}${type==='invoice'?'<div id="billing-contact-picker"></div>':''}${type==='invoice'?field('Invoice number'+(doc?'':' (optional)'),'number','text',d.number||'',`${doc?'required ':''}maxlength="50" placeholder="Assigned automatically"`):''}${field('Reference / purchase order','reference','text',d.reference||'','maxlength="100"')}${field('Issue date','issue_date','date',d.issue_date,'required')}${field(type==='quote'?'Valid until':'Due date','due_date','date',d.due_date,'required')}<div class="field"><span id="due-date-mode" class="footnote"></span><button type="button" class="ghost" id="due-date-auto">Use payment terms</button></div>${select('GST treatment','tax_mode',seller.gst_registered?[['exclusive','Prices exclude GST'],['inclusive','Prices include GST'],['none','No GST']]:[['none','No GST — not GST registered']],d.tax_mode)}</div><div class="line-heading"><h3>Line items</h3>${services.length?select('Add a saved service','add_service',[['','Choose a service…'],...services.map(s=>[s.id,s.description.slice(0,65)])]):''}</div><div id="invoice-lines"></div><button type="button" class="secondary" id="add-line">+ Add line</button>${type==='invoice'?'<button type="button" class="secondary" id="add-billable-cost">Add billable expense</button><div id="invoice-expense-picker" hidden></div>':''}<p class="line-summary" id="line-summary"></p>${area('notes','Notes & terms',d.notes)}${type==='invoice'?area('payment_details','Payment instructions (bank details, reference)',d.payment_details,2000):''}${type==='invoice'&&owner()?`<section class="invoice-reminder-summary">${check('reminders_enabled','Automatic reminders for this invoice',d.reminders_enabled)}<p class="footnote">Customise the schedule and email wording in Reminder options after saving. Turning this off affects only this invoice.</p></section>`:''}<p class="footnote">${doc?.state==='issued'?'Save your corrections, then reissue the invoice. Previously sent copies remain in email history.':'Save a draft to preview the PDF, then issue or email it.'}</p><div class="modal-footer"><button type="submit">${doc?.state==='issued'?'Save changes':'Save draft'}</button></div></form>`);
+    billingModal(title,`<form id="document-form"><div class="grid2">${select('Client','client_id',[['','Select a client'],...active.map(c=>[c.id,c.name])],d.client_id)}${type==='invoice'?'<div id="billing-contact-picker"></div>':''}${type==='invoice'?field('Invoice number'+(doc?'':' (optional)'),'number','text',d.number||'',`${doc?'required ':''}maxlength="50" placeholder="Automatic, or enter a number"`):''}${field('Reference / purchase order','reference','text',d.reference||'','maxlength="100"')}${field('Issue date','issue_date','date',d.issue_date,'required')}${field(type==='quote'?'Valid until':'Due date','due_date','date',d.due_date,'required')}<div class="field"><span id="due-date-mode" class="footnote"></span><button type="button" class="ghost" id="due-date-auto">Use payment terms</button></div>${select('GST treatment','tax_mode',seller.gst_registered?[['exclusive','Prices exclude GST'],['inclusive','Prices include GST'],['none','No GST']]:[['none','No GST — not GST registered']],d.tax_mode)}</div><div class="line-heading"><h3>Line items</h3>${services.length?select('Add a saved service','add_service',[['','Choose a service…'],...services.map(s=>[s.id,s.description.slice(0,65)])]):''}</div><div id="invoice-lines"></div><button type="button" class="secondary" id="add-line">+ Add line</button>${type==='invoice'?'<button type="button" class="secondary" id="add-billable-cost">Add billable expense</button><div id="invoice-expense-picker" hidden></div>':''}<p class="line-summary" id="line-summary"></p>${area('notes','Notes & terms',d.notes)}${type==='invoice'?area('payment_details','Payment instructions (bank details, reference)',d.payment_details,2000):''}${type==='invoice'&&owner()?`<section class="invoice-reminder-summary">${check('reminders_enabled','Automatic reminders for this invoice',d.reminders_enabled)}<p class="footnote">Customise the schedule and email wording in Reminder options after saving. Turning this off affects only this invoice.</p></section>`:''}<p class="footnote">${doc?.state==='issued'?'Save your corrections, then reissue the invoice. Previously sent copies remain in email history.':'Save a draft to preview the PDF, then issue or email it.'}</p><div class="modal-footer"><button type="submit">${doc?.state==='issued'?'Save changes':'Save draft'}</button></div></form>`);
     $('#modal').classList.add('billing-dialog');
+    $('#client_id').required=true;
+    const selectedClient=()=>active.find(client=>String(client.id)===$('#client_id').value);
     const contactLabel=contact=>[contact.name,contact.department,contact.email].filter(Boolean).join(' · ');
     function chooseContact(selected){
       const picker=$('#billing-contact-picker');
       if(!picker)return;
-      const client=active.find(c=>String(c.id)===$('#client_id').value);
+      const client=selectedClient();
       const contacts=client?.contacts||[];
       const sameClient=doc&&String(doc.client_id)===$('#client_id').value;
       const stored=sameClient?doc.billing_contact_id:null;
@@ -110,9 +118,25 @@ const Billing = (() => {
     $('#tax_mode').onchange=totals;
     let manualDue=Boolean(d.due_date_manual??true);
     const mode=()=>{$('#due-date-mode').textContent=manualDue?'Manual due date':'Calculated from payment terms';$('#due-date-auto').hidden=!manualDue;};
-    const recalculate=()=>{if(manualDue)return;try{const issued=dateValue($('#issue_date'));if(issued)$('#due_date').value=dateAU(dueDate(issued,type==='quote'?config.defaults.quote_valid_days:d.schedule_id&&String(d.client_id)===$('#client_id').value?d.due_terms_days:active.find(c=>String(c.id)===$('#client_id').value).terms));normaliseDateInput($('#due_date'));}catch(_){/* Keep incomplete typed dates until valid. */}};
+    const recalculate=()=>{
+      if(manualDue)return;
+      const client=selectedClient();
+      if(type==='invoice'&&!client){$('#due_date').value='';return;}
+      try{
+        const issued=dateValue($('#issue_date'));
+        const terms=type==='quote'?config.defaults.quote_valid_days
+          :d.schedule_id&&String(d.client_id)===$('#client_id').value?d.due_terms_days:client.terms;
+        if(issued)$('#due_date').value=dateAU(dueDate(issued,terms));
+        normaliseDateInput($('#due_date'));
+      }catch(_){/* Keep incomplete typed dates until valid. */}
+    };
+    const syncClient=()=>{
+      const button=$('#add-billable-cost');
+      if(button)button.disabled=!selectedClient();
+    };
+    syncClient();
     $('#due_date').addEventListener('input',()=>{manualDue=true;mode();});$('#due_date').addEventListener('change',()=>{manualDue=true;mode();});
-    $('#issue_date').addEventListener('input',recalculate);$('#issue_date').addEventListener('change',recalculate);$('#client_id').onchange=()=>{chooseContact();recalculate();if($('#invoice-expense-picker'))$('#invoice-expense-picker').hidden=true;};
+    $('#issue_date').addEventListener('input',recalculate);$('#issue_date').addEventListener('change',recalculate);$('#client_id').onchange=()=>{chooseContact();syncClient();recalculate();if($('#invoice-expense-picker'))$('#invoice-expense-picker').hidden=true;};
     click('#due-date-auto',()=>{manualDue=false;recalculate();mode();});mode();
     click('#add-billable-cost',async()=>{
       try{
@@ -137,9 +161,9 @@ const Billing = (() => {
     });
     click('#add-line',()=>{if(lines.children.length>=100)return toast('Maximum 100 lines.');addLine();});
     if($('#add_service'))$('#add_service').onchange=e=>{const s=services.find(s=>String(s.id)===e.target.value);if(s)addLine({description:s.description,unit_price:(s.unit_cents/100).toFixed(2),tax:s.tax,quantity_type:s.quantity_type});e.target.value='';};
-    formHandler('#document-form',async(data,form)=>{try{data.kind=type;data.due_date_manual=manualDue;if(type==='invoice'&&owner())data.reminders_enabled=form.elements.reminders_enabled.checked;data.lines=getLines();if(doc)data.version=doc.version;Object.assign(data,await BillingWorkspace.beforeSubmit());const result=await api('billing/documents'+(doc?'/'+doc.id:''),data,doc?'PUT':'POST');BillingWorkspace.complete();await navigate(type==='quote'?'quotes':'invoices');await view(doc?doc.id:result.id);}catch(e){BillingWorkspace.resume();throw e;}});
+    formHandler('#document-form',async(data,form)=>{try{data.kind=type;data.due_date_manual=manualDue;if(type==='invoice'&&owner())data.reminders_enabled=form.elements.reminders_enabled.checked;data.lines=getLines();if(!data.client_id)throw Error('Select the client for this document.');if(doc)data.version=doc.version;Object.assign(data,await BillingWorkspace.beforeSubmit());const result=await api('billing/documents'+(doc?'/'+doc.id:''),data,doc?'PUT':'POST');BillingWorkspace.complete();await navigate(type==='quote'?'quotes':'invoices');await view(doc?doc.id:result.id);}catch(e){BillingWorkspace.resume();throw e;}});
     const form=$('#document-form');
-    await BillingWorkspace.mount({doc,type,title,recovery,form,gather:(loose=false)=>{const data=loose?Object.fromEntries(new FormData(form)):formData(form);if(loose)form.querySelectorAll('[data-date=au]').forEach(el=>{try{data[el.name]=dateValue(el);}catch{data[el.name]=el.value;}});return {...data,kind:type,due_date_manual:manualDue,reminders_enabled:form.elements.reminders_enabled?.checked??false,lines:getLines(),...(doc?{version:doc.version}:{})};}});
+    await BillingWorkspace.mount({doc,type,title,recovery,form,gather:(loose=false)=>{const data=loose?Object.fromEntries(new FormData(form)):formData(form);if(loose)form.querySelectorAll('[data-date=au]').forEach(el=>{try{data[el.name]=dateValue(el);}catch{data[el.name]=el.value;}});return {...data,kind:type,client_selected:!!data.client_id,due_date_manual:manualDue,reminders_enabled:form.elements.reminders_enabled?.checked??false,lines:getLines(),...(doc?{version:doc.version}:{})};}});
   }
   async function view(id) {
     const d=await api(`billing/documents/${id}`);
@@ -149,27 +173,38 @@ const Billing = (() => {
     if(bookkeeper()){
       if(canEditInvoice||isDraft)buttons+='<button class="secondary" id="edit-document">Edit</button>';
       if(isDraft||d.needs_reissue)buttons+=`<button class="secondary" id="issue-document">${d.needs_reissue?'Reissue invoice':'Issue without email'}</button>`;
-      if(d.kind==='quote'&&!isDraft&&!['void','converted'].includes(d.state))buttons+='<button class="secondary" id="edit-wording">Edit wording</button>';
+      if(d.kind==='quote'&&!isDraft&&!d.online_acceptance?.accepted_at&&!['void','converted'].includes(d.state))buttons+='<button class="secondary" id="edit-wording">Edit wording</button>';
       if(canSend&&owner())buttons+=`<button id="send-document">${d.needs_reissue?'Reissue & email':isDraft?'Issue & email':'Email '+d.kind}</button>`;
       if(d.kind==='invoice'&&d.state==='issued'&&d.balance_cents>0&&!d.needs_reissue)buttons+='<button class="secondary" id="pay-document">Record payment</button>';
       if(owner()&&d.kind==='invoice'&&d.state==='issued'&&d.balance_cents>0&&!d.needs_reissue)buttons+='<button class="secondary" id="remind-document">Send reminder</button>';
       if(owner()&&d.kind==='invoice'&&d.state==='issued'&&d.paid_cents>0)buttons+='<button class="secondary" id="receipt-document">Email payment receipt</button>';
       if(owner()&&d.kind==='invoice')buttons+='<button class="secondary" id="invoice-reminders">Reminder options</button>';
       if(d.kind==='quote'&&d.state==='issued')buttons+='<button id="accept-quote" class="secondary">Mark accepted</button><button id="decline-quote" class="secondary">Mark declined</button>';
+      if(owner()&&d.online_acceptance?.linked)buttons+='<button id="revoke-quote-link" class="secondary">Disable acceptance link</button>';
       if(d.kind==='quote'&&d.state==='accepted')buttons+='<button id="convert-quote">Convert to invoice</button>';
     }
-    billingModal(d.number,`${d.needs_reissue?'<p class="notice">Changes saved. Reissue this invoice to confirm the corrected version.</p>':''}<div class="document-heading"><div>${badge(d)}<h2>${esc(d.client.name)}</h2><p>${esc(d.client.email||'No client email saved')}</p></div><div class="right"><span class="muted">Total AUD</span><div class="metric">${money(d.total_cents)}</div>${d.kind==='invoice'?`<p>Balance ${money(d.balance_cents)}</p>`:''}</div></div><div class="actions document-actions">${buttons}</div>${owner()&&d.kind==='invoice'?BillingMail.invoiceReminderSummary(d):''}<div class="grid2 document-meta"><p><strong>Issue date</strong><br>${esc(dateAU(d.issue_date))}</p><p><strong>${d.kind==='quote'?'Valid until':'Due date'}</strong><br>${esc(dateAU(d.due_date))}</p></div><div class="table-wrap"><table><thead><tr><th>Description</th><th>Qty</th><th class="right">Unit</th><th>GST</th><th class="right">Total</th></tr></thead><tbody>${d.lines.map(l=>`<tr><td class="preserve-lines">${esc(l.description)}${Number(l.discount)?`<br><small>${esc(l.discount)}% discount</small>`:''}</td><td>${esc(l.quantity)}</td><td class="right">${money(Math.round(Number(l.unit_price)*100))}</td><td>${l.tax==='gst'?'10%':l.tax==='gst_free'?'GST-free':'No GST'}</td><td class="right">${money(l.total_cents)}</td></tr>`).join('')}</tbody></table></div><p class="right"><strong>Subtotal ${money(d.subtotal_cents)} · GST ${money(d.gst_cents)} · Total ${money(d.total_cents)}</strong></p><p class="footnote">${d.tax_mode==='inclusive'?'Unit prices include GST.':d.tax_mode==='exclusive'?'Unit prices exclude GST.':'No GST charged.'}</p>${d.reference?`<p>Reference: ${esc(d.reference)}</p>`:''}${d.payment_details?`<h3>Payment instructions</h3><p class="preserve-lines">${esc(d.payment_details)}</p>`:''}${d.notes?`<h3>Notes & terms</h3><p class="preserve-lines">${esc(d.notes)}</p>`:''}${d.payments.length?`<h3>Payment history</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Amount</th><th></th></tr></thead><tbody>${d.payments.map(p=>`<tr><td>${esc(dateAU(p.date))}</td><td>${esc(p.reference)}${p.reversed_at?`<br><small>Reversed: ${esc(p.reversal_reason)}</small>`:''}</td><td>${money(p.amount_cents)}</td><td>${bookkeeper()&&!p.reversed_at?`<button class="ghost reverse-payment" data-id="${p.id}">Reverse record</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:''}${bookkeeper()?`<h3>Email history</h3>${d.emails.length?d.emails.map(e=>`<div class="email-history"><strong>${esc(e.state==='sent'?'Sent / mail server accepted':e.state)}</strong> · ${esc(e.recipient)}<br><small>${esc(dateAU(e.created_at))} · ${esc(e.subject)}</small>${e.error?`<p>${esc(e.error)}</p>`:''}${['sending','unknown'].includes(e.state)?`<button class="secondary resolve-email" data-id="${e.id}">Confirm delivery status</button>`:''}</div>`).join(''):'<p class="muted">No email has been sent for this document.</p>'}<div class="actions document-actions"><button class="secondary" id="duplicate-document">Duplicate as draft</button>${d.kind==='invoice'&&d.state!=='void'?'<button class="secondary" id="schedule-document">Make recurring</button>':''}${!isDraft&&!['void','converted'].includes(d.state)&&!d.paid_cents?'<button class="danger" id="void-document">Void document</button>':''}${d.kind==='invoice'||isDraft?`<button class="danger" id="delete-document">${d.kind==='invoice'?'Delete invoice':'Delete draft'}</button>`:''}</div>`:''}`);
+    const acceptance=d.online_acceptance;
+    const acceptanceNotice=acceptance?.accepted_at
+      ? `<p class="notice">Accepted online by <strong>${esc(acceptance.accepted_name)}</strong> on ${esc(WorkspaceTime.stamp(acceptance.accepted_at))} · ${esc(acceptance.recipient)}</p>`
+      : acceptance?.linked ? `<p class="notice">Online acceptance link prepared for ${esc(acceptance.recipient)}.</p>` : '';
+    billingModal(d.number,`${acceptanceNotice}${d.needs_reissue?'<p class="notice">Changes saved. Reissue this invoice to confirm the corrected version.</p>':''}<div class="document-heading"><div>${badge(d)}<h2>${esc(d.client.name)}</h2><p>${esc(d.client.email||'No client email saved')}</p></div><div class="right"><span class="muted">Total AUD</span><div class="metric">${money(d.total_cents)}</div>${d.kind==='invoice'?`<p>Balance ${money(d.balance_cents)}</p>`:''}</div></div><div class="actions document-actions">${buttons}</div>${owner()&&d.kind==='invoice'?BillingMail.invoiceReminderSummary(d):''}<div class="grid2 document-meta"><p><strong>Issue date</strong><br>${esc(dateAU(d.issue_date))}</p><p><strong>${d.kind==='quote'?'Valid until':'Due date'}</strong><br>${esc(dateAU(d.due_date))}</p></div><div class="table-wrap"><table><thead><tr><th>Description</th><th>Qty</th><th class="right">Unit</th><th>GST</th><th class="right">Total</th></tr></thead><tbody>${d.lines.map(l=>`<tr><td class="preserve-lines">${esc(l.description)}${Number(l.discount)?`<br><small>${esc(l.discount)}% discount</small>`:''}</td><td>${esc(l.quantity)}</td><td class="right">${money(Math.round(Number(l.unit_price)*100))}</td><td>${l.tax==='gst'?'10%':l.tax==='gst_free'?'GST-free':'No GST'}</td><td class="right">${money(l.total_cents)}</td></tr>`).join('')}</tbody></table></div><p class="right"><strong>Subtotal ${money(d.subtotal_cents)} · GST ${money(d.gst_cents)} · Total ${money(d.total_cents)}</strong></p><p class="footnote">${d.tax_mode==='inclusive'?'Unit prices include GST.':d.tax_mode==='exclusive'?'Unit prices exclude GST.':'No GST charged.'}</p>${d.reference?`<p>Reference: ${esc(d.reference)}</p>`:''}${d.payment_details?`<h3>Payment instructions</h3><p class="preserve-lines">${esc(d.payment_details)}</p>`:''}${d.notes?`<h3>Notes & terms</h3><p class="preserve-lines">${esc(d.notes)}</p>`:''}${d.payments.length?`<h3>Payment history</h3><div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Amount</th><th></th></tr></thead><tbody>${d.payments.map(p=>`<tr><td>${esc(dateAU(p.date))}</td><td>${esc(p.reference)}${p.reversed_at?`<br><small>Reversed: ${esc(p.reversal_reason)}</small>`:''}</td><td>${money(p.amount_cents)}</td><td>${bookkeeper()&&!p.reversed_at?`<button class="ghost reverse-payment" data-id="${p.id}">Reverse record</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:''}${bookkeeper()?`<h3>Email history</h3>${d.emails.length?d.emails.map(e=>`<div class="email-history"><strong>${esc(e.state==='sent'?'Sent / mail server accepted':e.state)}</strong> · ${esc(e.recipient)}<br><small>${esc(dateAU(e.created_at))} · ${esc(e.subject)}</small>${e.error?`<p>${esc(e.error)}</p>`:''}${['sending','unknown'].includes(e.state)?`<button class="secondary resolve-email" data-id="${e.id}">Confirm delivery status</button>`:''}</div>`).join(''):'<p class="muted">No email has been sent for this document.</p>'}<div class="actions document-actions"><button class="secondary" id="duplicate-document">Duplicate as draft</button>${d.kind==='invoice'&&d.state!=='void'?'<button class="secondary" id="schedule-document">Make recurring</button>':''}${!isDraft&&!['void','converted'].includes(d.state)&&!d.paid_cents?'<button class="danger" id="void-document">Void document</button>':''}${d.kind==='invoice'||isDraft?`<button class="danger" id="delete-document">${d.kind==='invoice'?'Delete invoice':'Delete draft'}</button>`:''}</div>`:''}`);
     $('#modal').classList.add('billing-dialog');
     const action=async name=>{const r=await api(`billing/documents/${id}/action`,{action:name,version:d.version});await view(r.id);if(['invoices','quotes'].includes(page))documents(kind);};
     click('#edit-document',()=>edit(d,d.kind));click('#edit-wording',()=>editWording(d));
     click('#issue-document',async()=>{if(confirm(d.needs_reissue?'Reissue the corrected invoice? No email will be sent.':'Issue this document? No email will be sent.'))await action('issue');});
     click('#send-document',()=>compose(d,false));click('#remind-document',()=>compose(d,true));
     click('#pay-document',()=>payment(d));click('#receipt-document',()=>BillingMail.compose(d,'receipt'));click('#invoice-reminders',()=>BillingMail.invoiceReminders(d));if(owner()&&d.kind==='invoice')BillingMail.bindInvoiceReminderSummary(d);
+    click('#revoke-quote-link',async()=>{
+      if(!confirm('Disable the client’s current quote link?'))return;
+      await api(`billing/documents/${id}/acceptance-link`,{version:d.version},'DELETE');
+      await view(id);
+      toast('Acceptance link disabled.');
+    });
     click('#accept-quote',()=>action('accepted'));click('#decline-quote',()=>action('declined'));click('#convert-quote',()=>action('convert'));
     click('#duplicate-document',()=>action('duplicate'));click('#schedule-document',()=>schedule(d));
     click('#void-document',async()=>{if(confirm('Void this document? It will be retained in your history.'))await action('void');});
     click('#delete-document',async()=>{
-      let message=`Permanently delete ${d.kind} ${d.number} for ${d.client.name}?\n\nThis removes the document and its payment, wording and email history. This cannot be undone. ${d.kind==='invoice'?'Its number will be available for the next invoice.':'Its quote number will not be reused.'}`;
+      let message=`Permanently delete ${d.kind} ${d.number} for ${d.client.name}?\n\nThis removes the document and its payment, wording and email history. This cannot be undone.${d.kind==='invoice'&&d.state!=='draft'?' Issued numbers stay in the sequence history.':''}`;
       if(d.paid_cents)message+=`\n\nRecorded payments of ${money(d.paid_cents)} will be removed from income and GST reports. This does not refund money.`;
       if(d.kind==='invoice')message+='\n\nLinked time entries will become available to invoice again. Recurring schedules will continue.';
       if(d.source_quote)message+=' The original quote will return to Accepted.';
@@ -187,8 +222,60 @@ const Billing = (() => {
   async function compose(d,reminder) { return BillingMail.compose(d,reminder?'reminder_manual':'document'); }
   function payment(d) {
     const key=requestKey();
-    billingModal(`Payment for ${d.number}`,`<form id="payment-form"><p>Balance due: <strong>${money(d.balance_cents)}</strong>. Record a deposit, partial payment or full payment received.</p><div class="grid2">${field('Amount received (AUD)','amount','number',(d.balance_cents/100).toFixed(2),`required step="0.01" min="0.01" max="${d.balance_cents/100}"`)}${field('Date received','date','date',today(),`required min="${d.issue_date}" max="${today()}"`)}</div>${field('Payment reference / method','reference','text','','maxlength="200"')}<p class="footnote">This records a payment already received. It does not charge a card or move money.</p>${owner()?check('email_receipt','Prepare an email receipt after recording payment',false):''}<button type="submit">Record payment</button></form>`);
-    formHandler('#payment-form',async(data,form)=>{const receipt=owner()&&form.elements.email_receipt.checked;await api(`billing/documents/${d.id}/payments`,{...data,version:d.version,request_key:key});if(receipt)await BillingMail.compose(await api(`billing/documents/${d.id}`),'receipt');else await view(d.id);if(page==='invoices')documents('invoice');});
+    const form=`<form id="payment-form"><p>Balance due: <strong>${money(d.balance_cents)}</strong></p>
+      <div class="grid2">
+        ${field('Amount received (AUD)','amount','number',(d.balance_cents/100).toFixed(2),`required step="0.01" min="0.01" max="${d.balance_cents/100}"`)}
+        ${field('Date received','date','date',today(),`required min="${d.issue_date}" max="${today()}"`)}
+      </div>
+      ${field('Payment reference / method','reference','text','','maxlength="200"')}
+      <p class="footnote">Record a payment you have already received.</p>
+      ${owner()?check('email_receipt','Prepare an email receipt after recording payment',false):''}
+      <button type="submit">Record payment</button>
+    </form>`;
+    billingModal(`Payment for ${d.number}`,`<div class="billing-review-layout"><section class="billing-preview-paper"><h3>Payment receipt preview</h3>
+      <div id="payment-preview" aria-live="polite"><p>Preparing receipt preview…</p></div></section>${form}</div>`);
+    const dialog=$('#modal'), editor=$('#payment-form'), preview=$('#payment-preview');
+    dialog.classList.add('billing-review-dialog');
+    let timer, url='', revision=0;
+    const clearPDF=()=>{if(url)URL.revokeObjectURL(url);url='';};
+    const cleanup=()=>{clearTimeout(timer);revision++;clearPDF();};
+    dialog.addEventListener('close',cleanup,{once:true});
+    async function redraw(snapshot){
+      if(snapshot!==revision||!dialog.open||!preview.isConnected)return;
+      try{
+        const data=formData(editor);
+        if(!data.amount||!data.date)throw Error('Enter the amount and date to preview the receipt.');
+        const result=await api(`billing/documents/${d.id}/payments/preview`,{...data,version:d.version});
+        if(snapshot!==revision||!dialog.open||!preview.isConnected)return;
+        clearPDF();
+        url=BillingWorkspace.pdfURL(result.pdf);
+        preview.innerHTML=`<img class="billing-preview-image" src="data:image/png;base64,${result.image}" alt="Payment receipt preview, first page">
+          <a class="button-link secondary" href="${url}" target="_blank" rel="noopener">Open full receipt PDF</a>`;
+      }catch(error){
+        if(snapshot===revision&&dialog.open&&preview.isConnected){
+          clearPDF();
+          preview.textContent=error.message;
+        }
+      }
+    }
+    const update=()=>{
+      clearTimeout(timer);
+      const snapshot=++revision;
+      clearPDF();
+      preview.textContent='Preparing receipt preview…';
+      timer=setTimeout(()=>redraw(snapshot),300);
+    };
+    editor.addEventListener('input',update);
+    editor.addEventListener('change',update);
+    redraw(++revision);
+    formHandler('#payment-form',async(data,form)=>{
+      const receipt=owner()&&form.elements.email_receipt.checked;
+      await api(`billing/documents/${d.id}/payments`,{...data,version:d.version,request_key:key});
+      cleanup();
+      dialog.removeEventListener('close',cleanup);
+      if(receipt)await BillingMail.compose(await api(`billing/documents/${d.id}`),'receipt');else await view(d.id);
+      if(page==='invoices')documents('invoice');
+    });
   }
   async function clientsPage() {
     $('#content').innerHTML=heading('Clients','Client details, payment terms and billing history.','<button id="add-client" disabled>+ Add client</button>')+navigation('clients');bindNavigation();

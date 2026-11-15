@@ -17,3 +17,54 @@
 #signature-import-status{white-space:pre-line}#signature-import-status[hidden]{display:none}.signature-editor[aria-busy=true]{opacity:.65}
 
 .email-copy-option{margin:16px 0}.email-copy-option .footnote{margin:4px 0 0}
+
+dialog.billing-review-dialog {
+  width: min(1240px, calc(100vw - 40px));
+  max-width: none;
+}
+.billing-review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+.billing-preview-paper h3,
+.email-message-preview h3,
+.email-message-preview h4 {
+  margin: 0 0 10px;
+}
+.billing-preview-image {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 100%;
+  height: auto;
+  margin-bottom: 12px;
+  background: #fff;
+}
+.billing-review-editor { min-width: 0; }
+.email-message-preview {
+  margin: 14px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.email-message-preview dl { margin: 0; }
+.email-message-preview dl div {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.email-message-preview dt { color: var(--muted); }
+.email-message-preview dd { margin: 0; }
+.email-preview-body { white-space: pre-wrap; }
+.email-message-preview ul { margin: 0; padding-inline-start: 1.2rem; }
+.email-message-preview [hidden] { display: none; }
+@media (max-width: 760px) {
+  dialog.billing-review-dialog { width: calc(100vw - 20px); }
+  .billing-review-layout { grid-template-columns: minmax(0, 1fr); }
+  .billing-review-layout > :is(form, .billing-review-editor) { order: -1; }
+}

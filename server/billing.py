@@ -229,7 +229,8 @@ def validate_document(payload, terms=None, billable=False, previous_client=None)
     kind = payload.get('kind', 'invoice')
     if kind not in ('invoice', 'quote'):
         raise ValueError('Choose an invoice or quote.')
-    client = one('SELECT * FROM billing_clients WHERE id=? AND archived=0', (payload.get('client_id'),))
+    client = one('SELECT * FROM billing_clients WHERE id=? AND (archived=0 OR id=?)',
+                 (payload.get('client_id'), (previous_client or {}).get('id')))
     if not client:
         raise ValueError('Choose an active client.')
     seller = business()
@@ -259,7 +260,7 @@ def validate_document(payload, terms=None, billable=False, previous_client=None)
 
 
 def insert_document(values, source_quote=None, schedule_id=None, occurrence=None, custom_number=None):
-    # Caller holds BEGIN IMMEDIATE: allocation, reuse and creation are atomic.
+    # Caller holds BEGIN IMMEDIATE: number reservation and document creation are atomic.
     from billing_numbers import allocate_number
     kind = values['kind']
     number = allocate_number(values, custom_number)

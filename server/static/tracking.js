@@ -46,10 +46,107 @@ const Tracking=(()=>{
   const bounds=fy==='all'?null:fyBounds(fy),q=search.toLowerCase(),matches=x=>(!vehicleFilter||String(x.vehicle_id)===vehicleFilter)&&(x.amount_cents!=null?Splits.matches(x,scope):scope==='all'||x.scope===scope)&&(!bounds||x.date>=bounds[0]&&x.date<=bounds[1]);
   const trips=journeys.filter(x=>matches(x)&&[x.origin,x.destination,x.purpose,x.vehicle,x.owner].join(' ').toLowerCase().includes(q));
   const costs=E.filter(x=>x.vehicle_id&&matches(x)&&[x.merchant,x.notes,x.category,V.find(v=>v.id===x.vehicle_id)?.name].join(' ').toLowerCase().includes(q));
-  $('#vehicle-results').innerHTML=`<div class="cards"><section class="card feature"><div class="label">Distance recorded</div><div class="metric">${km(trips.reduce((n,x)=>n+x.distance_m,0))} <small>km</small></div></section><section class="card"><div class="label">Work / business kilometres</div><div class="metric">${km(trips.reduce((n,x)=>n+x.distance_m*x.percent/100,0))} <small>km</small></div></section><section class="card"><div class="label">Vehicle costs</div><div class="metric">${money(costs.reduce((n,x)=>n+x.amount_cents,0))}</div></section></div><div class="grid3">${V.filter(v=>!vehicleFilter||String(v.id)===vehicleFilter).map(v=>`<section class="card"><div class="section-title"><h2>${esc(v.name)}</h2>${actionMenu('Vehicle actions for '+v.name,editor()?`<button class="edit-vehicle" data-id="${v.id}">Edit vehicle</button><button class="vehicle-add-expense" data-id="${v.id}">Add vehicle expense</button><button class="vehicle-add-journey" data-id="${v.id}">Log journey</button><button class="vehicle-odometer" data-id="${v.id}">Odometer log</button>`:'<span>Read-only access</span>')}</div><p>${esc(v.registration||'Registration not set')} · ${esc(v.owner)}</p><p>${esc(v.notes)}</p><p><strong>${v.odometer_estimate_m==null?"No odometer baseline":km(v.odometer_estimate_m)+" km"}</strong>${v.odometer_estimate_m==null?"":" · estimated odometer"}</p>${v.odometer_ambiguous_trips?`<p class="footnote">${v.odometer_ambiguous_trips} trip(s) need timing review for the odometer.</p>`:""}<button class="secondary vehicle-odometer" data-id="${v.id}">Odometer log</button><button class="secondary vehicle-compare" data-id="${v.id}">Compare vehicle methods</button>${editor()?`<button class="secondary vehicle-add-expense" data-id="${v.id}">+ Vehicle expense</button>`:''}</section>`).join('')}</div>${!V.length?'<section class="panel empty"><h2>Add your first vehicle</h2><p>Keep journeys and running costs together.</p></section>':''}<section class="panel vehicle-table"><div class="panel-header"><h2>Journeys</h2><span>${trips.length} records</span></div><div class="table-wrap"><table><thead><tr><th>Date / vehicle</th><th>Route & purpose</th><th>Workspace</th><th>Distance</th><th>Use</th><th></th></tr></thead><tbody>${trips.map(x=>`<tr><td>${esc(dateAU(x.date))}<br><small>${esc(x.vehicle)}</small></td><td>${esc(x.origin||'—')} → ${esc(x.destination||'—')}<br><small>${esc(x.purpose)}</small></td><td>${scopeName(x.scope)}</td><td>${km(x.distance_m)} km</td><td>${x.percent}%</td><td>${editor()?`<button class="ghost edit-journey" data-id="${x.id}">Edit journey</button>`:''}</td></tr>`).join('')}</tbody></table>${trips.length?'':'<p class="empty">No matching journeys.</p>'}</div></section><section class="panel vehicle-table"><div class="panel-header"><h2>Vehicle expenses</h2><span>${costs.length} records</span></div>${table(costs)}</section>`;
+  $('#vehicle-results').innerHTML=`<div class="cards"><section class="card feature"><div class="label">Distance recorded</div><div class="metric">${km(trips.reduce((n,x)=>n+x.distance_m,0))} <small>km</small></div></section><section class="card"><div class="label">Work / business kilometres</div><div class="metric">${km(trips.reduce((n,x)=>n+x.distance_m*x.percent/100,0))} <small>km</small></div></section><section class="card"><div class="label">Vehicle costs</div><div class="metric">${money(costs.reduce((n,x)=>n+x.amount_cents,0))}</div></section></div><div class="grid3">${V.filter(v=>!vehicleFilter||String(v.id)===vehicleFilter).map(v=>`<section class="card"><div class="section-title"><h2>${esc(v.name)}</h2>${actionMenu('Vehicle actions for '+v.name,editor()?`<button class="edit-vehicle" data-id="${v.id}">Edit vehicle</button><button class="vehicle-add-expense" data-id="${v.id}">Add vehicle expense</button><button class="vehicle-add-journey" data-id="${v.id}">Log journey</button><button class="vehicle-odometer" data-id="${v.id}">Odometer log</button>`:'<span>Read-only access</span>')}</div><p>${esc(v.registration||'Registration not set')} · ${esc(v.owner)}</p><p>${esc(v.notes)}</p><p><strong>${v.odometer_estimate_m==null?"No odometer baseline":km(v.odometer_estimate_m)+" km"}</strong>${v.odometer_estimate_m==null?"":" · estimated odometer"}</p>${v.odometer_ambiguous_trips?`<p class="footnote">${v.odometer_ambiguous_trips} trip(s) need timing review for the odometer.</p>`:""}<button class="secondary vehicle-odometer" data-id="${v.id}">Odometer log</button><button class="secondary vehicle-running-costs" data-id="${v.id}">Running costs</button><button class="secondary vehicle-compare" data-id="${v.id}">Compare vehicle methods</button>${editor()?`<button class="secondary vehicle-add-expense" data-id="${v.id}">+ Vehicle expense</button>`:''}</section>`).join('')}</div>${!V.length?'<section class="panel empty"><h2>Add your first vehicle</h2><p>Keep journeys and running costs together.</p></section>':''}<section class="panel vehicle-table"><div class="panel-header"><h2>Journeys</h2><span>${trips.length} records</span></div><div class="table-wrap"><table><thead><tr><th>Date / vehicle</th><th>Route & purpose</th><th>Workspace</th><th>Distance</th><th>Use</th><th></th></tr></thead><tbody>${trips.map(x=>`<tr><td>${esc(dateAU(x.date))}<br><small>${esc(x.vehicle)}</small></td><td>${esc(x.origin||'—')} → ${esc(x.destination||'—')}<br><small>${esc(x.purpose)}</small></td><td>${scopeName(x.scope)}</td><td>${km(x.distance_m)} km</td><td>${x.percent}%</td><td>${editor()?`<button class="ghost edit-journey" data-id="${x.id}">Edit journey</button>`:''}</td></tr>`).join('')}</tbody></table>${trips.length?'':'<p class="empty">No matching journeys.</p>'}</div></section><section class="panel vehicle-table"><div class="panel-header"><h2>Vehicle expenses</h2><span>${costs.length} records</span></div>${table(costs)}</section>`;
+  document.querySelectorAll('.vehicle-running-costs').forEach(b=>b.onclick=()=>showRunningCosts(Number(b.dataset.id)).catch(e=>toast(e.message)));
   document.querySelectorAll('.vehicle-compare').forEach(b=>b.onclick=()=>Planning.compare(Number(b.dataset.id)));
   document.querySelectorAll('.vehicle-odometer').forEach(b=>b.onclick=()=>odometerLog(Number(b.dataset.id)));
   tableEvents();document.querySelectorAll('.edit-vehicle').forEach(b=>b.onclick=()=>editVehicle(V.find(v=>v.id===Number(b.dataset.id))));document.querySelectorAll('.edit-journey').forEach(b=>b.onclick=()=>editJourney(journeys.find(x=>x.id===Number(b.dataset.id))));document.querySelectorAll('.vehicle-add-journey').forEach(b=>b.onclick=()=>editJourney(null,Number(b.dataset.id)));document.querySelectorAll('.vehicle-add-expense').forEach(b=>b.onclick=()=>expenseModal(null,null,{vehicle_id:Number(b.dataset.id),category:'Vehicle expenses',scope:V.find(v=>v.id===Number(b.dataset.id))?.owner_role==='employee'?'business':'work',percent:100,amount_cents:0}));
+ }
+ function fuelFields(expense){
+  const active=expense.fuel_volume_ml!=null||expense.new_fuel;
+  return `<fieldset id="fuel-details" class="allocation-fields span2">
+   <legend>Fuel details</legend>
+   <label class="check"><input type="checkbox" name="is_fuel" ${active?'checked':''}> Record as a fuel fill-up</label>
+   <div class="grid2" id="fuel-measurements">
+    ${field('Litres','fuel_litres','number',expense.fuel_volume_ml==null?'':expense.fuel_volume_ml/1000,'min="0.001" max="1000" step="0.001" required')}
+    ${field('Odometer (km)','fuel_km','number',expense.fuel_odometer_m==null?'':expense.fuel_odometer_m/1000,'min="0" max="10000000" step="0.001" required')}
+    ${select('Tank after fill-up','fuel_tank',[['','Select full or partial'],['full','Full'],['partial','Partial']],expense.fuel_full_tank==null?'':expense.fuel_full_tank?'full':'partial')}
+    <p class="footnote">Use the fuel-only amount for the price per litre. Log partial fill-ups as well as full tanks.</p>
+   </div>
+  </fieldset>`;
+ }
+ function bindFuelFields(form){
+  const vehicle=form.elements.vehicle_id, fillUp=form.elements.is_fuel, details=$('#fuel-details'), measurements=$('#fuel-measurements');
+  form.elements.fuel_tank.required=true;
+  const update=()=>{
+   const active=!!vehicle.value&&fillUp.checked;
+   details.hidden=!vehicle.value;
+   measurements.hidden=!active;
+   for(const element of measurements.querySelectorAll('input, select'))element.disabled=!active;
+  };
+  vehicle.addEventListener('change',update);
+  fillUp.addEventListener('change',update);
+  update();
+ }
+ function saveFuelFields(data,form,expense){
+  if(data.vehicle_id&&form.elements.is_fuel.checked){
+   data.fuel_details={litres:data.fuel_litres,odometer_km:data.fuel_km,full_tank:data.fuel_tank==='full'};
+  }else if(expense.fuel_volume_ml!=null){
+   data.fuel_details=null;
+  }
+  for(const key of ['is_fuel','fuel_litres','fuel_km','fuel_tank'])delete data[key];
+ }
+ async function showRunningCosts(vid,range={},showExpenses=false){
+  const vehicle=V.find(item=>item.id===vid);
+  const path=`vehicles/${vid}/running-costs`;
+  const result=await api(path+'?'+new URLSearchParams(range));
+  if(page!=='vehicles'||!vehicle)return;
+  const period={from:result.start,to:result.end};
+  const reopen=()=>showRunningCosts(vid,period,showExpenses);
+  const units=new Intl.NumberFormat('en-AU',{minimumFractionDigits:2,maximumFractionDigits:3});
+  const typeName=kind=>({running:'Other running costs',parking_tolls:'Parking and tolls',purchase:'Vehicle purchase'}[kind]||kind.replace('_',' ').replace(/^./,s=>s.toUpperCase()));
+  const costRows=Object.entries(result.breakdown).sort((a,b)=>b[1]-a[1]).map(([kind,amount])=>({name:typeName(kind),amount}));
+  const rateHint=result.measured
+   ? `${km(result.distance_m)} km measured · ${dateAU(result.measured.from)} to ${dateAU(result.measured.to)}`
+   : 'Add two odometer readings in this period.';
+  const fuelRows=result.fuel.map(item=>`<tr>
+   <td><button class="ghost running-expense" data-id="${item.id}">${esc(item.merchant)}</button><br><small>${esc(dateAU(item.date))}</small></td>
+   <td>${item.odometer_m==null?'—':km(item.odometer_m)+' km'}</td>
+   <td>${item.volume_ml==null?'—':units.format(item.volume_ml/1000)}</td>
+   <td>${item.price_per_litre==null?'—':'$'+item.price_per_litre.toFixed(3)}</td>
+   <td>${money(item.amount_cents)}${item.reimbursed?'<br><small>Reimbursed</small>':''}</td>
+   <td>${item.full_tank==null?'—':item.full_tank?'Full':'Partial'}</td>
+  </tr>`).join('');
+  modal('Vehicle running costs · '+vehicle.name,`
+   <form id="running-cost-range" class="toolbar">
+    ${field('From date','from','date',result.start,'required')}
+    ${field('To date','to','date',result.end,'required')}
+    <button class="secondary" type="submit">Apply dates</button>
+    <a class="button-link secondary" href="/api/${path}.csv?${new URLSearchParams(period)}">Download CSV</a>
+    ${editor()?'<button type="button" id="add-fuel">+ Add fuel</button>':''}
+   </form>
+   ${WorkspaceUI.metrics([
+    ['Running costs',money(result.running_cents),'Unreimbursed operating expenses','card'],
+    ['Fuel spend',money(result.fuel_cents),result.fuel.filter(row=>row.volume_ml!=null).length+' logged fill-ups','money'],
+    ['Cost per kilometre',result.cents_per_km==null?'—':money(result.cents_per_km),rateHint,'car'],
+    ['Fuel economy',result.litres_per_100_km==null?'—':result.litres_per_100_km.toFixed(1)+' L/100 km',
+     result.economy_distance_m?km(result.economy_distance_m)+' km between full tanks':'Log at least two full tanks.','car'],
+   ])}
+   <div class="grid2">
+    <section class="card"><h3>Fuel log</h3>
+     ${fuelRows?`<div class="table-wrap"><table><thead><tr><th>Merchant / date</th><th>Odometer</th><th>Litres</th><th>AUD/L</th><th>Amount</th><th>Tank</th></tr></thead><tbody>${fuelRows}</tbody></table></div>`:'<p class="muted">No fuel expenses in this period.</p>'}
+     <p class="footnote">Open an expense to see its receipt or add fill-up details.</p>
+    </section>
+    <section class="card"><h3>Cost breakdown</h3>${Workspace.breakdown(costRows,'No running costs in this period.')}
+     <button class="ghost" id="report-vehicle-expenses">${showExpenses?'Hide':'View'} vehicle expenses</button>
+     <p class="footnote">Purchase costs, parking, tolls and reimbursements are excluded. Cost per kilometre uses expenses in the measured odometer dates.</p>
+    </section>
+   </div>
+   ${showExpenses?`<section class="card"><h3>Vehicle expenses</h3>${table(result.costs.map(row=>E.find(e=>e.id===row.id)).filter(Boolean))}</section>`:''}
+  `);
+  formHandler('#running-cost-range',values=>showRunningCosts(vid,values,showExpenses));
+  bind('#report-vehicle-expenses',()=>showRunningCosts(vid,period,!showExpenses).catch(e=>toast(e.message)));
+  bind('#add-fuel',()=>expenseModal(null,null,{
+   vehicle_id:vid,new_fuel:true,category:'Vehicle expenses',scope:vehicle.owner_role==='employee'?'business':'personal',
+   percent:vehicle.owner_role==='employee'?100:0,amount_cents:null,
+  },reopen));
+  if(showExpenses)tableEvents();
+  document.querySelectorAll('.running-expense').forEach(button=>{
+   button.onclick=()=>{
+    const expense=E.find(item=>item.id===Number(button.dataset.id));
+    if(expense)expenseModal(expense,null,null,reopen);
+   };
+  });
  }
  async function odometerLog(vid){
   try{
@@ -75,5 +172,5 @@ const Tracking=(()=>{
   const purposeRule=()=>{const personal=$('#scope').value==='personal';$('#purpose').required=!personal;$('#purpose').previousElementSibling.textContent=personal?'Journey purpose (optional)':'Journey purpose';};$('#scope').addEventListener('change',purposeRule);purposeRule();
   formHandler('#journey-form',async d=>{await api('vehicle-journeys'+(j?'/'+j.id:''),d,j?'PUT':'POST');$('#modal').close();await vehiclesPage();toast('Journey saved.');});bind('#delete-journey',async()=>{if(!confirm('Delete this journey?'))return;try{await api('vehicle-journeys/'+j.id,{},'DELETE');$('#modal').close();await vehiclesPage();}catch(e){toast(e.message);}});
  }
- return {categories:categoryForm,preferences,settings,vehicles:vehiclesPage};
+ return {categories:categoryForm,preferences,settings,vehicles:vehiclesPage,fuelFields,bindFuelFields,saveFuelFields};
 })();

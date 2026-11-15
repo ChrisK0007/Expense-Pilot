@@ -4,6 +4,12 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.9 — Vehicle running costs and billing (2026-11-15)
+
+- Open a vehicle’s Running costs report to see recorded fuel spend, operating costs, cost per kilometre, and fuel economy between full tanks. Link fill-up details to the original expense, and export the report to CSV.
+- Include an online acceptance link when emailing a current quote. Clients can view or download the quote, enter their name and accept it. The owner can see the acceptance and convert the quote to a draft invoice.
+- Select a client explicitly on new invoices. Preview receipts before recording a payment and review the full message and PDF when sending billing emails. Numeric manual invoices advance the automatic sequence when issued.
+
 ## 1.0.7-beta.8 — Expanded year comparison (2026-11-15)
 
 - Compare combined expense allocations, business expenses, employment expenses, business income or employment income on Overview. The selected measure also appears in View monthly figures.
