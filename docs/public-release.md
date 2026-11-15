@@ -1,6 +1,6 @@
-# Beta installation and configuration — 1.0.7-beta.10
+# Beta installation and configuration — 1.0.7-beta.11
 
-Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend runs as a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access. The phone retains local drafts during outages. Beta 1.0.7-beta.10 adds fuel receipt prefill and updates quote links, invoice payment instructions and the notification bell. See the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) for production installation defaults.
+Expense Pilot is a free self-hosted application with a separately versioned native iPhone client. The backend runs as a Docker service on Unraid, Windows/macOS Docker Desktop, Linux or another Docker host. Keep the server running for remote access. The phone retains local drafts during outages. Beta 1.0.7-beta.11 improves session privacy and request logging. See the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/public-release.md) for production installation defaults.
 
 ## Unraid installation
 
@@ -21,7 +21,7 @@ For an additional installation, change the container name, host port and appdata
 ## New portable installation
 
 1. Install Docker (Docker Desktop using Linux containers on Windows/macOS). Download `compose.public.yaml` from this repository into a dedicated folder.
-2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.10` to pin this beta release.
+2. Optionally create `.env` to customise the installation. Set `SETUP_TOKEN=` to a unique random value of at least 24 characters if you want protected first-run owner creation, or leave it blank/unset for token-free setup. Optionally set `IMAGE=ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.11` to pin this beta release.
 3. Run `docker compose -f compose.public.yaml up -d`.
 4. Open `http://localhost:8788`. Enter your name, email and a password of at least 12 characters. The setup token field appears only when a token is configured. Sign in, then open **Settings → Workspace → Workspace setup**. Create the owner account before exposing the server remotely.
 5. Set business details if you issue invoices, choose AI or manual entry under **Settings → Receipts & AI**. Configure email, bank feeds and other features only when needed.
@@ -59,7 +59,7 @@ Archives are written to `/data/backups/<installation-id>` by default. A mounted 
 Restore a downloaded ZIP into a **new empty data volume** with the application stopped. Keep the old volume as rollback. For example, create `expense-pilot-restored` using `docker volume create expense-pilot-restored`, then run:
 
 ```
-docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.10 restore_backup.py /backup.zip
+docker run --rm --mount type=volume,source=expense-pilot-restored,target=/data --mount type=bind,source=/absolute/path/expense-pilot-backup.zip,target=/backup.zip,readonly --entrypoint python ghcr.io/chrisk0007/expense-pilot:1.0.7-beta.11 restore_backup.py /backup.zip
 ```
 
 Use the full host path to your downloaded file (Docker Desktop may ask to share that folder). The restore command validates the manifest, checksums, allowed paths, database integrity, migration checksums and complete receipt inventory before installing the data. It refuses a nonempty destination. Use this version or a compatible newer image, then configure the service to mount the restored volume, supply the original deployment settings and start it. Sign in again; restored login sessions are revoked. Never restore while another container writes to the target volume. Host-helper `.tar.gz` archives use the separate restore process in `architecture.md`.
@@ -97,3 +97,38 @@ The stable v1.0.6 Unraid template uses `:latest` and has no Ollama fields; the b
 ## Source and licence downloads
 
 Open **Source & licences** at login or in Settings → Data & privacy. The container serves its matching application source and build scripts, licence notices and version/checksum manifest without needing a GitHub account. Receipt files, financial records, credentials and Git history are excluded. Installation/help links use the build revision where available, otherwise the matching stable or beta branch.
+
+### Request logging and public quote links
+
+Public quote links are bearer credentials: anyone with the full link can use it.
+The application and bundled Gunicorn configuration redact quote URLs in Python
+access and error logs, including URL-encoded links in referrers or query strings.
+Normal request methods, status codes and timing remain available. Existing links
+continue to work; this update does not remove historical logs.
+
+A separate reverse proxy, CDN, WAF or monitoring service logs requests before the
+application can sanitize them. Configure each layer separately. For example, in
+Nginx's `http` context, map the normalized path to a safe logging value and use a
+format that excludes query strings, referrers and other client-controlled headers:
+
+```nginx
+map $uri $expense_log_path {
+    default $uri;
+    ~*^/quote/ /quote/[REDACTED];
+}
+log_format expense_private '$remote_addr [$time_local] "$request_method $expense_log_path $server_protocol" $status $body_bytes_sent $request_time';
+```
+
+Select `access_log /var/log/nginx/expense-access.log expense_private;` in the
+appropriate server block. Do not also log `$request`, `$request_uri`, `$args` or
+`$http_referer` for this service. Check inherited and secondary access logs too.
+Nginx error logs have a separate format and may include request URLs: review that
+sink and any tracing/error collection, and use an appropriate suppression or
+sanitization policy for quote traffic. Validate with a synthetic link through your
+actual proxy, including failed requests and PDF downloads, before relying on it.
+These examples are guidance, not an automatic deployment configuration change.
+
+Anonymous discovery exposes only product/API compatibility and setup bootstrap
+information. Authenticated users retain the workspace information they need.
+Source, licence and About pages remain accessible; this is not a claim that the
+software or its version cannot be identified by other means.

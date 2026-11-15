@@ -1,3 +1,6 @@
+import log_privacy
+log_privacy.install()
+
 def post_worker_init(worker):
     from app import app
     from billing import start_scheduler

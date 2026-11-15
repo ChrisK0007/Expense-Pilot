@@ -1,4 +1,7 @@
 {
+  "1.0.7-beta.11": [
+    "Improved session privacy and request logging."
+  ],
   "1.0.7-beta.10": [
     "Read fuel litres and purchase time from receipts. Estimate the odometer at the fill-up using an actual reading and synced drives.",
     "Unaccepted quote links expire after the validity date. Accepted links close on conversion to an invoice. Delete accepted quotes from their details.",

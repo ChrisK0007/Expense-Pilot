@@ -314,7 +314,7 @@ class BillingTest(unittest.TestCase):
     def test_business_name_in_authenticated_session(self):
         for client in (self.owner,):
             self.assertEqual(client.get('/api/session').json['business_name'], 'Example Flight Testing')
-        self.assertEqual(app.test_client().get('/api/session').json['business_name'], '')
+        self.assertNotIn('business_name', app.test_client().get('/api/session').json)
 
     def test_stale_draft_update_does_not_overwrite(self):
         doc = self.create()

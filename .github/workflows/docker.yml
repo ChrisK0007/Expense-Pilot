@@ -127,13 +127,15 @@ jobs:
               try:
                   with urllib.request.urlopen('http://127.0.0.1:8789/api/session', timeout=2) as response:
                       result = json.load(response)
-                  assert result['version'] == os.environ['EXPECTED_VERSION'], result
+                  assert result['product'] == 'Expense Pilot' and result['user'] is None, result
+                  assert set(result) == {'user', 'csrf', 'setup', 'setup_token_required', 'mfa_required', 'product', 'api_version', 'minimum_client_api'}, result
                   break
               except (OSError, TimeoutError):
                   time.sleep(1)
           else:
               raise SystemExit('Production server did not start')
           PYTHON
+          test "$(docker exec expense-pilot-production cat VERSION)" = "$EXPECTED_VERSION"
           docker exec expense-pilot-production python healthcheck.py
       - name: Browser workflow tests
         timeout-minutes: 20

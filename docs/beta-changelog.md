@@ -4,6 +4,10 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.11 — Security and privacy (2026-11-15)
+
+- Improve session privacy and request logging while preserving setup, sign-in and client compatibility.
+
 ## 1.0.7-beta.10 — Fuel receipt prefill and billing fixes (2026-11-15)
 
 - Read the printed litres and time from a fuel receipt and estimate the fill-up odometer from an actual reading and synced journeys. Confirm the figures and whether the tank is full or partial before saving.
