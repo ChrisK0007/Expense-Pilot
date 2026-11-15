@@ -27,7 +27,7 @@ class InvoiceAmendmentTest(unittest.TestCase):
     def test_amend_reissue_retains_snapshot_and_rejects_stale_edits(self):
         old=self.issue(self.create())
         r=self.amend(old,number='CORRECTED-1');self.assertEqual(r.status_code,200,r.json)
-        new=self.get(old['id']);self.assertEqual((new['needs_reissue'],new['total_cents'],new['number']),(1,13200,'CORRECTED-1'))
+        new=self.get(old['id']);self.assertEqual((new['needs_reissue'],new['total_cents'],new['number']),(1,13200,'INV-CORRECTED-1'))
         with app.app_context():
             saved=json.loads(one('SELECT previous FROM billing_revision_history WHERE document_id=?',(old['id'],))['previous'])
             self.assertEqual(saved['lines'],old['lines']);self.assertEqual(saved['number'],old['number'])
