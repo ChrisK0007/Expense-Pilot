@@ -366,3 +366,4 @@ dialog.billing-dialog :is(.email-preview,.email-template,.reminder-options,.emai
  dialog.billing-dialog {padding:16px;max-height:calc(100dvh - 24px);width:calc(100vw - 20px)}
  #modal:not(.receipt-docked) {padding:16px;max-height:calc(100dvh - 24px)}
 }
+#fuel-details[hidden], #fuel-measurements[hidden] { display: none; }

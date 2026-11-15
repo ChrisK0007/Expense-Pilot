@@ -69,36 +69,49 @@ def design():
 @reader
 @bounded_preview
 def preview():
-    from billing import body, validate_document, pdf_document, fail, document
+    from billing import body, validate_document, pdf_document, document
     payload = body()
     old = document(payload['document_id']) if payload.get('document_id') else None
     values = validate_document(payload, previous_client=old['client'] if old else None)
-    if old:
-        values['number'] = old['number']; values['state'] = old['state']
-    else:
-        values.update(number=payload.get('number') or 'DRAFT', state='draft')
+    number = payload.get('number')
+    if values['kind'] == 'invoice' and number and (not old or number != old['number']):
+        from billing_numbers import manual_number, validate_number
+        prefix = (old or values)['business'].get('invoice_prefix', 'INV-')
+        number = validate_number(manual_number(number, prefix), old['id'] if old else None)
+    values.update(number=number or (old['number'] if old else 'DRAFT'), state=old['state'] if old else 'draft')
     paid = old['paid_cents'] if old else 0
     values.update(paid_cents=paid, balance_cents=values['total_cents']-paid, payments=[])
     if 'design' in payload:
         values['business'] = {**values['business'], 'design': design_values(payload['design'])}
     pdf = pdf_document(values)
     if request.args.get('format') == 'image':
-        import base64
-        import subprocess
-        import tempfile
-        from pathlib import Path
-        from pypdf import PdfReader
-        with tempfile.TemporaryDirectory(prefix='invoice-preview-') as folder:
-            source = Path(folder)/'preview.pdf'; target = Path(folder)/'page'
-            source.write_bytes(pdf)
-            try:
-                subprocess.run(['pdftoppm','-f','1','-singlefile','-scale-to','1100','-png',str(source),str(target)], check=True, capture_output=True, timeout=15)
-                image = target.with_suffix('.png').read_bytes()
-            except (OSError, subprocess.SubprocessError): fail('The preview could not be rendered. Save the draft to download its PDF.', 503)
-        return jsonify(image=base64.b64encode(image).decode(), pdf=base64.b64encode(pdf).decode(), pages=len(PdfReader(io.BytesIO(pdf)).pages))
+        return pdf_preview_image(pdf)
     result = send_file(io.BytesIO(pdf), mimetype='application/pdf')
     result.headers['Cache-Control'] = 'no-store'
     return result
+
+
+def pdf_preview_image(pdf, *, include_pdf=True):
+    from billing import fail
+    import base64
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    from pypdf import PdfReader
+    with tempfile.TemporaryDirectory(prefix='billing-preview-') as folder:
+        source = Path(folder) / 'preview.pdf'
+        target = Path(folder) / 'page'
+        source.write_bytes(pdf)
+        try:
+            subprocess.run(['pdftoppm', '-f', '1', '-singlefile', '-scale-to', '1100', '-png',
+                            str(source), str(target)], check=True, capture_output=True, timeout=15)
+            image = target.with_suffix('.png').read_bytes()
+        except (OSError, subprocess.SubprocessError):
+            fail('The PDF preview could not be rendered.', 503)
+    result = dict(image=base64.b64encode(image).decode(), pages=len(PdfReader(io.BytesIO(pdf)).pages))
+    if include_pdf:
+        result['pdf'] = base64.b64encode(pdf).decode()
+    return jsonify(result)
 
 
 @bp.route('/editor-drafts/<key>', methods=['GET', 'PUT', 'DELETE'])

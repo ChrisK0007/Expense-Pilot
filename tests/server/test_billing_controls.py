@@ -1,4 +1,6 @@
 """Service edits, invoice identities and isolated reminder overrides; mail is mocked."""
+import base64
+import io
 import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -48,23 +50,23 @@ class BillingControlsTest(unittest.TestCase):
         self.assertEqual(self.get(doc['id'])['total_cents'],49500)
         self.assertEqual(self.call(self.owner,f'billing/services/{sid}',changed,'PUT').status_code,404)
 
-    def test_deleted_numbers_reuse_latest_first_without_reusing_live_void_or_quote_numbers(self):
-        a,b,c=self.create(),self.create(),self.issue(self.create())
-        self.action(c,'void')
-        self.assertEqual(self.remove(a).status_code,200)
-        self.assertEqual(self.remove(b).status_code,200)
-        quote=self.create(kind='quote');self.assertEqual(quote['number'],'QUO-0001')
-        self.assertEqual(self.create()['number'],b['number'])
-        self.assertEqual(self.create()['number'],a['number'])
-        self.assertEqual(self.create()['number'],'INV-0004')
-        self.assertEqual(self.get(c['id'])['number'],c['number'])
+    def test_issued_manual_number_moves_sequence_and_deletion_does_not_rewind(self):
+        self.create(number='9999')  # An unissued manual number does not move the sequence.
+        automatic=self.create()
+        self.assertEqual(automatic['number'],'INV-0001')
+        issued=self.issue(self.create(number='500'))
+        self.assertEqual(issued['number'],'INV-500')
+        self.assertEqual(self.remove(issued).status_code,200)
+        self.assertEqual(self.create()['number'],'INV-0501')
+        self.assertEqual(self.create()['number'],'INV-0502')
+        self.assertEqual(self.create(kind='quote')['number'],'QUO-0001')
 
     def test_custom_numbers_unique_and_renumbering_preserves_payments_and_pdf(self):
         doc=self.issue(self.create(number='FLIGHT-42'))
         self.assertEqual(self.pay(doc,'20').status_code,200);doc=self.get(doc['id'])
         self.assertEqual(self.renumber(doc,'TEST-2026-42').status_code,200)
         saved=self.get(doc['id'])
-        self.assertEqual(saved['number'],'TEST-2026-42')
+        self.assertEqual(saved['number'],'INV-TEST-2026-42')
         self.assertEqual(saved['payments'],doc['payments'])
         self.assertEqual(saved['lines'],doc['lines'])
         self.assertIn('TEST-2026-42.pdf',self.owner.get(f"/api/billing/documents/{doc['id']}/pdf").headers['Content-Disposition'])
@@ -76,15 +78,52 @@ class BillingControlsTest(unittest.TestCase):
         self.assertEqual(self.renumber(other,'READONLY',self.agent).status_code,403)
         self.assertEqual(self.renumber(self.create(kind='quote'),'QUOTE').status_code,400)
         self.assertEqual(self.remove(saved).status_code,200)
-        self.assertEqual(self.create()['number'],'TEST-2026-42')
+        self.assertEqual(self.create()['number'],'INV-0002')
 
-    def test_reclaimed_number_claimed_by_manual_edit_and_duplicate_allocates_another(self):
+    def test_payment_preview_matches_saved_receipt_without_recording_it(self):
+        from pypdf import PdfReader
+
+        def text(pdf):
+            return '\n'.join(page.extract_text() for page in PdfReader(io.BytesIO(pdf)).pages)
+
+        doc = self.issue(self.create())
+        path = f"billing/documents/{doc['id']}"
+        payment = dict(version=doc['version'], date=self.today, amount='45', reference='Receipt preview fixture')
+        preview = self.call(self.owner, path + '/payments/preview', payment)
+        self.assertEqual(preview.status_code, 200, preview.json)
+        self.assertTrue(base64.b64decode(preview.json['image']).startswith(b'\x89PNG'))
+        pdf_text = text(base64.b64decode(preview.json['pdf']))
+        self.assertIn('PAYMENT RECEIPT', pdf_text)
+        self.assertIn('Receipt preview fixture', pdf_text)
+        self.assertIn('$65.00', pdf_text)
+        self.assertEqual(self.get(doc['id'])['payments'], [])
+        self.assertEqual(self.call(self.owner, path + '/payments/preview', {**payment, 'amount': '111'}).status_code, 409)
+
+        recorded = self.call(self.owner, path + '/payments', {**payment, 'request_key': 'preview-test-payment-1234'})
+        self.assertEqual(recorded.status_code, 200, recorded.json)
+        saved = self.owner.get('/api/' + path + '/receipt')
+        self.assertEqual(text(saved.data), pdf_text)
+
+    def test_email_attachment_preview_uses_the_issued_pdf_and_rechecks_version(self):
+        from pypdf import PdfReader
+        doc = self.create()
+        path = f"/api/billing/documents/{doc['id']}/email-attachment"
+        response = self.owner.get(path, query_string={'version': doc['version'], 'kind': 'document'})
+        self.assertEqual(response.status_code, 200)
+        text = PdfReader(io.BytesIO(response.data)).pages[0].extract_text()
+        self.assertIn('TAX INVOICE', text)
+        self.assertNotIn('DRAFT TAX INVOICE', text)
+        self.assertEqual(self.get(doc['id'])['state'], 'draft')
+        self.assertEqual(self.owner.get(path, query_string={'version': doc['version'] + 1}).status_code, 409)
+        self.assertEqual(self.agent.get(path, query_string={'version': doc['version']}).status_code, 403)
+
+    def test_unissued_number_can_be_reassigned_and_duplicate_allocates_another(self):
         old=self.create();live=self.create();self.remove(old)
         self.assertEqual(self.renumber(live,old['number']).status_code,200)
         live=self.get(live['id'])
         duplicate=self.action(live,'duplicate');self.assertEqual(duplicate.status_code,200)
-        self.assertEqual(self.get(duplicate.json['id'])['number'],'INV-0003')
-        self.assertEqual(self.create()['number'],'INV-0004')
+        self.assertEqual(self.get(duplicate.json['id'])['number'],'INV-0002')
+        self.assertEqual(self.create()['number'],'INV-0003')
 
     def test_number_allocation_is_atomic_across_workers(self):
         old=self.create();self.remove(old)
@@ -118,7 +157,7 @@ class BillingControlsTest(unittest.TestCase):
         with app.app_context():self.assertEqual(run_reminders(self.today),0)
         target=self.get(target['id'])
         draft=self.owner.get(f"/api/billing/documents/{target['id']}/email-draft?kind=reminder_manual").json
-        self.assertEqual(draft['subject'],'Personal follow-up RENAMED-42')
+        self.assertEqual(draft['subject'],'Personal follow-up INV-RENAMED-42')
         self.call(self.owner,'billing/reminder-settings',dict(enabled=False,before_days=3,on_due_date=True,after_days=[7]),'PUT')
         with app.app_context():self.assertEqual(run_reminders((date.fromisoformat(future)+timedelta(days=5)).isoformat()),0)
 

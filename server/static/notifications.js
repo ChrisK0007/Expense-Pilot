@@ -16,7 +16,7 @@ const Notifications=(()=>{
   const extras=events.items.filter(e=>e.kind!=='receipts').map(e=>({...e,notification:true,detail:e.details,date:'',amount_cents:0,page:e.screen}));
   return {...review,items:[...extras,...reviewItems]};
  }
- async function open(item){if(item.notification){if(item.screen==='invoice'){await navigate('invoices');await Billing.view(Number(item.item));}else await navigate(item.screen==='bank'?'banks':item.screen);}else await Workflows.openAttention(item);}
+ async function open(item){if(item.notification){if(['invoice','quote'].includes(item.screen)){await navigate(item.screen==='quote'?'quotes':'invoices');await Billing.view(Number(item.item));}else await navigate(item.screen==='bank'?'banks':item.screen);}else await Workflows.openAttention(item);}
  function invalidate(){cached=null;loadedAt=0;}
  return {mount,invalidate,items:listItems,open};
 })();

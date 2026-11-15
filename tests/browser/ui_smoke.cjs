@@ -161,6 +161,9 @@ async function main() {
     await page.getByText('Example Aviation',{exact:true}).waitFor();
     await navigate(page,'invoices');
     await page.getByRole('button',{name:'New invoice',exact:false}).click();
+    const invoiceClient=page.getByLabel('Client',{exact:true});
+    assert.equal(await invoiceClient.inputValue(),'');
+    await invoiceClient.selectOption({label:'Example Aviation'});
     assert.equal(await page.getByLabel('Notes & terms',{exact:true}).inputValue(),'Please pay within your agreed payment terms.');
     assert.match(await page.getByLabel('Issue date').inputValue(),/^\d{2}\/\d{2}\/\d{4}$/);
     await page.getByLabel('Line description').fill('Flight examiner services');
@@ -174,7 +177,12 @@ async function main() {
     await page.getByRole('button',{name:'Record payment',exact:true}).waitFor();
     await page.getByRole('button',{name:'Record payment',exact:true}).click();
     await page.getByLabel('Amount received (AUD)').fill('200');
-    await page.getByRole('button',{name:'Record payment',exact:true}).click();
+    await page.getByRole('img',{name:'Payment receipt preview, first page'}).waitFor();
+    const [paymentResponse]=await Promise.all([
+      page.waitForResponse(r=>r.request().method()==='POST'&&/\/billing\/documents\/\d+\/payments$/.test(r.url())),
+      page.locator('#payment-form').getByRole('button',{name:'Record payment',exact:true}).click(),
+    ]);
+    assert.equal(paymentResponse.status(),200,await paymentResponse.text());
     await page.locator('#modal').getByText('Part paid',{exact:true}).waitFor();
     assert.match(await page.locator('#modal').innerText(),/845\.00/);
     await page.getByRole('button',{name:'Edit',exact:true}).click();

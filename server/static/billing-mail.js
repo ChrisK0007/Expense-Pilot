@@ -15,16 +15,66 @@ const BillingMail=(()=>{
   function styleSignature(el){
     el.querySelectorAll('[style]').forEach(node=>{const styles=node.getAttribute('style');node.removeAttribute('style');for(const item of styles.split(';')){const [key,value]=item.split(':');if(key&&value)node.style.setProperty(key,value);}});
   }
-  function signaturePreview(draft){
-    return draft.signature_html?`${check('include_signature','Include email signature',true)}<div class="email-signature-preview" id="compose-signature"></div>`:'';
+  function signatureOption(draft){
+    return draft.signature_html?check('include_signature','Include email signature',true):'';
   }
   function copyOption(draft){
     return `<div class="email-copy-option">${check('copy_self','Send me a copy',draft.copy_self===true)}<p class="footnote">Optional BCC to ${esc(draft.copy_email)}. This choice applies only to this email.</p></div>`;
   }
-  function bindSignaturePreview(draft){
-    if(!draft.signature_html)return;
-    mountSignature($('#compose-signature'),draft.signature_html);
-    $('#include_signature').onchange=e=>$('#compose-signature').hidden=!e.target.checked;
+  function reviewLayout(form,attachmentURL){
+    return `<div class="billing-review-layout">
+      <section class="billing-preview-paper"><h3>PDF attachment</h3><div id="email-pdf-preview" aria-live="polite">Preparing PDF preview…</div>
+        <a class="button-link secondary" target="_blank" rel="noopener" href="${esc(attachmentURL)}">Open full PDF</a>
+      </section>
+      <div class="billing-review-editor">${form}</div>
+    </div>`;
+  }
+  function emailPreview(){
+    return `<section class="email-message-preview" aria-labelledby="email-preview-title">
+      <h3 id="email-preview-title">Email preview</h3>
+      <dl>
+        <div><dt>From</dt><dd data-preview="from"></dd></div>
+        <div><dt>To</dt><dd data-preview="to"></dd></div>
+        <div data-preview-row="reply"><dt>Reply-to</dt><dd data-preview="reply"></dd></div>
+        <div data-preview-row="bcc"><dt>Bcc</dt><dd data-preview="bcc"></dd></div>
+        <div><dt>Subject</dt><dd data-preview="subject"></dd></div>
+      </dl>
+      <p class="email-preview-body" data-preview="body"></p>
+      <p data-preview="quote" hidden>Review and accept this quote online. The client’s link is added when you send.</p>
+      <div class="email-signature-preview" id="compose-signature" data-preview="signature" hidden></div>
+      <h4>Attachments</h4><ul data-preview="attachments"></ul>
+    </section>`;
+  }
+  function mountReview(form,draft,attachmentURL){
+    const preview=key=>form.querySelector(`[data-preview="${key}"]`);
+    const signature=preview('signature');
+    if(draft.signature_html)mountSignature(signature,draft.signature_html);
+    preview('from').textContent=draft.from_name?`${draft.from_name} <${draft.from_email}>`:draft.from_email;
+    preview('reply').textContent=draft.reply_to||'';
+    form.querySelector('[data-preview-row="reply"]').hidden=!draft.reply_to;
+    const sync=()=>{
+      const fields=form.elements;
+      const to=fields.recipient.value.trim();
+      const bcc=fields.copy_self.checked&&draft.copy_email.toLowerCase()!==to.toLowerCase()?draft.copy_email:'';
+      preview('to').textContent=to||'Enter a recipient';
+      preview('bcc').textContent=bcc;
+      form.querySelector('[data-preview-row="bcc"]').hidden=!bcc;
+      preview('subject').textContent=fields.subject.value.trim()||'Enter a subject';
+      preview('body').textContent=fields.body.value.trim();
+      preview('quote').hidden=!fields.include_acceptance_link?.checked;
+      signature.hidden=!fields.include_signature?.checked;
+      const files=[draft.filename,...Array.from(form.querySelectorAll('[name=supporting_file]:checked'),input=>input.dataset.filename)];
+      preview('attachments').replaceChildren(...files.map(name=>{
+        const item=document.createElement('li');item.textContent=name;return item;
+      }));
+    };
+    for(const event of ['input','change','attachmentschange'])form.addEventListener(event,sync);
+    sync();
+    const paper=$('#email-pdf-preview');
+    const path=attachmentURL.slice('/api/'.length)+(attachmentURL.includes('?')?'&':'?')+'format=image';
+    api(path).then(result=>{
+      if(paper.isConnected)paper.innerHTML=`<img class="billing-preview-image" src="data:image/png;base64,${result.image}" alt="PDF attachment preview, first page">${result.pages>1?`<p class="footnote">${result.pages} pages in the full PDF.</p>`:''}`;
+    }).catch(error=>{if(paper.isConnected)paper.textContent=error.message;});
   }
   async function templates(initial='invoices'){
     if(!owner())return;
@@ -130,10 +180,27 @@ const BillingMail=(()=>{
   async function compose(doc,kind='document'){
     const draft=await api(`billing/documents/${doc.id}/email-draft?kind=${kind}`);
     if(!draft.ready){toast('Add your SMTP account in Settings → Email delivery first.');return;}
-    modal(kind==='receipt'?`Email payment receipt · ${esc(doc.number)}`:kind==='reminder_manual'?'Payment reminder':`Email ${esc(doc.number)}`,`<form id="client-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}${copyOption(draft)}${BillingWorkspace.attachmentHTML(draft.attachments||[])}<div class="notice">Attachment: <strong>${esc(draft.filename)}</strong><br>${doc.state==='draft'?'Sending issues and locks this draft.':'The current document and recorded payments are included.'}</div><a class="button-link secondary" href="${esc(draft.attachment_url)}">Preview PDF</a><div class="modal-footer"><button type="submit">Send email</button><button type="button" class="secondary" id="cancel-client-email">Cancel</button></div></form>`);
-    $('#modal').classList.add('billing-dialog');bindSignaturePreview(draft);BillingWorkspace.mountAttachments(doc,draft.attachments);
+    const acceptance=kind==='document'&&doc.kind==='quote'&&['draft','issued'].includes(doc.state)
+      ? draft.acceptance_available
+        ? check('include_acceptance_link','Include a link to accept this quote online',true)
+        : '<p class="footnote">A current quote and an HTTPS Expense Pilot address in User access are required for an acceptance link.</p>'
+      : '';
+    const attachmentURL=`/api/billing/documents/${doc.id}/email-attachment?`+new URLSearchParams({kind,version:draft.version});
+    const form=`<form id="client-email-form">
+      ${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}
+      ${field('Subject','subject','text',draft.subject,'required maxlength="200"')}
+      ${area('Message','body',draft.body,20000)}
+      ${acceptance}${signatureOption(draft)}${copyOption(draft)}
+      ${BillingWorkspace.attachmentHTML(draft.attachments||[])}
+      ${emailPreview()}
+      <div class="modal-footer"><button type="submit">Send email</button><button type="button" class="secondary" id="cancel-client-email">Cancel</button></div>
+    </form>`;
+    modal(kind==='receipt'?`Email payment receipt · ${esc(doc.number)}`:kind==='reminder_manual'?'Payment reminder':`Email ${esc(doc.number)}`,reviewLayout(form,attachmentURL));
+    $('#modal').classList.add('billing-dialog','billing-review-dialog');
+    BillingWorkspace.mountAttachments(doc,draft.attachments);
+    mountReview($('#client-email-form'),draft,attachmentURL);
     on('#cancel-client-email',()=>Billing.view(doc.id));
-    formHandler('#client-email-form',async(data,form)=>{if(form.dataset.attachmentsBusy)throw Error('Wait for your supporting files to finish attaching.');const result=await api(`billing/documents/${doc.id}/send`,{...data,message_kind:kind,attachment_ids:[...form.querySelectorAll('[name=supporting_file]:checked')].map(e=>Number(e.value)),include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await Billing.view(doc.id);if(['invoices','quotes'].includes(page))await Billing.documents(doc.kind);toast(result.state==='sent'?'Email accepted by your mail server.':result.error||'Delivery is still being processed.');});
+    formHandler('#client-email-form',async(data,form)=>{if(form.dataset.attachmentsBusy)throw Error('Wait for your supporting files to finish attaching.');const result=await api(`billing/documents/${doc.id}/send`,{...data,message_kind:kind,include_acceptance_link:form.elements.include_acceptance_link?.checked??false,attachment_ids:[...form.querySelectorAll('[name=supporting_file]:checked')].map(e=>Number(e.value)),include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await Billing.view(doc.id);if(['invoices','quotes'].includes(page))await Billing.documents(doc.kind);toast(result.state==='sent'?'Email accepted by your mail server.':result.error||'Delivery is still being processed.');});
   }
   async function statement(cid,options={mode:'all'}){
     const query=new URLSearchParams(Object.entries(options).filter(([,value])=>value));
@@ -150,8 +217,18 @@ const BillingMail=(()=>{
   async function composeStatement(cid,options){
     const query=new URLSearchParams(Object.entries(options).filter(([,value])=>value)),draft=await api(`billing/clients/${cid}/statement/email-draft?${query}`);
     if(!draft.ready)return toast('Add your SMTP account in Settings → Email delivery first.');
-    modal('Email client statement',`<form id="statement-email-form"><p>From <strong>${esc(draft.from_email)}</strong></p>${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}${field('Subject','subject','text',draft.subject,'required maxlength="200"')}${area('Message','body',draft.body,20000)}${signaturePreview(draft)}${copyOption(draft)}<p>Attachment: ${esc(draft.filename)}</p><a class="button-link secondary" href="/api/billing/clients/${cid}/statement/pdf?${query}">Preview statement PDF</a><div class="modal-footer"><button type="submit">Send statement</button><button type="button" class="secondary" id="cancel-statement-email">Cancel</button></div></form>`);
-    bindSignaturePreview(draft);on('#cancel-statement-email',()=>statement(cid,options));
+    const attachmentURL=`/api/billing/clients/${cid}/statement/pdf?`+new URLSearchParams({...options,version:draft.version});
+    const form=`<form id="statement-email-form">
+      ${field('Recipient','recipient','email',draft.recipient,'required maxlength="254"')}
+      ${field('Subject','subject','text',draft.subject,'required maxlength="200"')}
+      ${area('Message','body',draft.body,20000)}
+      ${signatureOption(draft)}${copyOption(draft)}${emailPreview()}
+      <div class="modal-footer"><button type="submit">Send statement</button><button type="button" class="secondary" id="cancel-statement-email">Cancel</button></div>
+    </form>`;
+    modal('Email client statement',reviewLayout(form,attachmentURL));
+    $('#modal').classList.add('billing-dialog','billing-review-dialog');
+    mountReview($('#statement-email-form'),draft,attachmentURL);
+    on('#cancel-statement-email',()=>statement(cid,options));
     formHandler('#statement-email-form',async(data,form)=>{const result=await api(`billing/clients/${cid}/statement/send`,{...data,...options,include_signature:form.elements.include_signature?.checked??false,copy_self:form.elements.copy_self.checked,version:draft.version,request_key:draft.request_key});await statement(cid,options);toast(result.state==='sent'?'Statement accepted by your mail server.':result.error||'Delivery is still being processed.');});
   }
   function invoiceReminderStatus(doc,schedule){

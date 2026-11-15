@@ -64,6 +64,9 @@ def errors(e): return jsonify(error=e.description),e.code
 def headers(r):
     r.headers['X-Content-Type-Options']='nosniff';r.headers['X-Frame-Options']='DENY';r.headers['Referrer-Policy']='same-origin'
     r.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    if request.blueprint == 'quote_acceptance':
+        r.headers['Referrer-Policy'] = 'no-referrer'
+        r.headers['Content-Security-Policy'] += "; form-action 'self'"
     r.headers['Cache-Control']='no-store'
     if app.config['SESSION_COOKIE_SECURE']: r.headers['Strict-Transport-Security']='max-age=31536000'
     return r
@@ -226,8 +229,10 @@ def expenses():
         w,a=visible()
         return jsonify(rows(f'''SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,
             EXISTS(SELECT 1 FROM home_office_costs h WHERE h.expense_id=e.id AND h.kind!='') AS home_office_bill,
-            u.name AS owner,t.location,COALESCE(m.name,e.merchant) AS merchant_display
+            u.name AS owner,t.location,COALESCE(m.name,e.merchant) AS merchant_display,
+            vf.volume_ml AS fuel_volume_ml,vf.odometer_m AS fuel_odometer_m,vf.full_tank AS fuel_full_tank
             FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id
+            LEFT JOIN vehicle_fuel vf ON vf.expense_id=e.id
             LEFT JOIN merchant_names mn ON mn.user_id=e.user_id AND mn.match_key=ep_merchant_key(e.merchant)
             LEFT JOIN merchants m ON m.id=mn.merchant_id AND m.user_id=e.user_id
             WHERE {w} ORDER BY e.date DESC,e.id DESC''',a))
@@ -251,7 +256,7 @@ def expenses():
         automatic=bank_matching.choose(uid,d)
         if automatic and automatic['expense_id']: fail('This document matches a bank-linked expense. Attach it from Document inbox to avoid a duplicate.',409)
         if automatic: d['account_id']=automatic['local_account_id']
-    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);equipment_treatment.attach(c.lastrowid,d);bank_matching.attach(c.lastrowid,automatic,d.get('bank_choice')=='cash');pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
+    p=payload(d,existing);c=db().execute('INSERT INTO expenses(user_id,date,merchant,amount_cents,scope,category,percent,reimbursed,notes,trip_id,meal,receipt_id,account_id,status,shared,work_percent,business_percent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(uid,)+p);link_vehicle(c.lastrowid,uid,d);vehicle_running_costs.save_fuel(db(),c.lastrowid,d);equipment_treatment.attach(c.lastrowid,d);bank_matching.attach(c.lastrowid,automatic,d.get('bank_choice')=='cash');pocketsmith.link_created(d,c.lastrowid);mobile_uploads.remember(record_user_id(),'expense',ref,digest,c.lastrowid);audit('expense created',c.lastrowid);db().commit();return jsonify(mobile_uploads.ack(c.lastrowid,ref))
 @app.route('/api/expenses/<int:eid>',methods=['PUT','DELETE'])
 @auth('owner','employee')
 def update_expense(eid):
@@ -265,7 +270,7 @@ def update_expense(eid):
         db().execute('DELETE FROM expenses WHERE id=?',(eid,));audit('expense deleted',eid)
         if e['receipt_id']: delete_receipt_record(e['receipt_id'])
     else:
-        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p,d);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);equipment_treatment.attach(eid,d);audit('expense updated',eid)
+        d=request.get_json();p=payload(d,e);expense_workflows.guard_edit(e,p,d);db().execute('UPDATE expenses SET date=?,merchant=?,amount_cents=?,scope=?,category=?,percent=?,reimbursed=?,notes=?,trip_id=?,meal=?,receipt_id=?,account_id=?,status=?,shared=?,work_percent=?,business_percent=? WHERE id=?',p+(eid,));link_vehicle(eid,e['user_id'],d,e);vehicle_running_costs.save_fuel(db(),eid,d,e);equipment_treatment.attach(eid,d);audit('expense updated',eid)
     db().commit()
     if request.method=='DELETE' and e['receipt_id']: remove_receipt_files(e['receipt_id'])
     return jsonify(ok=True)
@@ -305,11 +310,14 @@ from receipt_routes import upload, receipt, download, receipt_info, preview_rece
 
 from finance_routes import csv_rows, import_preview, bank_import, export, employment_income, employment_values, edit_employment, tax_forecast
 
+import vehicle_running_costs
 from tracking import body as tracking_body, register as register_tracking, category_names, draft_for, link_vehicle, profile as receipt_profile, vehicle as tracking_vehicle
 register_tracking(app, db=db, one=one, rows=rows, fail=fail, audit=audit, can_write=can_write, record_user_id=record_user_id, textval=textval, money=money, day=day, receipt=receipt, payload=payload, BASE_CATEGORIES=CATEGORIES)
 
 from billing import register as register_billing, business as billing_business
+import quote_acceptance
 register_billing(app, db, one, rows, fail, audit, DATA)
+app.register_blueprint(quote_acceptance.public)
 
 import security
 app.session_interface=security.DeviceSessionInterface()

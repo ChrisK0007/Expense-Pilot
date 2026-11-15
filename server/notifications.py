@@ -21,11 +21,12 @@ import workspace_time
 KINDS = {'receipts', 'invoicePaid', 'invoiceOverdue', 'emailFailure', 'budgets', 'bank'}
 TITLES = {'receipts': 'Documents ready for review', 'invoicePaid': 'Invoice marked paid',
           'invoiceOverdue': 'Invoice overdue', 'emailFailure': 'Email delivery needs attention',
-          'budgets': 'Budget threshold reached', 'bank': 'Bank feed needs attention'}
+          'quoteAccepted': 'Quote accepted online', 'budgets': 'Budget threshold reached', 'bank': 'Bank feed needs attention'}
 BODIES = {'receipts': 'Open your document inbox to review the details.',
           'invoicePaid': 'An invoice has been marked paid. Tap to view it.',
           'invoiceOverdue': 'An invoice has an overdue balance. Tap to view it.',
           'emailFailure': 'An invoice email was not confirmed sent. Review its delivery status.',
+          'quoteAccepted': 'A client accepted a quote online.',
           'budgets': 'A category budget has reached a spending threshold.',
           'bank': 'Open Bank feeds to review the connection and retry syncing.'}
 
@@ -65,6 +66,12 @@ def collect(user):
         elif doc['status'] == 'overdue':
             result.append(event(f"overdue.{doc['id']}.{doc['created_at']}", 'invoiceOverdue', 'invoice', doc['id'], f"Invoice {doc['number']} has ${doc['balance_cents']/100:,.2f} outstanding."))
     if user['role'] == 'owner':
+        recent = (today - timedelta(days=7)).isoformat()
+        for quote in rows('''SELECT d.id,d.number,q.accepted_at
+            FROM billing_quote_acceptance q JOIN billing_documents d ON d.id=q.document_id
+            WHERE q.accepted_at>=? AND d.state='accepted' ORDER BY q.accepted_at DESC''', (recent,)):
+            result.append(event(f"quote.{quote['id']}.{quote['accepted_at']}", 'quoteAccepted', 'quote',
+                                quote['id'], f"Quote {quote['number']} was accepted online."))
         for row in rows("SELECT id,document_id,created_at FROM billing_outbox WHERE state IN ('failed','unknown') ORDER BY id DESC LIMIT 50"):
             result.append(event(f"email.{row['id']}.{row['created_at']}", 'emailFailure', 'invoice', row['document_id']))
         connection = one('SELECT key_encrypted,last_error FROM pocketsmith_connection WHERE id=1')
@@ -106,7 +113,7 @@ def register(app, auth):
     @app.get('/api/notifications/events')
     @auth()
     def events():
-        return jsonify(collect(g.user))
+        return jsonify([item for item in collect(g.user) if item['kind'] in KINDS])
 
     @app.get('/api/notifications/budget/<int:bid>')
     @auth('owner', 'tax_agent')
@@ -204,7 +211,7 @@ def run_once():
             # after a successful sync and should alert again when that happens.
             if 'bank.connection' not in active: seen.pop('bank.connection', None)
             seen = {k: v for k,v in seen.items() if v >= now-90*86400}
-            for item in [x for x in items if prefs[x['kind']] and x['key'] not in seen][:10]:
+            for item in [x for x in items if prefs.get(x['kind']) and x['key'] not in seen][:10]:
                 # Recheck registration after potentially slow previous deliveries.
                 if not one('SELECT 1 FROM notification_devices WHERE installation=? AND token=? AND preferences=?', (device['installation'], device['token'], device['preferences'])): break
                 try:

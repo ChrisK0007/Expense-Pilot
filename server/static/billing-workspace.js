@@ -42,6 +42,12 @@ const BillingWorkspace=(()=>{
  function pdfURL(value){const bytes=Uint8Array.from(atob(value),c=>c.charCodeAt(0));return URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));}
  async function preview(s,data){
   const token=++s.previewRevision;
+  if(!data.client_id){
+   if(s.previewURL)URL.revokeObjectURL(s.previewURL);
+   s.previewURL=null;
+   s.preview.textContent='Select a client to preview the PDF.';
+   return;
+  }
   try{
    const result=await api('billing/preview?format=image',data);
    if(token!==s.previewRevision||!s.preview.isConnected||s.finished)return;
@@ -82,13 +88,13 @@ const BillingWorkspace=(()=>{
   $('#design-back').onclick=()=>{if(state.previewURL)URL.revokeObjectURL(state.previewURL);navigate('invoices');};draw();
  }
  function attachmentHTML(files){return `<section class="email-supporting-files"><h3>Supporting files <span class="muted">optional</span></h3><div id="supporting-file-list">${fileRows(files)}</div><div class="actions"><label class="button-link secondary" for="supporting-upload">Attach files</label><input class="visually-hidden" id="supporting-upload" type="file" multiple accept=".pdf,.jpg,.jpeg,.png"><button type="button" class="ghost" id="attach-saved-receipt">Choose saved receipt</button></div><div id="supporting-receipts"></div><p class="footnote">Only ticked files are included with this email. Up to five files, 20 MB total.</p><p id="supporting-status" role="status"></p></section>`;}
- function fileRows(files,selected=new Set()){return files.map(f=>`<div class="supporting-file"><label class="check"><input type="checkbox" name="supporting_file" value="${f.id}" ${selected.has(f.id)?'checked':''}>${esc(f.filename)} <small>${Math.ceil(f.size/1024)} KB</small></label><button class="ghost" type="button" data-remove-file="${f.id}" aria-label="Remove ${esc(f.filename)}">✕</button></div>`).join('')||'<p class="muted">The invoice PDF is included automatically.</p>';}
+ function fileRows(files,selected=new Set()){return files.map(f=>`<div class="supporting-file"><label class="check"><input type="checkbox" name="supporting_file" data-filename="${esc(f.filename)}" value="${f.id}" ${selected.has(f.id)?'checked':''}>${esc(f.filename)} <small>${Math.ceil(f.size/1024)} KB</small></label><button class="ghost" type="button" data-remove-file="${f.id}" aria-label="Remove ${esc(f.filename)}">✕</button></div>`).join('')||'<p class="muted">The invoice PDF is included automatically.</p>';}
  function mountAttachments(doc,initial){
   let files=initial||[];const root=$('.email-supporting-files'),selected=()=>new Set([...root.querySelectorAll('[name=supporting_file]:checked')].map(e=>Number(e.value)));
-  function draw(set){root.querySelector('#supporting-file-list').innerHTML=fileRows(files,set);root.querySelectorAll('[data-remove-file]').forEach(b=>b.onclick=async()=>{try{await api(`billing/documents/${doc.id}/attachments/${b.dataset.removeFile}`,{},'DELETE');files=files.filter(f=>f.id!==Number(b.dataset.removeFile));draw(selected());}catch(e){toast(e.message);}});}
+  function draw(set){root.querySelector('#supporting-file-list').innerHTML=fileRows(files,set);root.querySelectorAll('[data-remove-file]').forEach(b=>b.onclick=async()=>{try{await api(`billing/documents/${doc.id}/attachments/${b.dataset.removeFile}`,{},'DELETE');files=files.filter(f=>f.id!==Number(b.dataset.removeFile));draw(selected());}catch(e){toast(e.message);}});root.closest('form').dispatchEvent(new Event('attachmentschange'));}
   async function upload(data){const form=root.closest('form');form.dataset.attachmentsBusy='true';try{const set=selected(),old=new Set(files.map(f=>f.id));root.querySelector('#supporting-status').textContent='Attaching…';files=await api(`billing/documents/${doc.id}/attachments`,data);files.filter(f=>!old.has(f.id)).forEach(f=>set.add(f.id));draw(set);root.querySelector('#supporting-status').textContent='Attached. Selected files will be sent to the recipient.';}finally{delete form.dataset.attachmentsBusy;}}
   root.querySelector('#supporting-upload').onchange=async e=>{try{for(const file of e.target.files){const data=new FormData();data.append('file',file);await upload(data);}}catch(error){root.querySelector('#supporting-status').textContent=error.message;}finally{e.target.value='';}};
   root.querySelector('#attach-saved-receipt').onclick=async()=>{try{const choices=await api('billing/attachment-receipts');root.querySelector('#supporting-receipts').innerHTML=select('Saved receipt','supporting-receipt',[['','Choose a receipt'],...choices.map(r=>[r.id,r.filename])])+'<button type="button" class="secondary" id="confirm-supporting-receipt">Attach receipt</button>';root.querySelector('#confirm-supporting-receipt').onclick=async()=>{try{const data=new FormData();data.append('receipt_id',root.querySelector('#supporting-receipt').value);await upload(data);root.querySelector('#supporting-receipts').replaceChildren();}catch(e){toast(e.message);}};}catch(e){toast(e.message);}};draw(new Set());
  }
- return {units,active,recover,mount,leave,complete,beforeSubmit,resume,design,attachmentHTML,mountAttachments};
+ return {units,active,recover,mount,leave,complete,beforeSubmit,resume,design,attachmentHTML,mountAttachments,pdfURL};
 })();

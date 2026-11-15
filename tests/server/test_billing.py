@@ -165,7 +165,7 @@ class BillingTest(unittest.TestCase):
         data = dict(client_id=self.cid, issue_date=self.today, due_date='not-a-date', lines=[])
         self.assertEqual(self.call(self.owner, 'billing/documents', data).status_code, 400)
 
-    def test_numbering_unique_and_reuses_deleted_invoice(self):
+    def test_numbering_unique_and_releases_unissued_draft_number(self):
         first = self.create()
         second = self.create(kind='quote')
         self.assertEqual(first['number'], 'INV-0001')
@@ -181,7 +181,7 @@ class BillingTest(unittest.TestCase):
         self.assertEqual(saved['business']['name'], 'Example Flight Testing')
         self.assertEqual(saved['client']['name'], 'Example Client')
 
-    def test_deleted_issued_and_void_invoice_numbers_become_reusable(self):
+    def test_deleted_issued_and_void_invoice_numbers_are_skipped(self):
         for state in ('issued', 'void'):
             with self.subTest(state=state):
                 doc = self.issue(self.create())
@@ -196,7 +196,7 @@ class BillingTest(unittest.TestCase):
                 with app.app_context():
                     record = db().execute("SELECT entity FROM audit WHERE action='invoice deleted' ORDER BY id DESC LIMIT 1").fetchone()
                     self.assertIn(doc['number'], record['entity'])
-        self.assertEqual(self.create()['number'], 'INV-0001')
+        self.assertEqual(self.create()['number'], 'INV-0003')
 
     @patch('billing.smtplib.SMTP_SSL')
     def test_delete_paid_invoice_cleans_history_and_updates_income(self, smtp):

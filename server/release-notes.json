@@ -1,4 +1,9 @@
 {
+  "1.0.7-beta.9": [
+    "Open Running costs on a vehicle to log fuel against expenses, check cost per kilometre and fuel economy, or download CSV.",
+    "Email a quote with an acceptance link. See who accepted it and when, then convert it to a draft invoice.",
+    "Choose the client on each new invoice, preview payment receipts and outgoing billing emails, and use sequential invoice numbers with the invoice prefix."
+  ],
   "1.0.7-beta.8": [
     "Choose combined allocated expenses, business expenses, employment expenses, business income or employment income in Overview’s year comparison.",
     "See the same measure in View monthly figures. Annual employment statements appear separately in the full financial-year view."

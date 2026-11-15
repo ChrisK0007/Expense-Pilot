@@ -80,6 +80,13 @@ def download_statement(cid):
     from billing import request, send_file
     from billing_core import pdf_statement
     statement = statement_data(cid, request.args)
+    version = request.args.get('version')
+    if version and version != str(statement['version']):
+        from billing import fail
+        fail('The statement changed. Reopen the email to preview the current attachment.', 409)
+    if request.args.get('format') == 'image':
+        from billing_workspace import bounded_preview, pdf_preview_image
+        return bounded_preview(lambda: pdf_preview_image(pdf_statement(statement), include_pdf=False))()
     return send_file(io.BytesIO(pdf_statement(statement)), mimetype='application/pdf', as_attachment=True,
                      download_name=statement_filename(statement))
 
@@ -96,7 +103,8 @@ def statement_email_draft(cid):
     values = dict(client=client['contact'] or client['name'], business=seller['name'], full_name=sender_full_name(),
                   date_range=(date_au(statement['start']) + ' to ' + date_au(statement['end'])) if statement['start'] else '')
     return jsonify(**email_copy_defaults(config), recipient=client['email'], subject=template_text(template['subject'], values), body=template_text(template['body'], values),
-                   signature_html=templates['signature_html'], from_email=config['from_email'], ready=bool(config['host'] and config['from_email']),
+                   signature_html=templates['signature_html'], from_email=config['from_email'],
+                   from_name=config['from_name'], reply_to=config['reply_to'], ready=bool(config['host'] and config['from_email']),
                    request_key=secrets.token_hex(24), version=statement['version'], filename=statement_filename(statement))
 
 

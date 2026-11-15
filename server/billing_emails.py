@@ -232,10 +232,15 @@ def document_message(doc, kind='document'):
                 signature_html=templates['signature_html'], message_kind=kind)
 
 
-def document_attachment(doc, kind):
+def document_attachment(doc, kind, pending_payment=None):
     from billing import pdf_document, rows
     if kind == 'receipt':
-        doc = {**doc, 'receipt': True, 'payments': rows('SELECT date,amount_cents,reference FROM billing_payments WHERE document_id=? AND reversed_at IS NULL ORDER BY id', (doc['id'],))}
+        payments = rows('SELECT date,amount_cents,reference FROM billing_payments WHERE document_id=? AND reversed_at IS NULL ORDER BY id', (doc['id'],))
+        doc = {**doc, 'receipt': True, 'payments': payments}
+        if pending_payment:
+            payments.append(pending_payment)
+            doc['paid_cents'] += pending_payment['amount_cents']
+            doc['balance_cents'] -= pending_payment['amount_cents']
     return pdf_document(doc), doc['number'] + ('-receipt' if kind == 'receipt' else '') + '.pdf'
 
 
@@ -258,6 +263,9 @@ def queue_document_email(doc, recipient, subject, message, key, kind='document',
     if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')", (doc['id'],)):
         fail('An email is pending or its delivery is uncertain. Review email history before retrying.', 409)
     ready_to_issue(doc)
+    if kind == 'document':
+        from billing_numbers import record_issued
+        record_issued(doc)
     if doc['state'] == 'draft':
         db().execute("UPDATE billing_documents SET state='issued' WHERE id=?", (doc['id'],))
         doc['state'] = 'issued'

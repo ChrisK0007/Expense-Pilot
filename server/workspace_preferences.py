@@ -2,7 +2,7 @@
 import json
 from flask import g, jsonify, request
 
-EVENTS = ('invoicePaid', 'invoiceOverdue', 'emailFailure', 'receipts', 'bank', 'budgets')
+EVENTS = ('quoteAccepted', 'invoicePaid', 'invoiceOverdue', 'emailFailure', 'receipts', 'bank', 'budgets')
 PANELS = ('chart', 'incoming', 'income', 'expenses', 'tax', 'invoices', 'allocation')
 
 
@@ -15,7 +15,10 @@ def get(uid):
     from app import one
     row = one('SELECT * FROM workspace_preferences WHERE user_id=?', (uid,))
     data = defaults()
-    if row: data.update(json.loads(row['data']))
+    if row:
+        saved = json.loads(row['data'])
+        data['dashboard'].update(saved.get('dashboard', {}))
+        data['notifications'].update(saved.get('notifications', {}))
     return dict(**data, version=row['version'] if row else 0)
 
 

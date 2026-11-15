@@ -1,6 +1,6 @@
 # User guide and operations
 
-This branch documents **beta 1.0.7-beta.8**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
+This branch documents **beta 1.0.7-beta.9**. Stable is **1.0.6**; see the [stable guide](https://github.com/ChrisK0007/Expense-Pilot/blob/main/docs/guide.md). For fresh installs and setup/AI/backup controls, start with [installation and configuration](public-release.md).
 
 For release changes, see [the changelog](CHANGELOG.md); for help, see [support](../SUPPORT.md). The [documentation index](README.md) links to setup, bank feeds and release maintenance.
 
@@ -206,7 +206,7 @@ cd /mnt/user/appdata/expense-pilot
 bash backup.sh /mnt/user/backups/expense-pilot
 ```
 
-Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.8**).
+Use **Docker → Check for Updates → Update** for `expense-pilot`. Keep the same repository, port and `/data` mapping. Refresh your browser after the update and confirm the version in Settings matches the selected beta image (currently **1.0.7-beta.9**).
 
 New database tables are created automatically on startup. Existing users, expenses, trips, receipts, setup configuration and session key are preserved. No additional container variables are required for billing or email: configure them inside the app. Existing source copies on appdata do not need replacing for the registry-image installation; pull the image through Unraid.
 
@@ -267,6 +267,18 @@ This is the container-list icon. Your invoice business logo is separately set in
 
 See [architecture and backups](architecture.md) for development commands, numbered migrations, custom backup mounts and restore guidance. Run installation commands from the repository root.
 
+## Vehicle running costs
+
+Open **Vehicles → Running costs** on a vehicle. Set the report dates or download the expense and fuel rows to CSV. Use **Add fuel** to create an expense with fill-up details, or open a vehicle-linked expense and choose **Record as a fuel fill-up**. Enter the fuel-only amount, litres, dashboard odometer and whether the tank was full. Attach the receipt on the expense as usual.
+
+Running costs use the recorded unreimbursed expense amounts, excluding purchase costs, parking and tolls. Set a cost type such as Servicing under **Compare vehicle methods → Cost settings**. Cost per kilometre uses expenses between the first and last measured odometer dates shown on the report. Fuel economy uses complete full-to-full intervals and includes the intervening partial fill-ups.
+
+## Online quote acceptance
+
+Set the client-accessible HTTPS address in **Settings → User access** and configure **Email delivery**. Open a current quote, select **Email quote** (or **Issue & email**) and leave the online acceptance link selected. The client can review the quote, download its PDF and accept it by entering their name and confirming authorisation. The link expires after the quote’s validity date. Sending a new link replaces the previous one, and **Disable acceptance link** removes client access.
+
+Open the quote to review the recorded name, time and contact email. The notification bell shows recent acceptances. Enable quote-acceptance emails in notification settings if you want an email alert. Select **Convert to invoice** to create a draft invoice for review.
+
 ## Overview year comparison
 
 Choose **Allocated expenses**, **Business expenses**, **Employment expenses**, **Business income** or **Employment income** under **Show**. The same measure appears in the chart and **View monthly figures**. Financial years run from July to June, and Year to date compares the same elapsed period in each year.
@@ -286,7 +298,13 @@ Deleting a saved expense now also deletes its attached receipt, saved draft, ext
 
 ## Invoice numbers and custom reminders
 
-In v1.0.2, leave **Invoice number (optional)** blank when creating an invoice to assign it automatically, or enter a unique number. For an existing invoice, use **Edit invoice number** in its details; draft editing also includes the number. Use up to 50 letters, numbers, spaces, full stops, underscores or hyphens. Numbers cannot duplicate an existing invoice or quote, even with different capitalisation. Payments and line items stay linked. Already sent emails and downloaded PDFs retain their old number; new previews and downloads use the new one. Resolve any pending or uncertain email before renumbering.
+On a new invoice, choose the client before saving. The selection sets the billing contact and payment terms. If you recover a draft saved before this change, confirm its client again.
+
+Leave **Invoice number (optional)** blank to use the sequence. New automatic numbers follow the highest issued numeric invoice number, skipping numbers reserved by saved drafts. Removing an issued invoice keeps its place in the sequence. A discarded draft can release its number if the sequence has not advanced past it. Issuing a higher numeric manual invoice moves the sequence forward. Existing saved drafts keep their assigned number.
+
+A manual number uses the invoice prefix from the business profile, typically `INV-`. Enter `250` or `INV-250` to save `INV-250` with the default prefix. Use up to 50 characters including the prefix. If you edit an issued invoice, review and reissue it before sending another copy.
+
+When recording a payment, check **Payment receipt preview**. It updates using the entered amount, date, and reference alongside earlier payments. Open the full PDF to review all pages. On a manual invoice, quote, receipt, reminder, or statement email, **Email preview** updates with the message, sender, recipient, BCC, signature, and attachments. Check the PDF alongside the message before sending.
 
 Open an invoice's **Reminder options** to set a custom schedule and individual subject/message templates for before/on-due, overdue and manual reminders. Insert fields and preview the message using that invoice's values. Turn an override off to follow the latest shared settings. The shared signature remains included and automatic sending must still be enabled in Settings. Duplicates and newly created recurring schedules copy the invoice's reminder choices; each resulting invoice can be customised independently. Renumbering does not resend a reminder already attempted for the same due date and day.
 

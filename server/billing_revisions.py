@@ -4,6 +4,10 @@ def editable(doc):
     from billing import fail, one
     if doc['kind']=='invoice' and doc['paid_cents']>0 and doc['balance_cents']<=0:
         fail('Paid invoices cannot be edited. Reverse an incorrect payment record first.',409)
+    if doc['kind'] == 'quote' and one(
+        'SELECT 1 FROM billing_quote_acceptance WHERE document_id=? AND accepted_at IS NOT NULL', (doc['id'],)
+    ):
+        fail('An online-accepted quote is locked. Duplicate it to prepare a revised quote.',409)
     if doc['state'] in ('void','converted'):
         fail('Void or converted documents cannot be edited.',409)
     if one("SELECT id FROM billing_outbox WHERE document_id=? AND state IN ('sending','unknown')",(doc['id'],)):
