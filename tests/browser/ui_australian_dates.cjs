@@ -55,7 +55,10 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',output=process.env.UI_OUT
      const sessions=await(await context.request.get(url+'/api/security/sessions')).json(),current=sessions.find(s=>s.current);
      const expected=await page.evaluate(t=>WorkspaceTime.stamp(t*1000),current.last_used);
      assert.ok((await page.locator('#security-settings').innerText()).includes(expected.slice(0,10)));
-     if(engine===chromium&&locale==='en-US'&&await page.locator('#verify-email').count()){
+     if(engine===chromium&&locale==='en-US'){
+      const initial=await(await context.request.get(url+'/api/security/email')).json();
+      assert.equal(initial.verified,false);assert.equal(initial.smtp_configured,true);
+      assert.equal(await page.locator('#verify-email').count(),1);
       await page.locator('#verify-email').click();await page.locator('#verification_password').fill('Browser-test-password-123');await page.getByRole('button',{name:'Send verification code',exact:true}).click();
       await page.locator('#verification_code').waitFor();
       const captured=await(await context.request.get(url+'/test/invitations')).json(),code=/code is: ([0-9]{8})/.exec(captured['owner@example.test'])[1];
