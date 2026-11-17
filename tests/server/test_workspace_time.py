@@ -64,7 +64,7 @@ class WorkspaceTimeTest(unittest.TestCase):
         self.select('Australia/Sydney')
         vid = self.call(self.owner, 'vehicles', {'name': 'Split timezone test'}).json['id']
         def epoch(value):
-            return datetime.fromisoformat(value).timestamp()
+            return int(datetime.fromisoformat(value).timestamp())
         def journey(day, start, end):
             result = self.call(self.owner, 'vehicle-journeys', dict(vehicle_id=vid, date=day,
                 origin='Start', destination='Finish', purpose='', scope='personal', percent=0,
