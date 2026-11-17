@@ -31,7 +31,10 @@ const Notifications=(()=>{
    try{
     const mustLoad=force||!cached||Date.now()-loadedAt>30000;
     const data=mustLoad?await listItems(year()):cached;
-    if(revision!==loadRevision||startedAt!==cacheRevision||!trigger.isConnected)return;
+    if(revision!==loadRevision||!trigger.isConnected)return;
+    // A preference/save may invalidate an in-flight initial load. Fetch the
+    // current data instead of leaving the connected bell permanently empty.
+    if(startedAt!==cacheRevision)return load(force);
     if(mustLoad){cached=data;loadedAt=Date.now();}
     const items=data.items;
     count.hidden=!items.length;

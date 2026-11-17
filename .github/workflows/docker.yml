@@ -47,6 +47,7 @@ jobs:
           node tests/js/document_reading.cjs
           node tests/js/session_requests.cjs
           node tests/js/australian_dates.cjs
+          node tests/js/notification_refresh.cjs
           node --check server/static/overnights.js
           node --check server/static/bank-feeds.js
           node --check server/static/billing.js
