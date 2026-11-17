@@ -12,6 +12,11 @@ from flask import jsonify
 from app import app, db
 import billing
 
+# Many accelerated workflows share one account in this disposable server.
+# Quota enforcement/expiry/isolation are tested with explicit low limits in
+# test_email_verification_limits.py; production keeps its 1,200/minute default.
+app.config['API_USER_LIMIT'] = 10000
+
 invitations={}
 client_emails=[]
 def fake_delivery(recipient,subject,message,*args,**kwargs):
