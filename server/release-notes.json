@@ -1,4 +1,9 @@
 {
+  "1.0.7-beta.12": [
+    "Enter odometer and drive-split dates as DD/MM/YYYY with a separate time field and the existing calendar. Sign-in times use your workspace timezone.",
+    "Verify ownership of your account email in Settings → Security. Existing sessions and account recovery remain available.",
+    "Add durable API rate limits, stricter request/password validation, safer logs and tighter credential exclusions. This update adds migration m038."
+  ],
   "1.0.7-beta.11": [
     "Improved session privacy and request logging."
   ],

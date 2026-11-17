@@ -4,6 +4,14 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.12 — Account protection and Australian dates (2026-11-17)
+
+- Enter odometer and drive-split dates as DD/MM/YYYY, with separate time inputs and the calendar retained. Drive splits use the workspace timezone and require an explicit choice for repeated DST times. Active sessions and recent sign-ins use Australian date formatting in the workspace timezone.
+- Verify mailbox ownership from Settings → Security using a short-lived, single-use emailed code. Existing accounts, sessions and recovery remain available; unverified addresses are labelled honestly.
+- Apply durable per-account and anonymous-source API quotas, retain authentication-specific limits, reject malformed JSON envelopes and cross-site browser mutations, and require exact password inputs.
+- Harden setup email and uploaded-reference validation, disable application debugging explicitly, redact labelled credentials in Python logs, and exclude signing credentials and private files from build/source bundles.
+- Add migration m038 without rewriting historical migrations or records. See [security controls and deployment requirements](security-controls.md).
+
 ## 1.0.7-beta.11 — Security and privacy (2026-11-15)
 
 - Improve session privacy and request logging while preserving setup, sign-in and client compatibility.

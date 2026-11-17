@@ -16,6 +16,7 @@ const Security=(()=>{
   const data=await api('security');if(page!=='settings')return;
   $('#security-settings').innerHTML=`<h3>Two-factor authentication</h3>${!data.secure_cookies?'<p class="notice">Secure-only cookies are disabled. When using HTTPS, set COOKIE_SECURE=true on your server.</p>':''}<p>${data.enabled?'Enabled — sign-in requires a code from your authenticator.':'Add an authenticator code to protect your account.'}</p>${data.enabled?`<p class="footnote">${data.recovery_remaining} unused recovery codes remaining.</p><button class="secondary" id="disable-2fa">Turn off 2FA</button>`:'<button id="enable-2fa">Set up authenticator</button>'}`;
   bind('#enable-2fa',setup);bind('#disable-2fa',disable);
+  await mailbox(data.enabled);
   await Workflows.security();
   if(owner()){
    const config=await api('security/invitations');if(page!=='settings')return;
@@ -33,6 +34,18 @@ const Security=(()=>{
     modal('Save your recovery codes',`<p>2FA is enabled. Keep these codes somewhere safe so you can sign in if you lose your phone. Each code works once; they are shown only now.</p><div class="recovery-codes">${result.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')}</div><div class="modal-footer"><button type="button" class="secondary" id="download-recovery">Download recovery codes</button><button type="button" id="recovery-done">I have saved my codes</button></div>`);
     bind('#download-recovery',()=>{const content=`Expense Pilot recovery codes\nAccount: ${S.user.email}\nKeep these private. Each code works once.\n\n${result.recovery_codes.join('\n')}\n`;const url=URL.createObjectURL(new Blob([content],{type:'text/plain'}));const a=document.createElement('a');a.href=url;a.download='expense-pilot-recovery-codes.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
     bind('#recovery-done',()=>{$('#modal').close();$('#modal').innerHTML='';render();});
+   });
+  });
+ }
+ async function mailbox(twoFactor){
+  const status=await api('security/email');if(page!=='settings')return;
+  $('#security-settings').insertAdjacentHTML('beforeend',`<h3>Email verification</h3><p>${esc(status.email)} · ${status.verified?'Verified':'Not yet verified'}</p><p class="footnote">Confirm that you can receive mail at your account address. This does not change your password, signed-in devices or recovery options.</p>${!status.verified?`<button type="button" id="verify-email" ${status.smtp_configured?'':'disabled'}>Verify email address</button>${!status.smtp_configured?'<p class="footnote">The owner must configure email delivery before verification codes can be sent.</p>':''}`:''}`);
+  bind('#verify-email',()=>{
+   modal('Verify your email address',`<p>Send a verification code to ${esc(status.email)}.</p><form id="email-send">${field('Current password','verification_password','password','','required autocomplete="current-password"')}${twoFactor?field('Authenticator or recovery code','verification_factor','text','','required autocomplete="one-time-code" maxlength="40"'):''}<button type="submit">Send verification code</button></form>`);
+   formHandler('#email-send',async values=>{
+    await api('security/email/send',{password:values.verification_password,code:values.verification_factor});
+    modal('Check your email',`<p>Enter the eight-digit code sent to ${esc(status.email)}. It expires in 15 minutes. Each new request replaces the previous code.</p><form id="email-confirm">${field('Verification code','verification_code','text','','required inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" autocomplete="one-time-code"')}<button type="submit">Verify email</button></form>`);
+    formHandler('#email-confirm',async values=>{await api('security/email/confirm',{code:values.verification_code});$('#modal').close();$('#modal').innerHTML='';await settings();toast('Email address verified.');});
    });
   });
  }

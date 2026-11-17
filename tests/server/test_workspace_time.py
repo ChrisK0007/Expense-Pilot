@@ -60,6 +60,32 @@ class WorkspaceTimeTest(unittest.TestCase):
                 clock.now.side_effect = lambda tz: datetime.fromisoformat(instant).astimezone(tz)
                 self.assertEqual(billing.local_today(), expected)
 
+    def test_split_local_time_uses_workspace_zone_and_requires_dst_resolution(self):
+        self.select('Australia/Sydney')
+        vid = self.call(self.owner, 'vehicles', {'name': 'Split timezone test'}).json['id']
+        def epoch(value):
+            return datetime.fromisoformat(value).timestamp()
+        def journey(day, start, end):
+            result = self.call(self.owner, 'vehicle-journeys', dict(vehicle_id=vid, date=day,
+                origin='Start', destination='Finish', purpose='', scope='personal', percent=0,
+                distance=10, started_at=epoch(start), ended_at=epoch(end), date_timezone='Australia/Sydney'))
+            self.assertEqual(result.status_code, 200, result.json)
+            return result.json['id']
+        jid = journey('2026-04-05', '2026-04-04T14:00:00+00:00', '2026-04-04T18:00:00+00:00')
+        data = dict(action='split', ids=[jid], split_place='Stop', first_distance=5, split_local='2026-04-05T02:30')
+        path = 'workflows/journeys/preview'
+        self.assertEqual(self.call(self.owner, path, data).status_code, 400)
+        for occurrence, expected in [('first', '2026-04-04T15:30:00+00:00'), ('second', '2026-04-04T16:30:00+00:00')]:
+            response = self.call(self.owner, path, dict(data, occurrence=occurrence))
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertEqual(response.json['after'][0]['ended_at'], epoch(expected))
+        self.assertEqual(self.call(self.owner, path, dict(data, split_at=epoch('2026-04-04T15:30:00+00:00'))).status_code, 400)
+        legacy = {k: v for k, v in data.items() if k != 'split_local'}
+        self.assertEqual(self.call(self.owner, path, dict(legacy, split_at=epoch('2026-04-04T15:30:00+00:00'))).status_code, 200)
+        jid = journey('2026-10-04', '2026-10-03T15:00:00+00:00', '2026-10-03T18:00:00+00:00')
+        for value in ('2026-10-04T02:30', '2025-02-29T02:30', '04/10/2026T02:30'):
+            self.assertEqual(self.call(self.owner, path, dict(data, ids=[jid], split_local=value)).status_code, 400)
+
     def test_odometer_dst_gap_and_repeated_hour(self):
         self.select('America/New_York')
         vid = self.call(self.owner, 'vehicles', {'name': 'DST test'}).json['id']

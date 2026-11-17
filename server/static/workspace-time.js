@@ -5,7 +5,10 @@ const WorkspaceTime=(()=>{
  function parts(value){return Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:zone(),year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));}
  function day(value=new Date()){const p=parts(value);return `${p.year}-${p.month}-${p.day}`;}
  function local(value=new Date()){const p=parts(value);return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;}
- function stamp(value){return new Date(value).toLocaleString('en-AU',{timeZone:zone(),timeZoneName:'short'});}
+ function stamp(value){return new Intl.DateTimeFormat('en-AU',{timeZone:zone(),year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZoneName:'short'}).format(new Date(value));}
+ function dateTimeFields(prefix,label,value=''){
+  return field(label+' date ('+esc(zone())+')',prefix+'_date','date',value.slice(0,10),'required')+field(label+' time',prefix+'_time','time',value.slice(11,16),'required step="60"');
+ }
  function fieldHTML(value){return field('Workspace timezone','timezone','text',value,'required list="workspace-timezones" maxlength="100" autocomplete="off"')+'<datalist id="workspace-timezones"></datalist><p class="footnote">Used for dates, reminders and trip tracking across all devices. Daylight saving is automatic. Saved record dates stay unchanged.</p>';}
  async function loadChoices(){try{const r=await api('timezones');const list=$('#workspace-timezones');if(list)list.innerHTML=r.timezones.map(z=>`<option value="${esc(z)}"></option>`).join('');}catch(e){toast(e.message);}}
  async function settings(){
@@ -14,5 +17,5 @@ const WorkspaceTime=(()=>{
   await loadChoices();
   formHandler('#timezone-form',async d=>{await api('workspace/settings',{timezone:d.timezone},'PUT');S=await api('session');$('#modal').close();render();toast('Workspace timezone saved. Refresh other connected devices to apply it there.');});
  }
- return {zone,suggested,day,local,stamp,fieldHTML,loadChoices,settings};
+ return {zone,suggested,day,local,stamp,dateTimeFields,fieldHTML,loadChoices,settings};
 })();

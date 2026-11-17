@@ -17,10 +17,11 @@ Thumbs.db
 *.log
 *.key
 *.pem
-*.p12
-*.pfx
-*.p8
+*.[pP]12
+*.[pP][fF][xX]
+*.[pP]8
 credentials/
+.aws/
 uploads/
 receipts/
 exports/

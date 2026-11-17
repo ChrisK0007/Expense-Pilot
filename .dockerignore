@@ -40,3 +40,15 @@
 **/*.pem
 **/*.log
 **/*.zip
+**/*.[pP]8
+**/*.[pP]12
+**/*.[pP][fF][xX]
+**/credentials/
+**/exports/
+**/.venv/
+**/.aws/
+**/*.sqlite-wal
+**/*.sqlite-shm
+**/*.sqlite3-wal
+**/*.sqlite3-shm
+**/*.tar.gz

@@ -29,7 +29,10 @@ def upload():
     else: fail('Use JPEG, PNG, WebP or PDF (maximum 12 MB).')
     upload_uid=record_user_id()
     if request.form.get('expense_id'):
-        upload_uid=expense(int(request.form['expense_id']),True)['user_id']
+        try: expense_id=int(request.form['expense_id'])
+        except (ValueError, TypeError): fail('Invalid expense reference.')
+        if expense_id <= 0: fail('Invalid expense reference.')
+        upload_uid=expense(expense_id,True)['user_id']
     elif request.form.get('trip_id'):
         t=one('SELECT * FROM trips WHERE id=?',(request.form['trip_id'],))
         if not t or (g.user['role']=='employee' and t['user_id']!=g.user['id']): fail('Trip not found.',404)
