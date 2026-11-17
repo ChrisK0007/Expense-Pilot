@@ -3,7 +3,7 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.6` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.11` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.12` |
 
 The Docker server and web interface are released independently of the optional iPhone app, which remains in testing. See the [stable changelog](CHANGELOG.md) for shipped changes and [GitHub Releases](https://github.com/ChrisK0007/Expense-Pilot/releases) for stable release downloads.
 
@@ -24,6 +24,8 @@ Never mount the same data directory into two running installations. Do not point
 ## Updates and rollback
 
 Back up each instance before upgrading. Startup runs numbered migrations; existing records and receipt paths are retained. An older image refuses a database containing newer migrations. Rollback therefore means restoring the matching older backup and image together, not only changing the image tag. Keep the current data volume intact until recovery is verified.
+
+Beta 1.0.7-beta.12 adds m038 for request quotas and email-verification proof. Existing accounts and sessions are preserved; existing email addresses are not automatically marked verified.
 
 Beta 1.0.7-beta.10 adds m036 for notification dismissals and m037 to expire previously converted quote links. Beta 1.0.7-beta.9 added m033 for fuel fill-ups, m034 for online quote acceptance and m035 for the invoice sequence. To roll back, restore the backup from before upgrading with its matching image.
 

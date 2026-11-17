@@ -76,7 +76,7 @@ class SessionPrivacyTest(unittest.TestCase):
         self.login(self.owner, 'owner@example.test', 'Owner-password-123')
         self.assertEqual(self.owner.get('/api/session').json['instance_id'], original['instance_id'])
         self.assertEqual(self.agent.get('/api/session').json['features'], {})
-        self.assertEqual(self.agent.get('/api/session').json['capabilities'], {'tax_workspace': True, 'account_deletion': True})
+        self.assertEqual(self.agent.get('/api/session').json['capabilities'], {'tax_workspace': True, 'account_deletion': True, 'email_verification': True})
 
     def test_flask_error_logging_redacts_request_and_exception_url(self):
         import io

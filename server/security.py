@@ -173,7 +173,7 @@ def login_response():
     email = str(data.get('email') or '').strip().lower()[:200]
     account_key = reserve_password_attempt(email)
     user = one('SELECT * FROM users WHERE email=?', (email,))
-    if not user or not user['active'] or user['role'] not in ('owner', 'tax_agent') or not check_password_hash(user['password'], str(data.get('password', ''))[:256]):
+    if not user or not user['active'] or user['role'] not in ('owner', 'tax_agent') or not password_matches(user['password'], data.get('password')):
         fail('Incorrect email or password.', 401)
     if user['must_change_password'] and user['invite_expires'] <= clock():
         fail('This temporary password has expired. Ask the owner to resend your invitation.', 401)
@@ -188,10 +188,15 @@ def current_user():
     return one('SELECT * FROM users WHERE id=?', (g.user['id'],))
 
 
+def password_matches(hashed, value):
+    # Never silently accept an overlong password with a valid prefix.
+    return isinstance(value, str) and 1 <= len(value) <= 256 and check_password_hash(hashed, value)
+
+
 def check_password(user, value):
     key = rate_key('security-password', user['id'])
     rate_check(key)
-    if not check_password_hash(user['password'], str(value or '')[:256]):
+    if not password_matches(user['password'], value):
         rate_failure(key); fail('Current password is incorrect.', 403)
     clear_rate(key)
 
@@ -236,7 +241,7 @@ def password_response():
     data = request.get_json() or {}
     db().execute('BEGIN IMMEDIATE'); user = current_user()
     check_password(user, data.get('current'))
-    if check_password_hash(user['password'], str(data.get('password') or '')[:256]):
+    if password_matches(user['password'], data.get('password')):
         fail('Choose a new password different from your current password.')
     hashed = newpass(data.get('password'))
     if user['totp_enabled']:

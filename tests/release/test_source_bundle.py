@@ -21,7 +21,10 @@ class SourceBundleTests(unittest.TestCase):
                      '.git/config': 'private', '.env': 'secret', 'server/.env.local': 'secret',
                      'server/rounded.sqlite': 'records', 'server/data/record.txt': 'records',
                      'server/uploads/receipt.pdf': 'receipt', 'server/backups/old.zip': 'backup',
-                     'outside.txt': 'private'}
+                     'server/push.p8': 'synthetic', 'deploy/signing.P12': 'synthetic',
+                     'scripts/identity.pfx': 'synthetic', 'server/credentials/token.json': 'synthetic',
+                     'docs/exports/report.csv': 'synthetic', 'server/rounded.sqlite-wal': 'synthetic',
+                     'server/old.tar.gz': 'synthetic', 'outside.txt': 'private'}
             for name, content in files.items():
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(content)
             package(root, output, 'a' * 40)

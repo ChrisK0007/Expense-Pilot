@@ -38,8 +38,10 @@ if not key.exists():
     except FileExistsError: pass
 app=Flask(__name__,static_folder='static')
 import client_address; client_address.install(app)
-app.config.update(SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(days=30))
+app.config.update(DEBUG=False, SECRET_KEY=key.read_text(), MAX_CONTENT_LENGTH=12*1024*1024,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict',SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE','false').lower()=='true',PERMANENT_SESSION_LIFETIME=timedelta(days=30))
 CATEGORIES=['Uncategorised','Meals','Accommodation','Transport','Vehicle expenses','Bank fees','Phone & internet','Equipment','Uniform','Training','Insurance','Subscriptions','Other']
+app.config.update(API_USER_LIMIT=max(1, int(os.environ.get('API_USER_LIMIT', '1200'))),
+                  API_ANONYMOUS_LIMIT=max(1, int(os.environ.get('API_ANONYMOUS_LIMIT', '240'))))
 
 def db():
     if 'db' not in g:
@@ -81,11 +83,15 @@ def guard():
         if not g.user or not g.user['active'] or g.user['role'] not in ('owner','tax_agent') or g.user['version']!=session.get('version') or not security.session_valid(): session.clear(); g.user=None
     if g.user and g.user['must_change_password'] and g.user['invite_expires']<=datetime.now().timestamp():
         session.clear(); g.user=None
+    import request_limits, request_security
+    limited = request_limits.check()
+    if limited is not None: return limited
+    request_security.validate(request, fail)
     if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
         fail('Change your temporary password before accessing the workspace.',403)
     adviser.guard()
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/release-notes','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/workflows/questions') and not (request.endpoint=='adviser_questions'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/release-notes','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/security/email/send','/api/security/email/confirm','/api/workflows/questions') and not (request.endpoint=='adviser_questions'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -139,8 +145,8 @@ def current():
         bootstrap['user'] = {key: g.user[key] for key in ('id', 'must_change_password')}
         return jsonify(bootstrap)
     if g.user and g.user['role']=='tax_agent':
-        return jsonify(user=g.user,csrf=session['csrf'],setup=False,version=VERSION,timezone=workspace_time.name(),api_version=1,minimum_client_api=1,capabilities={'tax_workspace':True,'account_deletion':True},features={},categories=sorted(CATEGORIES,key=str.casefold),business_name='Tax preparation',mfa_required=False)
-    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),category_labels=category_labels.labels() if g.user else {},categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),workspace_name=workspace_time.display_name() if g.user else '',business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'review_workflows':True,'receipt_items':True,'signin_alerts':True,'documents':True,'home_office':True,'wfh_schedule_sync':True,'mileage_defaults':True,'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
+        return jsonify(user=g.user,csrf=session['csrf'],setup=False,version=VERSION,timezone=workspace_time.name(),api_version=1,minimum_client_api=1,capabilities={'email_verification':True,'tax_workspace':True,'account_deletion':True},features={},categories=sorted(CATEGORIES,key=str.casefold),business_name='Tax preparation',mfa_required=False)
+    return jsonify(user=g.user,device_session=bool(g.user and session.get('device_name')),csrf=session['csrf'],setup=not bool(one('SELECT id FROM users LIMIT 1')),setup_token_required=bool(os.environ.get('SETUP_TOKEN','')),category_labels=category_labels.labels() if g.user else {},categories=category_names() if g.user else sorted(CATEGORIES,key=str.casefold),ai_configured=ai_providers.configured(),ai_mode=ai_providers.config()['mode'],ai_label=ai_providers.MODES[ai_providers.config()['mode']],api_version=1,minimum_client_api=1,instance_id=public_release.instance_id(),timezone=workspace_time.name(),workspace_name=workspace_time.display_name() if g.user else '',business_name=billing_business()['name'] if g.user else '',version=VERSION,capabilities={'email_verification':True,'review_workflows':True,'receipt_items':True,'signin_alerts':True,'documents':True,'home_office':True,'wfh_schedule_sync':True,'mileage_defaults':True,'invoice_request_keys':True,'overnight_comparison':True,'journey_routes':True,'journey_upload_receipts':True,'expense_upload_receipts':True,'receipt_upload_receipts':True,'public_setup':True,'account_deletion':True,'workspace_timezone':True,'journey_places':True,'persistent_device_sessions':True,'notification_events':True,'notification_push':notifications.configured()},features=features.preferences(),mfa_required=bool(session.get('mfa_uid') and session.get('mfa_until',0)>datetime.now().timestamp()))
 @app.post('/api/setup')
 def setup():
     d=request.get_json(); token=os.environ.get('SETUP_TOKEN','')
@@ -148,8 +154,12 @@ def setup():
     if one('SELECT id FROM users LIMIT 1'): fail('Setup already complete.',409)
     if token and (len(token)<24 or not secrets.compare_digest(textval(d.get('token')).encode(),token.encode())):
         fail('Invalid setup token. Use the token from your Docker configuration or .env file. Configured tokens must contain at least 24 characters.',403)
-    name=textval(d.get('name'),100);email=textval(d.get('email'),200).lower()
-    if not name or '@' not in email: fail('Name and email are required.')
+    name=textval(d.get('name'),100)
+    from billing import email as validate_email
+    try: email=validate_email(d.get('email'), True).lower()
+    except ValueError as exc: fail(str(exc))
+    if len(email)>200: fail('Email must be at most 200 characters.')
+    if not name or any(ord(c)<32 for c in name): fail('Name is required.')
     from billing import settings, save_settings
     selected_timezone = workspace_time.validate(d.get('timezone', workspace_time.DEFAULT))
     save_settings('workspace', {'timezone': selected_timezone})
@@ -415,3 +425,5 @@ billable_expenses.register(app, auth)
 handover_review.register(app, auth)
 recurring_expenses.register(app, auth)
 merchant_directory.register(app, auth)
+import email_verification
+email_verification.register(app, auth)

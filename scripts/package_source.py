@@ -11,15 +11,17 @@ ROOT_FILES = {'Dockerfile', '.dockerignore', '.env.example', 'LICENSE', 'COPYRIG
               'SECURITY.md', 'prepare.sh', 'backup.sh', 'compose.yaml',
               'compose.public.yaml', 'compose.registry.yaml', 'ca_profile.xml'}
 DIRECTORIES = {'server', 'scripts', 'tests', 'docs', 'deploy', '.github'}
-PRIVATE_PARTS = {'.git', '.env', '__pycache__', 'data', 'uploads', 'receipts', 'backups', 'node_modules'}
-PRIVATE_SUFFIXES = {'.pyc', '.db', '.sqlite', '.sqlite3', '.pem', '.key', '.log', '.zip'}
+PRIVATE_PARTS = {'.git', '.env', '__pycache__', 'data', 'uploads', 'receipts', 'backups', 'node_modules', 'credentials', 'exports', '.venv', '.aws'}
+PRIVATE_SUFFIXES = {'.pyc', '.db', '.sqlite', '.sqlite3', '.pem', '.key', '.log', '.zip', '.p8', '.p12', '.pfx'}
 
 
 def source_files(root):
     for path in sorted(root.rglob('*')):
         relative = path.relative_to(root)
         if any(part in PRIVATE_PARTS or part.startswith('.env.') and part != '.env.example'
-               for part in relative.parts) or path.suffix.lower() in PRIVATE_SUFFIXES:
+               for part in relative.parts) or path.suffix.lower() in PRIVATE_SUFFIXES or any(
+                part.lower().endswith(('.sqlite-wal', '.sqlite-shm', '.sqlite3-wal', '.sqlite3-shm', '.tar.gz'))
+                for part in relative.parts):
             continue
         if len(relative.parts) == 1:
             allowed = relative.name in ROOT_FILES
