@@ -58,7 +58,7 @@ def plan(data):
             if 'split_local' in data:
                 if cut_value is not None: fail('Provide a local split time or a timestamp, not both.')
                 import workspace_time
-                cut_value = workspace_time.local_timestamp(data['split_local'], data.get('occurrence'))
+                cut_value = int(workspace_time.local_timestamp(data['split_local'], data.get('occurrence')))
             cut=integer(cut_value,'split time',int(original['started_at'])+1,int(original['ended_at'])-1)
             parts[0]['ended_at']=parts[1]['started_at']=cut
             from datetime import datetime
