@@ -83,15 +83,17 @@ def guard():
         if not g.user or not g.user['active'] or g.user['role'] not in ('owner','tax_agent') or g.user['version']!=session.get('version') or not security.session_valid(): session.clear(); g.user=None
     if g.user and g.user['must_change_password'] and g.user['invite_expires']<=datetime.now().timestamp():
         session.clear(); g.user=None
-    import request_limits, request_security
+    import request_limits, request_security, intrusion_monitor
+    intrusion = intrusion_monitor.check()
+    if intrusion is not None: return intrusion
     limited = request_limits.check()
     if limited is not None: return limited
     request_security.validate(request, fail)
-    if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password'):
+    if g.user and g.user['must_change_password'] and request.path.startswith('/api/') and request.path not in ('/api/session','/api/logout','/api/password','/api/password-reset/request','/api/password-reset/confirm'):
         fail('Change your temporary password before accessing the workspace.',403)
     adviser.guard()
     if request.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
-        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/release-notes','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/security/email/send','/api/security/email/confirm','/api/workflows/questions') and not (request.endpoint=='adviser_questions'):
+        if g.user and g.user['role']=='tax_agent' and g.user['permission']!='read_write' and request.path not in ('/api/logout','/api/password','/api/security/2fa/setup','/api/security/2fa/confirm','/api/security/2fa/disable','/api/features','/api/account','/api/notifications/device','/api/release-notes','/api/security/device-session','/api/security/devices','/api/security/sessions','/api/security/signins','/api/security/email/send','/api/security/email/confirm','/api/password-reset/request','/api/password-reset/confirm','/api/workflows/questions') and not (request.endpoint=='adviser_questions'):
             fail('Read-only access.',403)
         if not secrets.compare_digest(request.headers.get('X-CSRF-Token',''),session.get('csrf','!')): fail('Reload the page and try again.',403)
 def auth(*roles):
@@ -253,7 +255,7 @@ def expenses():
         return jsonify(rows(f'''SELECT e.*,(SELECT id FROM equipment_assets eq WHERE eq.expense_id=e.id) AS equipment_id,
             EXISTS(SELECT 1 FROM home_office_costs h WHERE h.expense_id=e.id AND h.kind!='') AS home_office_bill,
             u.name AS owner,t.location,COALESCE(m.name,e.merchant) AS merchant_display,
-            vf.volume_ml AS fuel_volume_ml,vf.odometer_m AS fuel_odometer_m,vf.full_tank AS fuel_full_tank,
+            vf.volume_ml AS fuel_volume_ml,vf.odometer_m AS fuel_odometer_m,vf.full_tank AS fuel_full_tank,vf.odometer_source AS fuel_odometer_source,
             json_extract(rd.extraction, '$.fuel_litres') AS fuel_receipt_litres,
             json_extract(rd.extraction, '$.fuel_time') AS fuel_receipt_time
             FROM expenses e JOIN users u ON u.id=e.user_id LEFT JOIN trips t ON t.id=e.trip_id
@@ -427,3 +429,6 @@ recurring_expenses.register(app, auth)
 merchant_directory.register(app, auth)
 import email_verification
 email_verification.register(app, auth)
+import password_recovery, intrusion_monitor
+password_recovery.register(app, auth)
+intrusion_monitor.register(app, auth)

@@ -27,6 +27,12 @@ def fake_delivery(recipient,subject,message,*args,**kwargs):
         client_emails.append(dict(recipient=recipient,subject=subject,copy_self=kwargs.get('copy_self')))
     return 'sent',''
 billing.deliver=fake_delivery
+# Keep captured recovery SMTP deterministic in this disposable test server.
+import password_recovery
+def recovery_delivery(*args):
+    password_recovery.deliver(*args)
+    return True
+password_recovery.enqueue=recovery_delivery
 with app.app_context():
     billing.save_settings('email',{**billing.DEFAULT_MAIL,'host':'smtp.example.test','from_email':'owner@example.test'})
     billing.save_settings('access',{'login_url':'http://127.0.0.1:8788'})

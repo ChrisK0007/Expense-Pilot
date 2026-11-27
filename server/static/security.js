@@ -18,6 +18,7 @@ const Security=(()=>{
   bind('#enable-2fa',setup);bind('#disable-2fa',disable);
   await mailbox(data.enabled);
   await Workflows.security();
+  await Recovery.intrusion();
   if(owner()){
    const config=await api('security/invitations');if(page!=='settings')return;
    $('#invitation-settings').innerHTML=`<h3>Invitation login address</h3><p>Invited tax agents receive an email with an automatically generated password. They must replace it on their first sign-in.</p><form id="invitation-config">${field('Expense Pilot login address','login_url','url',config.login_url,'required placeholder="https://expenses.example.com"')}<p class="footnote">Use the address your invited people can reach. ${config.smtp_configured?'Email delivery is configured.':'Configure email delivery under Business & email before inviting people.'}</p><button type="submit">Save invitation settings</button></form>`;

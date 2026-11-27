@@ -3,7 +3,7 @@
 | Channel | Git branch | Docker image | Current version |
 | --- | --- | --- | --- |
 | Stable | `main` | `ghcr.io/chrisk0007/expense-pilot:latest` | `1.0.6` |
-| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.12` |
+| Development beta | `beta` | `ghcr.io/chrisk0007/expense-pilot:beta` | `1.0.7-beta.13` |
 
 The Docker server and web interface are released independently of the optional iPhone app, which remains in testing. See the [stable changelog](CHANGELOG.md) for shipped changes and [GitHub Releases](https://github.com/ChrisK0007/Expense-Pilot/releases) for stable release downloads.
 
@@ -24,6 +24,8 @@ Never mount the same data directory into two running installations. Do not point
 ## Updates and rollback
 
 Back up each instance before upgrading. Startup runs numbered migrations; existing records and receipt paths are retained. An older image refuses a database containing newer migrations. Rollback therefore means restoring the matching older backup and image together, not only changing the image tag. Keep the current data volume intact until recovery is verified.
+
+Beta 1.0.7-beta.13 adds m039–m041 for password recovery, passive intrusion events and fuel odometer provenance. Existing fuel readings remain unknown, and existing sessions survive upgrade. Recovery requires a verified mailbox and configured SMTP; see [configuration and limitations](beta13-recovery-protection.md).
 
 Beta 1.0.7-beta.12 adds m038 for request quotas and email-verification proof. Existing accounts and sessions are preserved; existing email addresses are not automatically marked verified.
 

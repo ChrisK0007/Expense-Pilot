@@ -4,6 +4,13 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.13 — Recovery, passive protection and fuel provenance (2026-11-27)
+
+- Recover through a verified SMTP mailbox with short-lived single-use links, normal password validation and existing MFA. Owners can initiate tax-agent recovery after reauthentication; successful recovery revokes sessions without changing roles or MFA. Terminal recovery remains available.
+- Review passive decoy events in owner Security settings. Monitoring is the default; optional temporary source blocking includes authentication exemptions and owner unblock controls.
+- Preserve estimated, confirmed-dashboard and unknown fuel readings through save/reopen, reports and CSV. Historical readings remain unknown; only explicitly confirmed readings contribute to fuel economy.
+- Add migrations m039–m041. See [requirements and limitations](beta13-recovery-protection.md). No FY26–27 tax forecast changes or iOS release.
+
 ## 1.0.7-beta.12 — Account protection and Australian dates (2026-11-17)
 
 - Enter odometer and drive-split dates as DD/MM/YYYY, with separate time inputs and the calendar retained. Drive splits use the workspace timezone and require an explicit choice for repeated DST times. Active sessions and recent sign-ins use Australian date formatting in the workspace timezone.

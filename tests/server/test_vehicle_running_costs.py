@@ -59,9 +59,9 @@ class VehicleRunningCostsTest(unittest.TestCase):
                     fuel_time=response.json['fuel_time'])
         draft = self.call(self.owner, f'receipts/{rid}/draft', data, 'PUT')
         self.assertEqual(draft.status_code, 200, draft.json)
-        self.assertEqual(draft.json['draft']['fuel_details'], dict(litres=40.625, odometer_km=None, full_tank=None))
+        self.assertEqual(draft.json['draft']['fuel_details'], dict(litres=40.625, odometer_km=None, full_tank=None, odometer_source="unknown"))
         self.assertEqual(self.owner.get('/api/expenses').json, [])
-        data['fuel_details'].update(odometer_km=estimate(data['fuel_time'])['estimate_m'] / 1000, full_tank=False)
+        data['fuel_details'].update(odometer_km=estimate(data['fuel_time'])['estimate_m'] / 1000, full_tank=False, odometer_source='estimated')
         saved = self.call(self.owner, f'receipts/{rid}/expense', data)
         self.assertEqual(saved.status_code, 200, saved.json)
         expense = self.owner.get('/api/expenses').json[0]
@@ -85,7 +85,7 @@ class VehicleRunningCostsTest(unittest.TestCase):
 
         def fill(days, amount, volume, reading, full):
             return cost(days, amount, 'Test fill-up',
-                        fuel_details=dict(litres=volume, odometer_km=reading, full_tank=full))
+                        fuel_details=dict(litres=volume, odometer_km=reading, full_tank=full, odometer_source="dashboard"))
 
         fill(5, '50', '30', '1000', True)
         partial = fill(3, '30', '15', '1200', False)
@@ -121,7 +121,7 @@ class VehicleRunningCostsTest(unittest.TestCase):
 
         invalid = dict(date=(today - timedelta(days=2)).isoformat(), merchant='Invalid fill-up',
                        scope='personal', category='Vehicle expenses', vehicle_id=vid, amount='10',
-                       fuel_details=dict(litres='5', odometer_km='900', full_tank=False))
+                       fuel_details=dict(litres='5', odometer_km='900', full_tank=False, odometer_source='dashboard'))
         self.assertEqual(self.call(self.owner, 'expenses', invalid).status_code, 400)
         self.assertEqual(len(self.owner.get('/api/expenses').json), 7)
         self.assertEqual(self.call(self.owner, f'expenses/{partial}', {}, 'DELETE').status_code, 200)

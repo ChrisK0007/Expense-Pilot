@@ -56,6 +56,7 @@ const Tracking=(()=>{
   const saved=expense.fuel_details||{};
   const savedLitres=expense.fuel_volume_ml==null?saved.litres:expense.fuel_volume_ml/1000;
   const reading=expense.fuel_odometer_m==null?saved.odometer_km:expense.fuel_odometer_m/1000;
+  const source=expense.fuel_odometer_source??saved.odometer_source??'unknown';
   const tank=expense.fuel_full_tank??saved.full_tank;
   const active=expense.fuel_details!==null&&(expense.fuel_volume_ml!=null||expense.new_fuel||expense.fuel_details||
    (markFromReceipt&&expense.fuel_receipt_litres!=null));
@@ -65,7 +66,8 @@ const Tracking=(()=>{
    <div class="grid2" id="fuel-measurements">
     ${field('Litres','fuel_litres','number',savedLitres??expense.fuel_receipt_litres??'','min="0.001" max="1000" step="0.001" required')}
     ${field('Fill-up time (optional)','fuel_time','time',expense.fuel_time??expense.fuel_receipt_time??'','aria-describedby="fuel-time-zone"')}
-    ${field('Odometer (km)','fuel_km','number',reading??'','min="0" max="10000000" step="0.001" required aria-describedby="fuel-estimate"')}
+    ${field('Odometer (km)','fuel_km','number',reading??'','min="0" max="10000000" step="0.001" aria-describedby="fuel-estimate"')}
+    ${select('Odometer source','fuel_source',[['unknown','Unknown / not confirmed'],['estimated','Estimated from synced drives'],['dashboard','Confirmed dashboard reading']],source)}
     ${select('Tank after fill-up','fuel_tank',[['','Select full or partial'],['full','Full'],['partial','Partial']],tank==null?'':tank?'full':'partial')}
     <p id="fuel-time-zone" class="footnote span2">Use ${esc(WorkspaceTime.zone())} time for the odometer estimate.</p>
     <p id="fuel-estimate" class="footnote span2" role="status"></p>
@@ -74,7 +76,7 @@ const Tracking=(()=>{
   </fieldset>`;
  }
  function bindFuelFields(form,{prefix='',allowed=true}={}){
-  const {is_fuel:fillUp,fuel_litres:litres,fuel_time:clock,fuel_km:reading,fuel_tank:tank}=form.elements;
+  const {is_fuel:fillUp,fuel_litres:litres,fuel_time:clock,fuel_km:reading,fuel_tank:tank,fuel_source:source}=form.elements;
   const vehicle=form.elements[prefix+'vehicle_id'], date=form.elements[prefix+'date'], category=form.elements[prefix+'category'];
   const details=form.querySelector('#fuel-details'), measurements=form.querySelector('#fuel-measurements');
   const hint=form.querySelector('#fuel-estimate');
@@ -82,11 +84,12 @@ const Tracking=(()=>{
   const active=()=>available()&&fillUp.checked;
   tank.required=true;
   let revision=0, estimated=false, fuelChoiceChanged=false;
+  const sourceHint=()=>{reading.required=source.value!=='unknown';hint.textContent=source.value==='estimated'?'Estimated from synced drives. This is not a confirmed dashboard reading.':source.value==='dashboard'?'Confirmed dashboard reading.':'Reading source is unknown. Confirm against the dashboard when available; estimates are never promoted automatically.';};
   const clearEstimate=()=>{
    revision++;
-   if(estimated)reading.value='';
+   if(estimated){reading.value='';source.value='unknown';}
    estimated=false;
-   hint.textContent='';
+   sourceHint();
   };
   const suggest=async()=>{
    clearEstimate();
@@ -102,7 +105,7 @@ const Tracking=(()=>{
     if(result.estimate_m!=null){
      reading.value=result.estimate_m/1000;
      estimated=true;
-     hint.textContent='Estimated from synced drives. Check against the dashboard if available.';
+     source.value='estimated';sourceHint();
     }else{
      hint.textContent={
       time_needed:'Enter the fill-up time to estimate the odometer for this date.',
@@ -121,17 +124,18 @@ const Tracking=(()=>{
    for(const element of measurements.querySelectorAll('input, select'))element.disabled=!active();
    suggest();
   };
-  vehicle.addEventListener('change',()=>{reading.value='';fuelChoiceChanged ||= fillUp.checked;update();});
+  vehicle.addEventListener('change',()=>{reading.value='';source.value='unknown';fuelChoiceChanged ||= fillUp.checked;update();});
   fillUp.addEventListener('change',()=>{fuelChoiceChanged=true;update();});
   category.addEventListener('change',update);
-  date.addEventListener('input',clearEstimate);
+  date.addEventListener('input',()=>{if(source.value==='estimated')estimated=true;clearEstimate();});
   date.addEventListener('change',suggest);
-  clock.addEventListener('input',suggest);
+  clock.addEventListener('input',()=>{if(source.value==='estimated')estimated=true;suggest();});
   reading.addEventListener('input',()=>{
    revision++;
    estimated=false;
-   hint.textContent='';
+   source.value='unknown';sourceHint();
   });
+  source.addEventListener('change',()=>{revision++;estimated=false;sourceHint();});
   update();
   return {
    applyReceipt(receipt){
@@ -145,7 +149,7 @@ const Tracking=(()=>{
    values(draft=false){
     if(!active())return draft&&fuelChoiceChanged?{fuel_details:null,fuel_time:null}:{};
     return {
-     fuel_details:{litres:litres.value,odometer_km:draft&&estimated?'':reading.value,full_tank:tank.value?tank.value==='full':null},
+     fuel_details:{litres:litres.value,odometer_km:reading.value,odometer_source:source.value,full_tank:tank.value?tank.value==='full':null},
      fuel_time:clock.value||null,
     };
    },
@@ -154,7 +158,7 @@ const Tracking=(()=>{
  function saveFuelFields(data,fields,expense){
   const {fuel_details}=fields.values();
   if(fuel_details||expense.fuel_volume_ml!=null)data.fuel_details=fuel_details??null;
-  for(const key of ['is_fuel','fuel_litres','fuel_time','fuel_km','fuel_tank'])delete data[key];
+  for(const key of ['is_fuel','fuel_litres','fuel_time','fuel_km','fuel_tank','fuel_source'])delete data[key];
  }
  async function showRunningCosts(vid,range={},showExpenses=false){
   const vehicle=V.find(item=>item.id===vid);
@@ -171,7 +175,7 @@ const Tracking=(()=>{
    : 'Add two odometer readings in this period.';
   const fuelRows=result.fuel.map(item=>`<tr>
    <td><button class="ghost running-expense" data-id="${item.id}">${esc(item.merchant)}</button><br><small>${esc(dateAU(item.date))}</small></td>
-   <td>${item.odometer_m==null?'—':km(item.odometer_m)+' km'}</td>
+   <td>${item.odometer_m==null?'—':km(item.odometer_m)+' km'}<br><small>${esc({dashboard:'Confirmed dashboard',estimated:'Estimated',unknown:'Unknown / not confirmed'}[item.odometer_source]||'Unknown / not confirmed')}</small></td>
    <td>${item.volume_ml==null?'—':units.format(item.volume_ml/1000)}</td>
    <td>${item.price_per_litre==null?'—':'$'+item.price_per_litre.toFixed(3)}</td>
    <td>${money(item.amount_cents)}${item.reimbursed?'<br><small>Reimbursed</small>':''}</td>
