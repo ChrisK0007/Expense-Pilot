@@ -80,7 +80,7 @@ def register(app, auth):
 
     @app.route('/api/security/intrusion', methods=['GET', 'PUT'])
     @auth('owner')
-    def settings():
+    def intrusion_settings():
         if request.method == 'PUT':
             data = request.get_json()
             value = data.get('mode')
@@ -102,7 +102,7 @@ def register(app, auth):
 
     @app.post('/api/security/intrusion/unblock')
     @auth('owner')
-    def unblock():
+    def intrusion_unblock():
         data = request.get_json()
         key = data.get('source_key')
         if not isinstance(key, str) or len(key) != 64 or any(c not in '0123456789abcdef' for c in key):
