@@ -9,7 +9,7 @@ from expense_core import allocations
 
 SELF_ENDPOINTS={'security.security_status','current','logout','password','delete_account','release_notes','security.setup_totp','security.confirm_totp',
  'security.disable_totp','security.remember_device','security.devices','signin_alerts_sessions','signin_alerts_signins',
- 'email_verification_status','email_verification_send','email_verification_confirm'}
+ 'email_verification_status','email_verification_send','email_verification_confirm','request_reset','confirm_reset'}
 
 
 def guard():

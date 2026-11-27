@@ -1,6 +1,6 @@
 # Security controls and deployment requirements
 
-This describes 1.0.7-beta.12. These controls reduce risk; they do not guarantee that software or a deployment is vulnerability-free.
+This describes 1.0.7-beta.13. These controls reduce risk; they do not guarantee that software or a deployment is vulnerability-free. See [password recovery and passive intrusion protection](beta13-recovery-protection.md) for mailbox, SMTP, proxy and temporary-blocking requirements and limitations.
 
 ## Accounts and mailbox proof
 

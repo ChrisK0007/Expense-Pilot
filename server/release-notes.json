@@ -1,4 +1,9 @@
 {
+  "1.0.7-beta.13": [
+    "Recover your password through a verified mailbox. Two-factor authentication remains required, and successful recovery revokes existing sessions. Owners can initiate a tax-agent reset after reauthentication.",
+    "Review passive intrusion events in Settings → Security. Monitoring is the default; temporary source blocking is optional.",
+    "Keep fuel odometer readings labelled estimated, confirmed dashboard or unknown through editing, reports and CSV. Existing readings remain unknown until explicitly confirmed. Adds migrations m039–m041."
+  ],
   "1.0.7-beta.12": [
     "Enter odometer and drive-split dates as DD/MM/YYYY with a separate time field and the existing calendar. Sign-in times use your workspace timezone.",
     "Verify ownership of your account email in Settings → Security. Existing sessions and account recovery remain available.",

@@ -10,6 +10,13 @@ import workspace_time
 EXCLUDED_KINDS = ('purchase', 'parking_tolls')
 
 
+def reading_source(details):
+    source = details.get('odometer_source', 'unknown')
+    if source not in ('unknown', 'estimated', 'dashboard'):
+        tracking.fail('Choose the odometer reading source.')
+    return source
+
+
 def measurement(value, maximum, label):
     try:
         scaled = Decimal(str(value)) * 1000
@@ -29,6 +36,7 @@ def clean_fuel_draft(details):
     return dict(
         litres=measurement(litres, 1000000, 'fuel volume') / 1000 if litres not in ('', None) else None,
         odometer_km=measurement(odometer, 10000000000, 'odometer reading') / 1000 if odometer not in ('', None) else None,
+        odometer_source=reading_source(details),
         full_tank=details.get('full_tank'),
     )
 
@@ -49,7 +57,7 @@ def save_fuel(connection, eid, payload, previous=None):
         elif previous and expense['date'] != previous['date']:
             saved = connection.execute('SELECT * FROM vehicle_fuel WHERE expense_id=?', (eid,)).fetchone()
             if saved:
-                check_reading(connection, eid, expense, saved['odometer_m'])
+                check_reading(connection, eid, expense, saved['odometer_m'], saved['odometer_source'])
         return
     details = payload['fuel_details']
     if details is None:
@@ -60,23 +68,33 @@ def save_fuel(connection, eid, payload, previous=None):
     if not linked:
         tracking.fail('Fuel details require a positive expense linked to a vehicle.')
     volume = measurement(details.get('litres'), 1000000, 'fuel volume')
-    odometer = measurement(details.get('odometer_km'), 10000000000, 'odometer reading')
+    value = details.get('odometer_km')
+    odometer = measurement(value, 10000000000, 'odometer reading') if value not in ('', None) else None
+    source = reading_source(details)
+    if 'odometer_source' not in details:
+        saved = connection.execute('SELECT * FROM vehicle_fuel WHERE expense_id=?', (eid,)).fetchone()
+        if saved and saved['odometer_m'] == odometer:
+            source = saved['odometer_source']
+    if source != 'unknown' and odometer is None:
+        tracking.fail('Enter an odometer value for this reading source.')
     if not volume:
         tracking.fail('Enter a fuel volume greater than zero.')
-    check_reading(connection, eid, expense, odometer)
+    check_reading(connection, eid, expense, odometer, source)
     connection.execute("""
-        INSERT INTO vehicle_fuel(expense_id,volume_ml,odometer_m,full_tank) VALUES (?,?,?,?)
+        INSERT INTO vehicle_fuel(expense_id,volume_ml,odometer_m,full_tank,odometer_source) VALUES (?,?,?,?,?)
         ON CONFLICT(expense_id) DO UPDATE SET
-            volume_ml=excluded.volume_ml,odometer_m=excluded.odometer_m,full_tank=excluded.full_tank
-    """, (eid, volume, odometer, int(details['full_tank'])))
+            volume_ml=excluded.volume_ml,odometer_m=excluded.odometer_m,full_tank=excluded.full_tank,odometer_source=excluded.odometer_source
+    """, (eid, volume, odometer, int(details['full_tank']), source))
 
 
-def check_reading(connection, eid, expense, odometer):
+def check_reading(connection, eid, expense, odometer, source):
     if expense['date'] > workspace_time.today().isoformat():
         tracking.fail('A fill-up cannot be in the future.')
+    if source != 'dashboard' or odometer is None:
+        return
     inconsistent = connection.execute("""
         SELECT 1 FROM vehicle_fuel f JOIN expenses e ON f.expense_id=e.id
-        WHERE e.vehicle_id=? AND e.id<>? AND
+        WHERE e.vehicle_id=? AND e.id<>? AND f.odometer_source='dashboard' AND
         ((e.date<? AND f.odometer_m>?) OR (e.date>? AND f.odometer_m<?))
     """, (expense['vehicle_id'], eid, expense['date'], odometer, expense['date'], odometer)).fetchone()
     if inconsistent:
@@ -87,7 +105,7 @@ def fuel_economy(fuel, start, end):
     anchor = None
     volume = metres = pending_ml = 0
     for row in fuel:
-        if row['volume_ml'] is None:
+        if row['volume_ml'] is None or row.get('odometer_source') != 'dashboard' or row['odometer_m'] is None:
             # A known fuel expense without a volume makes this interval incomplete.
             anchor = None
             pending_ml = 0
@@ -106,7 +124,7 @@ def report(vid, start, end):
     costs = tracking.rows("""
         SELECT e.id,e.date,e.merchant,e.amount_cents,e.receipt_id,e.reimbursed,
             CASE WHEN f.expense_id IS NOT NULL THEN 'fuel' ELSE COALESCE(c.kind,'running') END AS kind,
-            f.volume_ml,f.odometer_m,f.full_tank
+            f.volume_ml,f.odometer_m,f.full_tank,f.odometer_source
         FROM expenses e LEFT JOIN vehicle_fuel f ON f.expense_id=e.id
         LEFT JOIN vehicle_cost_details c ON c.expense_id=e.id
         WHERE e.vehicle_id=? AND e.date BETWEEN ? AND ?
@@ -123,7 +141,7 @@ def report(vid, start, end):
     for row in included:
         amounts[row['kind']] = amounts.get(row['kind'], 0) + row['amount_cents']
 
-    readings = [(row['date'], row['odometer_m']) for row in fuel if row['odometer_m'] is not None]
+    readings = [(row['date'], row['odometer_m']) for row in fuel if row['odometer_m'] is not None and row['odometer_source'] == 'dashboard']
     zone = workspace_time.zone()
     for record in tracking.rows('SELECT recorded_at,reading_m FROM vehicle_odometer WHERE vehicle_id=?', (vid,)):
         day = datetime.fromtimestamp(record['recorded_at'], zone).date().isoformat()
@@ -172,7 +190,7 @@ def running_costs_csv(vid):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['Date', 'Merchant', 'Type', 'Amount AUD', 'Reimbursed', 'Included in running costs',
-                     'Litres', 'Odometer km', 'AUD per litre', 'Full tank', 'Expense ID'])
+                     'Litres', 'Odometer km', 'AUD per litre', 'Full tank', 'Expense ID', 'Odometer source'])
     for row in result['costs']:
         item = fuel.get(row['id'], {})
         merchant = row['merchant']
@@ -187,6 +205,7 @@ def running_costs_csv(vid):
             item.get('price_per_litre'),
             ('Yes' if item['full_tank'] else 'No') if item.get('full_tank') is not None else '',
             row['id'],
+            item.get('odometer_source', ''),
         ])
     return send_file(io.BytesIO(output.getvalue().encode('utf-8-sig')), mimetype='text/csv',
                      as_attachment=True, download_name=f"vehicle-running-costs-{result['start']}-{result['end']}.csv")
