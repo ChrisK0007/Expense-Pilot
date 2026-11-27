@@ -60,7 +60,7 @@ const Tracking=(()=>{
   const tank=expense.fuel_full_tank??saved.full_tank;
   const active=expense.fuel_details!==null&&(expense.fuel_volume_ml!=null||expense.new_fuel||expense.fuel_details||
    (markFromReceipt&&expense.fuel_receipt_litres!=null));
-  return `<fieldset id="fuel-details" class="allocation-fields span2">
+  return `<fieldset id="fuel-details" class="allocation-fields span2" data-preserve-reading="${expense.fuel_volume_ml!=null||!!expense.fuel_details}">
    <legend>Fuel details</legend>
    <label class="check"><input type="checkbox" name="is_fuel" ${active?'checked':''}> Record as a fuel fill-up</label>
    <div class="grid2" id="fuel-measurements">
@@ -83,7 +83,7 @@ const Tracking=(()=>{
   const available=()=>allowed&&!!vehicle.value&&category.value!=='Meals';
   const active=()=>available()&&fillUp.checked;
   tank.required=true;
-  let revision=0, estimated=false, fuelChoiceChanged=false;
+  let revision=0, estimated=false, fuelChoiceChanged=false, preserveInitial=details.dataset.preserveReading==='true';
   const sourceHint=()=>{reading.required=source.value!=='unknown';hint.textContent=source.value==='estimated'?'Estimated from synced drives. This is not a confirmed dashboard reading.':source.value==='dashboard'?'Confirmed dashboard reading.':'Reading source is unknown. Confirm against the dashboard when available; estimates are never promoted automatically.';};
   const clearEstimate=()=>{
    revision++;
@@ -122,7 +122,7 @@ const Tracking=(()=>{
    fillUp.disabled=!available();
    measurements.hidden=!active();
    for(const element of measurements.querySelectorAll('input, select'))element.disabled=!active();
-   suggest();
+   if(preserveInitial){preserveInitial=false;sourceHint();}else suggest();
   };
   vehicle.addEventListener('change',()=>{reading.value='';source.value='unknown';fuelChoiceChanged ||= fillUp.checked;update();});
   fillUp.addEventListener('change',()=>{fuelChoiceChanged=true;update();});
