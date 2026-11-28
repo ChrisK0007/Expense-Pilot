@@ -277,7 +277,7 @@ async function main() {
     await page.getByLabel('Amount paid (AUD)').fill('35');
     await page.getByLabel('Meal type',{exact:true}).selectOption('Dinner');
     await page.getByRole('button',{name:'Save expense',exact:true}).click();
-    await page.getByText('1 meal records',{exact:true}).waitFor();
+    await page.getByText('1 cost records',{exact:true}).waitFor();
     await page.screenshot({path:output+'/trips-meals.png',fullPage:true});
     await page.getByRole('button',{name:'Spending & allowances',exact:true}).click();
     await page.getByLabel('Annual salary excluding allowances (AUD)').fill('100000');
