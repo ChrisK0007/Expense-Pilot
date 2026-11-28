@@ -4,6 +4,7 @@ const url=process.env.APP_URL||'http://127.0.0.1:8792',out=process.env.UI_OUTPUT
  const browser=await engine.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const post=async(path,data,method='POST')=>{const s=await(await context.request.get(url+'/api/session')).json(),r=await context.request.fetch(url+'/api/'+path,{method,data,headers:{'X-CSRF-Token':s.csrf}});assert.equal(r.status(),200,await r.text());return r.json();};
  try{
+  if(engine===webkit)await context.addInitScript(()=>Object.defineProperty(crypto,'randomUUID',{value:undefined}));
   await post('login',{email:'owner@example.test',password:'Browser-test-password-123'});
   await page.goto(url);await page.locator('nav [data-page=trips]').click();await page.getByRole('heading',{name:'Overnight spending',exact:true}).waitFor();
   for(const [place,scope,foreign] of [['Brisbane','work',false],['Singapore','work',true],['London','business',true]]){
