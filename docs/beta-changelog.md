@@ -4,6 +4,13 @@ Prerelease changes, newest first. Entries describe the version at the time; use 
 
 The beta.1–beta.19 series was promoted to [stable 1.0.6](release-notes/1.0.6.md).
 
+## 1.0.7-beta.14 — Manual overnight costs (unreleased)
+
+- Add **Log actual cost (no receipt)** to domestic and overseas trip cards and spending reviews. Record meals, incidentals, accommodation, transport or other actual costs without an attachment; notes and foreign-currency details are optional.
+- Save actual costs to the existing expense ledger as **To review**, with AUD totals and original-currency/conversion details retained in notes. Retrying the same save uses the existing durable request reference; a matching recorded cost prompts a duplicate warning.
+- Keep allowances, reasonable-amount comparisons and explicit claim review separate. Logging without a receipt does not establish substantiation eligibility. Existing receipt workflows and records remain intact; no migration is required.
+- This candidate is prepared in a PR only; beta.13 remains the published beta until publication is separately authorized.
+
 ## 1.0.7-beta.13 — Recovery, passive protection and fuel provenance (2026-11-27)
 
 - Recover through a verified SMTP mailbox with short-lived single-use links, normal password validation and existing MFA. Owners can initiate tax-agent recovery after reauthentication; successful recovery revokes sessions without changing roles or MFA. Terminal recovery remains available.

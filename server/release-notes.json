@@ -1,4 +1,8 @@
 {
+  "1.0.7-beta.14": [
+    "Log actual domestic or overseas overnight costs without attaching a receipt. Optional foreign-currency and conversion details stay with the expense notes.",
+    "Manual costs start as To review. Allowances, ATO reasonable amounts and tax-claim confirmation remain separate; saving without an attachment does not establish a receipt exemption."
+  ],
   "1.0.7-beta.13": [
     "Recover your password through a verified mailbox. Two-factor authentication remains required, and successful recovery revokes existing sessions. Owners can initiate a tax-agent reset after reauthentication.",
     "Review passive intrusion events in Settings → Security. Monitoring is the default; temporary source blocking is optional.",
