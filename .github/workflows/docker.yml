@@ -30,6 +30,8 @@ jobs:
           node --check server/static/billing-workspace.js
           node --check server/static/recovery.js
           node --check tests/browser/ui_recovery_protection.cjs
+          node --check server/static/overnights.js
+          node --check tests/browser/ui_manual_overnights.cjs
           node --check server/static/refined-settings.js
           node --check server/static/dashboard-periods.js
           node tests/browser/dashboard_periods.cjs
@@ -160,6 +162,7 @@ jobs:
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_home_office.cjs
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_document_inbox.cjs
           APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_australian_dates.cjs
+          APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node tests/browser/ui_manual_overnights.cjs || browser_failures=1
           for browser_suite in tests/browser/ui_workflows.cjs tests/browser/ui_simplified.cjs tests/browser/ui_beta13.cjs tests/browser/ui_beta14.cjs tests/browser/ui_beta15.cjs tests/browser/ui_signatures.cjs tests/browser/ui_email_copy.cjs tests/browser/ui_beta19.cjs tests/browser/ui_design_completion.cjs; do
             APP_URL=http://127.0.0.1:8792 NODE_PATH="$RUNNER_TEMP/expense-pilot-browser/node_modules" node "$browser_suite" || browser_failures=1
           done
